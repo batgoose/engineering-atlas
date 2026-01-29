@@ -1,0 +1,5 @@
+packages:
+  - "apps/*"
+  - "packages/*"
+  # We exclude experiments until we're ready to integrate them
+  - "!experiments/**/*"

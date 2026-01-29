@@ -1,0 +1,340 @@
+[
+  {
+    "id": "demo-cpp-win-prob",
+    "title": "NFL Win Probability Engine (Monte Carlo)",
+    "status": "complete",
+    "complexity": "advanced",
+    "demoType": "code-only",
+    "showcasePriority": 1,
+    "estimatedReadTime": 15,
+    "dateCreated": "2025-02",
+    "lastUpdated": "2025-02",
+    "repoUrl": "experiments/cpp/win-prob-engine",
+    "liveUrl": null,
+    "description": "A high-performance C++ simulation engine. It takes a game state (Score, Time Remaining, Down, Distance) and runs 10,000 simulations to calculate the win probability for the possession team.",
+    "competencies": [
+      { "id": "lang-cpp", "role": "primary" },
+      { "id": "build-cross-platform", "role": "secondary" },
+      { "id": "concept-embedded", "role": "supporting" }
+    ],
+    "tech_stack": ["C++20", "GTest", "CMake"]
+  },
+  {
+    "id": "demo-rust-parser",
+    "title": "nflverse Data Ingestion (Safety Valve)",
+    "status": "in-progress",
+    "complexity": "advanced",
+    "demoType": "code-only",
+    "showcasePriority": 2,
+    "estimatedReadTime": 12,
+    "dateCreated": "2025-03",
+    "lastUpdated": "2025-03",
+    "repoUrl": "apps/service-rust",
+    "liveUrl": null,
+    "description": "A memory-safe CLI tool written in Rust. It downloads massive CSV dumps from nflverse (Play-by-Play data), validates the schema using Serde, and batches inserts into Postgres 10x faster than Python.",
+    "competencies": [
+      { "id": "lang-rust", "role": "primary" },
+      { "id": "db-postgres", "role": "secondary" },
+      { "id": "cloud-devops", "role": "supporting" }
+    ],
+    "tech_stack": ["Rust", "Serde", "Tokio", "Postgres"]
+  },
+  {
+    "id": "demo-python-fantasy",
+    "title": "Fantasy Point Projector",
+    "status": "planned",
+    "complexity": "intermediate",
+    "demoType": "interactive",
+    "showcasePriority": 3,
+    "estimatedReadTime": 8,
+    "dateCreated": "2025-04",
+    "lastUpdated": "2025-04",
+    "repoUrl": "apps/service-ml",
+    "liveUrl": null,
+    "description": "A Python microservice that uses `nfl_data_py` to fetch last week's player stats, calculates rolling averages, and projects fantasy points for the upcoming week using a simple linear regression model.",
+    "competencies": [
+      { "id": "lang-python", "role": "primary" },
+      { "id": "ai-integration", "role": "secondary" },
+      { "id": "framework-django", "role": "supporting" }
+    ],
+    "tech_stack": ["Python", "Pandas", "Scikit-Learn", "FastAPI"]
+  },
+  {
+    "id": "demo-django-api",
+    "title": "The League API (Gateway)",
+    "status": "complete",
+    "complexity": "advanced",
+    "demoType": "code-only",
+    "showcasePriority": 1,
+    "estimatedReadTime": 20,
+    "dateCreated": "2025-01",
+    "lastUpdated": "2025-02",
+    "repoUrl": "apps/api-django",
+    "liveUrl": "https://api.batgoose.com/docs",
+    "description": "The central API Gateway for the platform. Exposes endpoints for `/players`, `/teams`, and `/games`. Demonstrates efficient ORM usage (`select_related`) to handle nested roster data without N+1 query issues.",
+    "competencies": [
+      { "id": "framework-django", "role": "primary" },
+      { "id": "db-postgres", "role": "secondary" },
+      { "id": "spec-graphql", "role": "secondary" },
+      { "id": "lang-python", "role": "supporting" }
+    ],
+    "tech_stack": ["Django REST Framework", "Postgres", "Redis"]
+  },
+  {
+    "id": "demo-sql-warehouse",
+    "title": "Historical Stat Warehouse",
+    "status": "complete",
+    "complexity": "intermediate",
+    "demoType": "code-only",
+    "showcasePriority": 4,
+    "estimatedReadTime": 15,
+    "dateCreated": "2025-01",
+    "lastUpdated": "2025-01",
+    "repoUrl": "packages/db/schema.sql",
+    "liveUrl": null,
+    "description": "A complex SQL schema optimized for analytical queries. Includes partitioning strategies for storing 20+ years of play-by-play data and views for calculating 'Yards After Catch' leaders efficiently.",
+    "competencies": [
+      { "id": "lang-sql", "role": "primary" },
+      { "id": "db-postgres", "role": "secondary" }
+    ],
+    "tech_stack": ["Postgres", "SQL"]
+  },
+  {
+    "id": "demo-go-ticker",
+    "title": "Live Score WebSocket Hub",
+    "status": "planned",
+    "complexity": "intermediate",
+    "demoType": "video",
+    "showcasePriority": 2,
+    "estimatedReadTime": 10,
+    "dateCreated": "2025-05",
+    "lastUpdated": "2025-05",
+    "repoUrl": "apps/service-go",
+    "liveUrl": null,
+    "description": "A high-concurrency Go service that simulates a live game feed. It broadcasts 'Touchdown' events to thousands of connected frontend clients via WebSockets with minimal latency.",
+    "competencies": [
+      { "id": "lang-go", "role": "primary" },
+      { "id": "cloud-devops", "role": "secondary" }
+    ],
+    "tech_stack": ["Go", "Goroutines", "WebSockets"]
+  },
+  {
+    "id": "demo-react-draft",
+    "title": "Live Fantasy Draft Board",
+    "status": "in-progress",
+    "complexity": "intermediate",
+    "demoType": "interactive",
+    "showcasePriority": 2,
+    "estimatedReadTime": 10,
+    "dateCreated": "2025-02",
+    "lastUpdated": "2025-03",
+    "repoUrl": "apps/web-main/components/draft-board",
+    "liveUrl": "https://batgoose.com/draft",
+    "description": "A polymorphic React component that displays a drag-and-drop fantasy draft board. Demonstrates complex state management (Context API) and performance optimization (memoization) when rendering hundreds of player cards.",
+    "competencies": [
+      { "id": "lib-react", "role": "primary" },
+      { "id": "lang-typescript", "role": "secondary" },
+      { "id": "framework-nextjs", "role": "supporting" }
+    ],
+    "tech_stack": ["React", "TypeScript", "Tailwind"]
+  },
+  {
+    "id": "demo-infra-k3s",
+    "title": "The Stadium (Infrastructure)",
+    "status": "complete",
+    "complexity": "advanced",
+    "demoType": "code-only",
+    "showcasePriority": 1,
+    "estimatedReadTime": 25,
+    "dateCreated": "2025-01",
+    "lastUpdated": "2025-01",
+    "repoUrl": "infrastructure/terraform",
+    "liveUrl": null,
+    "description": "The complete Infrastructure-as-Code definition for the platform. Provisions a cost-effective EC2 instance, bootstraps a K3s Kubernetes cluster, and configures Traefik ingress for traffic routing.",
+    "competencies": [
+      { "id": "tool-terraform", "role": "primary" },
+      { "id": "cloud-devops", "role": "primary" },
+      { "id": "os-linux", "role": "secondary" },
+      { "id": "tool-ansible", "role": "supporting" }
+    ],
+    "tech_stack": ["Terraform", "AWS", "K3s", "Helm"]
+  },
+  {
+    "id": "demo-ci-pipeline",
+    "title": "League Ops Pipeline",
+    "status": "complete",
+    "complexity": "intermediate",
+    "demoType": "code-only",
+    "showcasePriority": 3,
+    "estimatedReadTime": 10,
+    "dateCreated": "2025-01",
+    "lastUpdated": "2025-01",
+    "repoUrl": ".github/workflows/ci.yml",
+    "liveUrl": null,
+    "description": "A sophisticated GitHub Actions pipeline that runs linting, unit tests (PyTest, GTest, Cargo Test), builds multi-stage Docker images, and pushes them to the registry on every commit.",
+    "competencies": [
+      { "id": "concept-ci-cd", "role": "primary" },
+      { "id": "cloud-devops", "role": "secondary" },
+      { "id": "tool-git", "role": "supporting" }
+    ],
+    "tech_stack": ["GitHub Actions", "Docker", "Bash"]
+  },
+  {
+    "id": "case-honey-whisker",
+    "title": "Scaling E-Commerce Traffic",
+    "status": "complete",
+    "complexity": "intermediate",
+    "demoType": "case-study",
+    "showcasePriority": 4,
+    "estimatedReadTime": 15,
+    "dateCreated": "2024-06",
+    "lastUpdated": "2024-12",
+    "repoUrl": "apps/docs/content/case-studies/honey-whisker.md",
+    "liveUrl": "https://honeywhisker.com",
+    "description": "A retrospective case study on how I improved organic search traffic for Honey Whisker by 40% using structured data (JSON-LD) and Core Web Vitals optimization.",
+    "competencies": [
+      { "id": "biz-seo", "role": "primary" },
+      { "id": "biz-ecommerce", "role": "secondary" },
+      { "id": "biz-marketing-strategy", "role": "supporting" }
+    ],
+    "tech_stack": ["SEO", "Google Analytics", "Shopify"]
+  },
+  {
+    "id": "demo-ai-rag",
+    "title": "NFL Rulebook Assistant (RAG)",
+    "status": "planned",
+    "complexity": "advanced",
+    "demoType": "interactive",
+    "showcasePriority": 1,
+    "estimatedReadTime": 15,
+    "dateCreated": "2025-05",
+    "lastUpdated": "2025-05",
+    "repoUrl": "apps/service-ml/rag_agent.py",
+    "liveUrl": null,
+    "description": "A Retrieval-Augmented Generation (RAG) tool. It uses `pgvector` to index the official NFL Rulebook PDF and allows users to ask natural language questions like 'What is the penalty for roughing the passer?'",
+    "competencies": [
+      { "id": "ai-integration", "role": "primary" },
+      { "id": "lang-python", "role": "secondary" },
+      { "id": "db-postgres", "role": "secondary" }
+    ],
+    "tech_stack": ["Python", "OpenAI API", "pgvector", "LangChain"]
+  },
+  {
+    "id": "demo-docs-site",
+    "title": "The Engineering Atlas (Docs)",
+    "status": "complete",
+    "complexity": "intermediate",
+    "demoType": "live-site",
+    "showcasePriority": 3,
+    "estimatedReadTime": 30,
+    "dateCreated": "2025-01",
+    "lastUpdated": "2025-01",
+    "repoUrl": "apps/docs",
+    "liveUrl": "https://docs.batgoose.com",
+    "description": "This documentation site itself. Built with Astro Starlight to demonstrate 'Docs-as-Code' principles, Islands Architecture for performance, and a custom MDX pipeline.",
+    "competencies": [
+      { "id": "framework-astro", "role": "primary" },
+      { "id": "doc-strategy", "role": "primary" },
+      { "id": "lib-react", "role": "secondary" }
+    ],
+    "tech_stack": ["Astro", "Starlight", "Markdown", "React"]
+  },
+  {
+    "id": "demo-graphql-schema",
+    "title": "Unified Data Graph",
+    "status": "in-progress",
+    "complexity": "advanced",
+    "demoType": "schema-def",
+    "showcasePriority": 2,
+    "estimatedReadTime": 20,
+    "dateCreated": "2025-03",
+    "lastUpdated": "2025-03",
+    "repoUrl": "packages/api-gateway/schema.graphql",
+    "liveUrl": null,
+    "description": "The Federation layer that stitches together the Django API (REST) and the Go Microservices into a single queryable graph. Allows the frontend to request `Game { homeTeam { roster { name } } }` in one request.",
+    "competencies": [
+      { "id": "spec-graphql", "role": "primary" },
+      { "id": "framework-django", "role": "secondary" },
+      { "id": "lang-typescript", "role": "supporting" }
+    ],
+    "tech_stack": ["GraphQL", "Apollo Server", "TypeScript"]
+  },
+  {
+    "id": "demo-embedded-lab",
+    "title": "Bitwise Register Simulator",
+    "status": "complete",
+    "complexity": "beginner",
+    "demoType": "code-only",
+    "showcasePriority": 5,
+    "estimatedReadTime": 10,
+    "dateCreated": "2025-02",
+    "lastUpdated": "2025-02",
+    "repoUrl": "experiments/cpp/embedded_sim.cpp",
+    "liveUrl": null,
+    "description": "A standalone C++ utility that simulates memory-mapped hardware registers. Demonstrates setting, clearing, and toggling specific bits using bitwise operators (`and`, `|`, `^`, `<<`) without overhead.",
+    "competencies": [
+      { "id": "concept-embedded", "role": "primary" },
+      { "id": "lang-cpp", "role": "secondary" }
+    ],
+    "tech_stack": ["C++", "Make"]
+  },
+  {
+    "id": "demo-ansible-hardening",
+    "title": "Server Hardening Playbook",
+    "status": "complete",
+    "complexity": "intermediate",
+    "demoType": "code-only",
+    "showcasePriority": 4,
+    "estimatedReadTime": 10,
+    "dateCreated": "2025-01",
+    "lastUpdated": "2025-01",
+    "repoUrl": "infrastructure/ansible/roles/security",
+    "liveUrl": null,
+    "description": "An Ansible Role that locks down a fresh Linux Install: disables Root SSH, configures UFW firewall, installs Fail2Ban, and sets up auto-updates.",
+    "competencies": [
+      { "id": "tool-ansible", "role": "primary" },
+      { "id": "os-linux", "role": "secondary" }
+    ],
+    "tech_stack": ["Ansible", "YAML", "Linux"]
+  },
+  {
+    "id": "demo-cross-platform-build",
+    "title": "Universal C++ Build System",
+    "status": "complete",
+    "complexity": "advanced",
+    "demoType": "config",
+    "showcasePriority": 3,
+    "estimatedReadTime": 15,
+    "dateCreated": "2025-02",
+    "lastUpdated": "2025-02",
+    "repoUrl": "experiments/cpp/CMakeLists.txt",
+    "liveUrl": null,
+    "description": "A complex `CMakeLists.txt` configuration that conditionally compiles platform-specific code for Windows (MSVC) and Linux (GCC) from a single source tree.",
+    "competencies": [
+      { "id": "build-cross-platform", "role": "primary" },
+      { "id": "lang-cpp", "role": "secondary" },
+      { "id": "os-windows", "role": "supporting" },
+      { "id": "os-linux", "role": "supporting" }
+    ],
+    "tech_stack": ["CMake", "Bash", "PowerShell"]
+  },
+  {
+    "id": "demo-qt-dashboard",
+    "title": "Legacy Qt Dashboard (Screenshot)",
+    "status": "complete",
+    "complexity": "intermediate",
+    "demoType": "visual-asset",
+    "showcasePriority": 5,
+    "estimatedReadTime": 5,
+    "dateCreated": "2022-01",
+    "lastUpdated": "2022-01",
+    "repoUrl": "assets/images/legacy-qt-dashboard.png",
+    "liveUrl": null,
+    "description": "A showcase of a previous industrial control dashboard built with Qt Widgets. (Note: Code is proprietary, this is a recreation/screenshot to demonstrate the skill).",
+    "competencies": [
+      { "id": "lib-qt", "role": "primary" },
+      { "id": "lang-cpp", "role": "secondary" }
+    ],
+    "tech_stack": ["C++", "Qt 5", "QML"]
+  }
+]

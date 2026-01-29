@@ -1,0 +1,10 @@
+{
+  "name": "@atlas/db",
+  "version": "0.0.0",
+  "private": true,
+  "main": "./seeds/competencies.json",
+  "exports": {
+    "./competencies": "./seeds/competencies.json",
+    "./artifacts": "./seeds/artifacts.json"
+  }
+}

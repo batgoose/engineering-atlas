@@ -1,0 +1,772 @@
+[
+  {
+    "id": "lang-cpp",
+    "name": "C++ Systems Programming",
+    "category": "Systems",
+    "competency_type": "language",
+    "proficiency": "Expert",
+    "tags": ["Systems", "Memory", "Performance"],
+    "summary": "14+ years of experience. Focus on modern C++ paradigms (RAII, Move Semantics) to replace legacy 'C with Classes' patterns.",
+    "history": [
+      { "role": "Software Engineer", "company": "Mechdyne", "year": "2021-2023" },
+      { "role": "Embedded Engineer", "company": "Gridpoint", "year": "2013-2016" }
+    ],
+    "related_ids": ["lib-qt", "lib-boost", "concept-embedded", "build-cross-platform", "cloud-devops"],
+    "atlas_demo": "experiments/cpp",
+    "artifacts": ["demo-cpp-win-prob", "demo-embedded-lab", "demo-cross-platform-build", "demo-qt-dashboard"],
+    "showcasePriority": "high",
+    "portfolioHighlight": true,
+    "sub_competencies": [
+      { "id": "cpp-raii", "name": "RAII and Memory Safety", "desc": "Resource Acquisition Is Initialization pattern to prevent leaks.", "code_anchor": "cpp-raii-demo" },
+      { "id": "cpp-smart-pointers", "name": "Smart Pointers (C++11)", "desc": "std::unique_ptr vs std::shared_ptr for ownership semantics.", "code_anchor": "cpp-smart-pointers" },
+      { "id": "cpp-move-semantics", "name": "Move Semantics (C++11)", "desc": "rvalue references and std::move to avoid expensive copies.", "code_anchor": "cpp-move-semantics" },
+      { "id": "cpp-lambdas", "name": "Lambdas and Generic Lambdas", "desc": "Anonymous functions (C++11) and auto parameters (C++14).", "code_anchor": "cpp-lambdas" },
+      { "id": "cpp-concurrency", "name": "std::thread and Atomics", "desc": "Multithreading primitives and lock-free programming basics.", "code_anchor": "cpp-concurrency" },
+      { "id": "cpp-templates", "name": "Variadic Templates", "desc": "Type-safe metaprogramming allowing arbitrary argument counts.", "code_anchor": "cpp-templates" }
+    ]
+  },
+  {
+    "id": "lang-python",
+    "name": "Python",
+    "category": "Backend",
+    "competency_type": "language",
+    "proficiency": "Expert",
+    "tags": ["Scripting", "OOP", "Data"],
+    "summary": "Core language proficiency used for backend servers, data pipelines, and automation scripts.",
+    "history": [
+      { "role": "Lead Software Engineer", "company": "Black Lantern Security", "year": "2023-Present" }
+    ],
+    "related_ids": ["framework-django", "lib-pandas", "ai-integration"],
+    "atlas_demo": "apps/api-django",
+    "artifacts": ["demo-python-fantasy", "demo-django-api", "demo-ai-rag"],
+    "showcasePriority": "high",
+    "portfolioHighlight": true,
+    "sub_competencies": [
+      { "id": "py-decorators", "name": "Decorators and Wrappers", "desc": "Higher-order functions for modifying behavior (logging, auth).", "code_anchor": "py-decorators" },
+      { "id": "py-generators", "name": "Generators and Iterators", "desc": "Lazy evaluation using 'yield' for memory-efficient loops.", "code_anchor": "py-generators" },
+      { "id": "py-context-managers", "name": "Context Managers", "desc": "Custom 'with' statements for resource handling (files, locks).", "code_anchor": "py-context-managers" },
+      { "id": "py-dunder", "name": "Dunder Methods", "desc": "Operator overloading (__init__, __str__, __add__) for custom classes.", "code_anchor": "py-dunder" },
+      { "id": "py-type-hinting", "name": "Type Hinting (Mypy)", "desc": "Static type checking in modern Python for robustness.", "code_anchor": "py-type-hinting" }
+    ]
+  },
+  {
+    "id": "framework-django",
+    "name": "Django Framework",
+    "category": "Backend",
+    "competency_type": "framework",
+    "proficiency": "Expert",
+    "tags": ["MVC", "ORM", "Web"],
+    "summary": "Architecting secure web applications and designing scalable technology stacks.",
+    "history": [
+      { "role": "Lead Software Engineer", "company": "Black Lantern Security", "year": "2023-Present" }
+    ],
+    "related_ids": ["lang-python", "db-postgres", "server-nginx", "cloud-devops", "framework-nextjs", "spec-graphql", "concept-ci-cd"],
+    "atlas_demo": "apps/api-django",
+    "artifacts": ["demo-django-api", "demo-python-fantasy", "demo-graphql-schema"],
+    "showcasePriority": "high",
+    "portfolioHighlight": true,
+    "sub_competencies": [
+      { "id": "django-orm-optimization", "name": "ORM Optimization", "desc": "select_related vs prefetch_related to solve N+1 query problems.", "code_anchor": "django-orm-opt" },
+      { "id": "django-signals", "name": "Signals and Receivers", "desc": "Decoupled event handling (post_save, pre_delete).", "code_anchor": "django-signals" },
+      { "id": "django-middleware", "name": "Custom Middleware", "desc": "Intercepting request/response cycles for logging or auth.", "code_anchor": "django-middleware" },
+      { "id": "django-drf-serializers", "name": "DRF Serializers", "desc": "Complex nested serialization and validation logic.", "code_anchor": "django-drf-serializers" },
+      { "id": "django-celery", "name": "Async Tasks (Celery)", "desc": "Offloading heavy tasks to Redis/RabbitMQ workers.", "code_anchor": "django-celery" }
+    ]
+  },
+  {
+    "id": "lib-react",
+    "name": "React Ecosystem",
+    "category": "Frontend",
+    "competency_type": "library",
+    "proficiency": "Advanced",
+    "tags": ["UI", "Components", "Hooks"],
+    "summary": "Building modern, polymorphic user interfaces with focus on component reusability.",
+    "history": [
+      { "role": "Lead Software Engineer", "company": "Black Lantern Security", "year": "2023-Present" }
+    ],
+    "related_ids": ["lang-typescript", "framework-nextjs", "concept-ci-cd"],
+    "atlas_demo": "apps/web-main",
+    "artifacts": ["demo-react-draft", "demo-docs-site"],
+    "showcasePriority": "high",
+    "portfolioHighlight": true,
+    "sub_competencies": [
+      { "id": "react-custom-hooks", "name": "Custom Hooks", "desc": "Encapsulating logic (e.g., useFetch, useAuth) for reuse.", "code_anchor": "react-custom-hooks" },
+      { "id": "react-context", "name": "Context API and Reducers", "desc": "Global state management without prop drilling.", "code_anchor": "react-context" },
+      { "id": "react-performance", "name": "Memoization", "desc": "useMemo and useCallback to prevent unnecessary re-renders.", "code_anchor": "react-memo" },
+      { "id": "react-patterns", "name": "Compound Components", "desc": "Advanced patterns for flexible UI (Tabs, Accordions).", "code_anchor": "react-compound" }
+    ]
+  },
+  {
+    "id": "lang-rust",
+    "name": "Rust Systems",
+    "category": "Systems",
+    "competency_type": "language",
+    "proficiency": "Learning",
+    "tags": ["Systems", "Safety", "Modern"],
+    "summary": "Exploration of memory-safe systems programming to replace legacy C++ components.",
+    "history": [],
+    "related_ids": ["lang-cpp", "concept-wasm", "cloud-devops", "concept-ci-cd"],
+    "atlas_demo": "experiments/rust",
+    "artifacts": ["demo-rust-parser"],
+    "showcasePriority": "high",
+    "portfolioHighlight": true,
+    "sub_competencies": [
+      { "id": "rust-ownership", "name": "Ownership and Borrowing", "desc": "The core memory model: moves, borrows, and slices.", "code_anchor": "rust-ownership" },
+      { "id": "rust-lifetimes", "name": "Lifetimes", "desc": "Explicit lifetime annotations to ensure reference validity.", "code_anchor": "rust-lifetimes" },
+      { "id": "rust-traits", "name": "Traits and Generics", "desc": "Defining shared behavior (Interfaces) and polymorphism.", "code_anchor": "rust-traits" },
+      { "id": "rust-enums", "name": "Enums and Pattern Matching", "desc": "Algebraic data types and exhaustive match statements.", "code_anchor": "rust-enums" },
+      { "id": "rust-wasm", "name": "Wasm Bindgen", "desc": "Exposing Rust functions to JavaScript via WebAssembly.", "code_anchor": "rust-wasm" }
+    ]
+  },
+  {
+    "id": "concept-embedded",
+    "name": "Embedded Systems",
+    "category": "Systems",
+    "competency_type": "concept",
+    "proficiency": "Expert",
+    "tags": ["Hardware", "Firmware", "Real-Time"],
+    "summary": "Firmware development for proprietary hardware and RTOS environments.",
+    "history": [
+      { "role": "Embedded Engineer", "company": "Gridpoint", "year": "2013-2016" }
+    ],
+    "related_ids": ["lang-cpp", "lang-c", "os-linux"],
+    "atlas_demo": null,
+    "artifacts": ["demo-cpp-win-prob", "demo-embedded-lab"],
+    "showcasePriority": "medium",
+    "portfolioHighlight": false,
+    "sub_competencies": [
+      { "id": "embedded-bit-manipulation", "name": "Bit Manipulation", "desc": "Bitwise operators, masking, and register interaction.", "code_anchor": "embedded-bits" },
+      { "id": "embedded-interrupts", "name": "ISRs (Interrupts)", "desc": "Handling hardware interrupts and re-entrancy safety.", "code_anchor": "embedded-isr" },
+      { "id": "embedded-protocols", "name": "Comms Protocols", "desc": "I2C, SPI, and UART implementation logic.", "code_anchor": "embedded-protocols" },
+      { "id": "embedded-volatile", "name": "Volatile and Memory Mapping", "desc": "Preventing compiler optimization for hardware registers.", "code_anchor": "embedded-volatile" }
+    ]
+  },
+  {
+    "id": "os-linux",
+    "name": "Linux Systems",
+    "category": "Systems",
+    "competency_type": "infrastructure",
+    "proficiency": "Expert",
+    "tags": ["Bash", "Kernel", "Systemd"],
+    "summary": "Deep familiarity with Linux environments for both server administration and embedded development.",
+    "history": [
+      { "role": "Lead Software Engineer", "company": "Black Lantern Security", "year": "2023-Present" },
+      { "role": "Embedded Engineer", "company": "Gridpoint", "year": "2013-2016" }
+    ],
+    "related_ids": ["concept-embedded", "devops-docker-multi", "tool-ansible"],
+    "atlas_demo": "infrastructure/scripts",
+    "artifacts": ["demo-infra-k3s", "demo-ansible-hardening", "demo-cross-platform-build"],
+    "showcasePriority": "medium",
+    "portfolioHighlight": false,
+    "sub_competencies": [
+      { "id": "linux-bash", "name": "Bash Scripting", "desc": "Automating system tasks and build pipelines.", "code_anchor": "linux-bash" },
+      { "id": "linux-permissions", "name": "Permissions and Security", "desc": "Managing users, groups, and chmod/chown logic.", "code_anchor": "linux-perms" },
+      { "id": "linux-systemd", "name": "Systemd Services", "desc": "Creating custom daemon services for background applications.", "code_anchor": "linux-systemd" }
+    ]
+  },
+  {
+    "id": "os-windows",
+    "name": "Windows Development",
+    "category": "Systems",
+    "competency_type": "infrastructure",
+    "proficiency": "Advanced",
+    "tags": ["PowerShell", "Registry", "WSL"],
+    "summary": "Native Windows application development and system administration.",
+    "history": [
+      { "role": "Software Engineer", "company": "Mechdyne", "year": "2021-2023" }
+    ],
+    "related_ids": ["lang-csharp", "lang-cpp", "dist-packaging"],
+    "atlas_demo": null,
+    "artifacts": ["demo-cross-platform-build"],
+    "showcasePriority": "low",
+    "portfolioHighlight": false,
+    "sub_competencies": [
+      { "id": "win-powershell", "name": "PowerShell", "desc": "Advanced scripting for administrative automation.", "code_anchor": "win-powershell" },
+      { "id": "win-registry", "name": "Registry Interaction", "desc": "Programmatic access to system configuration settings.", "code_anchor": "win-registry" },
+      { "id": "win-wsl", "name": "WSL Integration", "desc": "Bridging Linux tools with Windows workflows.", "code_anchor": "win-wsl" }
+    ]
+  },
+  {
+    "id": "build-cross-platform",
+    "name": "Cross-Platform Engineering",
+    "category": "Systems",
+    "competency_type": "tooling",
+    "proficiency": "Expert",
+    "tags": ["CMake", "Make", "Compilation"],
+    "summary": "Architecting build systems that compile a single codebase for multiple targets (Windows, Linux, macOS).",
+    "history": [
+      { "role": "Software Engineer", "company": "Mechdyne", "year": "2021-2023" }
+    ],
+    "related_ids": ["lang-cpp", "lang-rust", "os-linux", "os-windows"],
+    "atlas_demo": "experiments/cpp/build-system",
+    "artifacts": ["demo-cross-platform-build", "demo-cpp-win-prob"],
+    "showcasePriority": "medium",
+    "portfolioHighlight": true,
+    "sub_competencies": [
+      { "id": "build-cmake", "name": "CMake configuration", "desc": "Writing modern CMakeLists.txt for dependency management.", "code_anchor": "build-cmake" },
+      { "id": "build-conditional", "name": "Conditional Compilation", "desc": "Using preprocessor directives to handle OS-specific logic.", "code_anchor": "build-ifdef" },
+      { "id": "build-matrix", "name": "CI Build Matrix", "desc": "Automating simultaneous builds for multiple OS versions.", "code_anchor": "build-matrix" }
+    ]
+  },
+  {
+    "id": "dist-packaging",
+    "name": "Software Packaging and Distribution",
+    "category": "Cloud and DevOps",
+    "competency_type": "tooling",
+    "proficiency": "Advanced",
+    "tags": ["Installers", "MSI", "DEB"],
+    "summary": "Creating production-ready installers and packages for end-user deployment.",
+    "history": [],
+    "related_ids": ["os-windows", "os-linux"],
+    "atlas_demo": "infrastructure/installers",
+    "artifacts": [],
+    "showcasePriority": "medium",
+    "portfolioHighlight": false,
+    "sub_competencies": [
+      { "id": "pkg-installers", "name": "Custom Installers", "desc": "Scripting installation logic (e.g., Inno Setup or NSIS).", "code_anchor": "pkg-installer-script" },
+      { "id": "pkg-drivers", "name": "Driver Signing Concepts", "desc": "Understanding requirements for signed kernel-mode drivers.", "code_anchor": "pkg-driver-sign" },
+      { "id": "pkg-assets", "name": "Asset Bundling", "desc": "Managing static resources within executable bundles.", "code_anchor": "pkg-bundling" }
+    ]
+  },
+  {
+    "id": "tool-terraform",
+    "name": "Terraform (IaC)",
+    "category": "Cloud and DevOps",
+    "competency_type": "tooling",
+    "proficiency": "Advanced",
+    "tags": ["HCL", "AWS", "Infrastructure as Code"],
+    "summary": "Defining cloud infrastructure declaratively to ensure reproducible environments.",
+    "history": [
+      { "role": "Lead Software Engineer", "company": "Black Lantern Security", "year": "2023-Present" }
+    ],
+    "related_ids": ["cloud-devops", "tool-ansible"],
+    "atlas_demo": "infrastructure/terraform",
+    "artifacts": ["demo-infra-k3s"],
+    "showcasePriority": "high",
+    "portfolioHighlight": true,
+    "sub_competencies": [
+      { "id": "tf-state", "name": "State Management", "desc": "Managing remote state files (S3 + DynamoDB locking).", "code_anchor": "tf-state" },
+      { "id": "tf-modules", "name": "Reusable Modules", "desc": "Abstracting common patterns (e.g., VPC, EC2 clusters) into modules.", "code_anchor": "tf-modules" },
+      { "id": "tf-providers", "name": "Multi-Cloud Providers", "desc": "Configuring providers for AWS, Azure, or local Docker resources.", "code_anchor": "tf-providers" }
+    ]
+  },
+  {
+    "id": "tool-ansible",
+    "name": "Ansible Automation",
+    "category": "Cloud and DevOps",
+    "competency_type": "tooling",
+    "proficiency": "Advanced",
+    "tags": ["YAML", "Configuration Management", "Agentless"],
+    "summary": "Automating server configuration and application deployment without agents.",
+    "history": [],
+    "related_ids": ["os-linux", "tool-terraform"],
+    "atlas_demo": "infrastructure/ansible",
+    "artifacts": ["demo-ansible-hardening", "demo-infra-k3s"],
+    "showcasePriority": "medium",
+    "portfolioHighlight": false,
+    "sub_competencies": [
+      { "id": "ansible-playbooks", "name": "Playbooks and Roles", "desc": "Structuring automation logic into reusable roles.", "code_anchor": "ansible-roles" },
+      { "id": "ansible-inventory", "name": "Dynamic Inventory", "desc": "Automatically detecting hosts from cloud providers.", "code_anchor": "ansible-inventory" },
+      { "id": "ansible-vault", "name": "Ansible Vault", "desc": "Encrypting sensitive secrets within the repository.", "code_anchor": "ansible-vault" }
+    ]
+  },
+  {
+    "id": "cloud-devops",
+    "name": "Cloud and DevOps",
+    "category": "Cloud and DevOps",
+    "competency_type": "methodology",
+    "proficiency": "Advanced",
+    "tags": ["AWS", "Docker", "CI/CD"],
+    "summary": "Full infrastructure ownership from containerization to cloud deployment.",
+    "history": [
+      { "role": "Lead Software Engineer", "company": "Black Lantern Security", "year": "2023-Present" }
+    ],
+    "related_ids": ["tool-git", "tool-terraform", "tool-ansible", "framework-django", "lang-go", "lang-rust", "lang-cpp", "runtime-node"],
+    "atlas_demo": "infrastructure/aws",
+    "artifacts": ["demo-infra-k3s", "demo-ci-pipeline", "demo-go-ticker", "demo-rust-parser"],
+    "showcasePriority": "high",
+    "portfolioHighlight": true,
+    "sub_competencies": [
+      { "id": "devops-docker-multi", "name": "Multi-Stage Builds", "desc": "Optimizing Docker images by separating build/run environments.", "code_anchor": "docker-multistage" },
+      { "id": "devops-iac", "name": "Infrastructure as Code", "desc": "Defining AWS resources declaratively (Terraform/CDK).", "code_anchor": "devops-iac" },
+      { "id": "devops-ci", "name": "GitHub Actions", "desc": "Automated testing and deployment workflows.", "code_anchor": "devops-actions" }
+    ]
+  },
+  {
+    "id": "biz-seo",
+    "name": "SEO and Marketing",
+    "category": "Business",
+    "competency_type": "methodology",
+    "proficiency": "Professional",
+    "tags": ["Marketing", "Google", "Traffic"],
+    "summary": "Technical SEO and content strategy to drive organic traffic.",
+    "history": [
+      { "role": "Owner", "company": "Honey Whisker", "year": "2020-Present" }
+    ],
+    "related_ids": ["biz-ecommerce"],
+    "atlas_demo": null,
+    "artifacts": ["case-honey-whisker"],
+    "showcasePriority": "medium",
+    "portfolioHighlight": false,
+    "sub_competencies": [
+      { "id": "seo-schema", "name": "JSON-LD Schema", "desc": "Structured data markup for Rich Results in Google.", "code_anchor": "seo-schema" },
+      { "id": "seo-technical", "name": "Core Web Vitals", "desc": "Optimizing LCP, CLS, and FID for search ranking.", "code_anchor": "seo-vitals" },
+      { "id": "biz-funnels", "name": "Conversion Funnels", "desc": "Designing user flows from landing page to checkout.", "code_anchor": "biz-funnels" }
+    ]
+  },
+  {
+    "id": "biz-ecommerce",
+    "name": "E-Commerce Management",
+    "category": "Business",
+    "competency_type": "methodology",
+    "proficiency": "Professional",
+    "tags": ["Shopify", "Sales", "Inventory"],
+    "summary": "Managing online retail operations, including platform customization and sales strategy (Honey Whisker).",
+    "history": [
+      { "role": "Owner", "company": "Honey Whisker", "year": "2020-Present" }
+    ],
+    "related_ids": ["biz-seo", "biz-marketing-strategy"],
+    "atlas_demo": "https://honeywhisker.com",
+    "artifacts": ["case-honey-whisker"],
+    "showcasePriority": "medium",
+    "portfolioHighlight": false,
+    "sub_competencies": []
+  },
+  {
+    "id": "biz-marketing-strategy",
+    "name": "Marketing Strategy",
+    "category": "Business",
+    "competency_type": "methodology",
+    "proficiency": "Professional",
+    "tags": ["Campaigns", "Social Media", "Video"],
+    "summary": "Executing multi-channel marketing strategies including video content and email campaigns.",
+    "history": [
+      { "role": "Web Marketing Specialist", "company": "Meridium", "year": "2012-2013" }
+    ],
+    "related_ids": ["biz-seo", "tool-adobe"],
+    "atlas_demo": null,
+    "artifacts": ["case-honey-whisker"],
+    "showcasePriority": "low",
+    "portfolioHighlight": false,
+    "sub_competencies": []
+  },
+  {
+    "id": "lib-qt",
+    "name": "Qt Framework",
+    "category": "Systems",
+    "competency_type": "library",
+    "proficiency": "Expert",
+    "tags": ["GUI", "Cross-Platform", "C++"],
+    "summary": "Developed cross-platform desktop applications using Qt and C++.",
+    "history": [
+      { "role": "Software Engineer", "company": "Mechdyne", "year": "2021-2023" }
+    ],
+    "related_ids": ["lang-cpp", "tool-visual-studio"],
+    "atlas_demo": null,
+    "artifacts": ["demo-qt-dashboard"],
+    "showcasePriority": "medium",
+    "portfolioHighlight": false,
+    "sub_competencies": []
+  },
+  {
+    "id": "lib-boost",
+    "name": "Boost Libraries",
+    "category": "Systems",
+    "competency_type": "library",
+    "proficiency": "Advanced",
+    "tags": ["C++", "Algorithms", "Performance"],
+    "summary": "High-performance computing and utility implementation using Boost.",
+    "history": [
+      { "role": "Software Engineer", "company": "Mechdyne", "year": "2021-2023" }
+    ],
+    "related_ids": ["lang-cpp"],
+    "atlas_demo": null,
+    "artifacts": [],
+    "showcasePriority": "medium",
+    "portfolioHighlight": false,
+    "sub_competencies": []
+  },
+  {
+    "id": "lang-javascript",
+    "name": "JavaScript (ES6+)",
+    "category": "Frontend",
+    "competency_type": "language",
+    "proficiency": "Expert",
+    "tags": ["Web", "Scripting", "Async/Await"],
+    "summary": "Foundational web language used across frontend and backend environments.",
+    "history": [
+      { "role": "Lead Software Engineer", "company": "Black Lantern Security", "year": "2023-Present" }
+    ],
+    "related_ids": ["lang-typescript", "lib-react", "runtime-node"],
+    "atlas_demo": null,
+    "artifacts": [],
+    "showcasePriority": "medium",
+    "portfolioHighlight": false,
+    "sub_competencies": []
+  },
+  {
+    "id": "lang-typescript",
+    "name": "TypeScript",
+    "category": "Frontend",
+    "competency_type": "language",
+    "proficiency": "Advanced",
+    "tags": ["Microsoft", "Type Safety"],
+    "summary": "Strict typing for scalable frontend architecture.",
+    "history": [],
+    "related_ids": ["lib-react"],
+    "atlas_demo": "apps/web-main",
+    "artifacts": ["demo-react-draft", "demo-graphql-schema"],
+    "showcasePriority": "high",
+    "portfolioHighlight": false,
+    "sub_competencies": [
+      { "id": "ts-generics", "name": "Generics", "desc": "Creating reusable components that work with any data type.", "code_anchor": "ts-generics" },
+      { "id": "ts-utility-types", "name": "Utility Types", "desc": "Pick, Omit, Partial, and inferred types.", "code_anchor": "ts-utility" },
+      { "id": "ts-narrowing", "name": "Type Narrowing", "desc": "Type guards and discriminated unions.", "code_anchor": "ts-guards" }
+    ]
+  },
+  {
+    "id": "framework-nextjs",
+    "name": "Next.js",
+    "category": "Frontend",
+    "competency_type": "framework",
+    "proficiency": "Advanced",
+    "tags": ["SSR", "React", "Vercel"],
+    "summary": "The backbone of the Engineering Atlas, chosen for its polymorphic routing capabilities.",
+    "history": [],
+    "related_ids": ["lib-react", "lang-typescript", "framework-django", "spec-graphql"],
+    "atlas_demo": "apps/web-main",
+    "artifacts": ["demo-react-draft"],
+    "showcasePriority": "high",
+    "portfolioHighlight": true,
+    "sub_competencies": []
+  },
+  {
+    "id": "runtime-node",
+    "name": "Node.js",
+    "category": "Backend",
+    "competency_type": "infrastructure",
+    "proficiency": "Advanced",
+    "tags": ["Backend", "JavaScript", "Server"],
+    "summary": "Server-side JavaScript environment used for API layers and build tooling.",
+    "history": [],
+    "related_ids": ["lang-javascript", "lang-typescript", "cloud-devops"],
+    "atlas_demo": null,
+    "artifacts": [],
+    "showcasePriority": "medium",
+    "portfolioHighlight": false,
+    "sub_competencies": []
+  },
+  {
+    "id": "db-postgres",
+    "name": "PostgreSQL",
+    "category": "Backend",
+    "competency_type": "infrastructure",
+    "proficiency": "Expert",
+    "tags": ["SQL", "Relational", "ACID"],
+    "summary": "Designed and optimized database schemas for scalable applications.",
+    "history": [
+      { "role": "Lead Software Engineer", "company": "Black Lantern Security", "year": "2023-Present" }
+    ],
+    "related_ids": ["lang-sql", "framework-django"],
+    "atlas_demo": null,
+    "artifacts": ["demo-django-api", "demo-sql-warehouse", "demo-rust-parser", "demo-ai-rag"],
+    "showcasePriority": "high",
+    "portfolioHighlight": false,
+    "sub_competencies": []
+  },
+  {
+    "id": "lang-sql",
+    "name": "SQL",
+    "category": "Backend",
+    "competency_type": "language",
+    "proficiency": "Expert",
+    "tags": ["Query", "Data", "Relational"],
+    "summary": "Core database query language used across MySQL, Postgres, and SQL Server.",
+    "history": [
+      { "role": "Software Engineer", "company": "CaseTrackLaw", "year": "2018-2021" }
+    ],
+    "related_ids": ["db-postgres", "db-mysql"],
+    "atlas_demo": null,
+    "artifacts": ["demo-sql-warehouse"],
+    "showcasePriority": "medium",
+    "portfolioHighlight": false,
+    "sub_competencies": []
+  },
+  {
+    "id": "lang-java",
+    "name": "Java",
+    "category": "Backend",
+    "competency_type": "language",
+    "proficiency": "Proficient",
+    "tags": ["OOP", "Enterprise", "JVM"],
+    "summary": "Object-oriented programming experience utilized in earlier application development.",
+    "history": [],
+    "related_ids": [],
+    "atlas_demo": null,
+    "artifacts": [],
+    "showcasePriority": "low",
+    "portfolioHighlight": false,
+    "sub_competencies": []
+  },
+  {
+    "id": "lang-csharp",
+    "name": "C#",
+    "category": "Core",
+    "competency_type": "language",
+    "proficiency": "Proficient",
+    "tags": ["Microsoft", "Game Dev", ".NET"],
+    "summary": "Used primarily in Unity game development contexts.",
+    "history": [],
+    "related_ids": ["tool-visual-studio"],
+    "atlas_demo": null,
+    "artifacts": [],
+    "showcasePriority": "low",
+    "portfolioHighlight": false,
+    "sub_competencies": []
+  },
+  {
+    "id": "platform-ios",
+    "name": "iOS Development",
+    "category": "Core",
+    "competency_type": "infrastructure",
+    "proficiency": "Proficient",
+    "tags": ["Apple", "Mobile", "Xcode"],
+    "summary": "Experience building mobile applications utilizing Xcode and Objective-C/Swift.",
+    "history": [
+      { "role": "Software Developer", "company": "Radford University", "year": "2009-2010" }
+    ],
+    "related_ids": ["lang-objective-c"],
+    "atlas_demo": null,
+    "artifacts": [],
+    "showcasePriority": "low",
+    "portfolioHighlight": false,
+    "sub_competencies": []
+  },
+  {
+    "id": "lang-objective-c",
+    "name": "Objective-C",
+    "category": "Core",
+    "competency_type": "language",
+    "proficiency": "Proficient",
+    "tags": ["Apple", "Legacy", "Mobile"],
+    "summary": "Legacy iOS development language used for early mobile app projects.",
+    "history": [],
+    "related_ids": ["platform-ios"],
+    "atlas_demo": null,
+    "artifacts": [],
+    "showcasePriority": "low",
+    "portfolioHighlight": false,
+    "sub_competencies": []
+  },
+  {
+    "id": "lang-php",
+    "name": "PHP",
+    "category": "Backend",
+    "competency_type": "language",
+    "proficiency": "Veteran",
+    "tags": ["Web", "Backend", "Scripting"],
+    "summary": "Backend web development language used in earlier web stacks.",
+    "history": [],
+    "related_ids": ["lang-html", "lang-sql"],
+    "atlas_demo": null,
+    "artifacts": [],
+    "showcasePriority": "low",
+    "portfolioHighlight": false,
+    "sub_competencies": []
+  },
+  {
+    "id": "lang-coldfusion",
+    "name": "ColdFusion",
+    "category": "Backend",
+    "competency_type": "language",
+    "proficiency": "Veteran",
+    "tags": ["Legacy", "Adobe", "Web"],
+    "summary": "Maintained and improved back-end web applications using ColdFusion.",
+    "history": [
+      { "role": "Software Engineer", "company": "CaseTrackLaw", "year": "2018-2021" }
+    ],
+    "related_ids": ["lang-sql"],
+    "atlas_demo": null,
+    "artifacts": [],
+    "showcasePriority": "low",
+    "portfolioHighlight": false,
+    "sub_competencies": []
+  },
+  {
+    "id": "server-nginx",
+    "name": "Nginx",
+    "category": "Backend",
+    "competency_type": "infrastructure",
+    "proficiency": "Advanced",
+    "tags": ["Web Server", "Reverse Proxy", "Load Balancing"],
+    "summary": "Configured Nginx for serving Django applications in production environments.",
+    "history": [
+      { "role": "Lead Software Engineer", "company": "Black Lantern Security", "year": "2023-Present" }
+    ],
+    "related_ids": ["framework-django", "concept-linux"],
+    "atlas_demo": "infrastructure/aws",
+    "artifacts": [],
+    "showcasePriority": "medium",
+    "portfolioHighlight": false,
+    "sub_competencies": []
+  },
+  {
+    "id": "tool-git",
+    "name": "Git and Version Control",
+    "category": "Cloud and DevOps",
+    "competency_type": "tooling",
+    "proficiency": "Expert",
+    "tags": ["VCS", "Collaboration", "DevOps"],
+    "summary": "Standard version control for team collaboration. Experience with both Git and SVN.",
+    "history": [
+      { "role": "Software Engineer", "company": "Mechdyne", "year": "2021-2023" }
+    ],
+    "related_ids": ["tool-github", "concept-ci-cd"],
+    "atlas_demo": null,
+    "artifacts": ["demo-ci-pipeline"],
+    "showcasePriority": "medium",
+    "portfolioHighlight": false,
+    "sub_competencies": []
+  },
+  {
+    "id": "concept-ci-cd",
+    "name": "CI/CD Pipelines",
+    "category": "Cloud and DevOps",
+    "competency_type": "concept",
+    "proficiency": "Advanced",
+    "tags": ["Automation", "Testing", "Deployment"],
+    "summary": "Implementing continuous integration and deployment workflows using GitHub Actions and Jira.",
+    "history": [
+      { "role": "Lead Software Engineer", "company": "Black Lantern Security", "year": "2023-Present" }
+    ],
+    "related_ids": ["tool-git", "tool-docker", "framework-django", "lib-react", "lang-rust"],
+    "atlas_demo": ".github/workflows",
+    "artifacts": ["demo-ci-pipeline"],
+    "showcasePriority": "high",
+    "portfolioHighlight": true,
+    "sub_competencies": []
+  },
+  {
+    "id": "concept-agile",
+    "name": "Agile and Scrum",
+    "category": "Core",
+    "competency_type": "concept",
+    "proficiency": "Expert",
+    "tags": ["Management", "Process", "Team"],
+    "summary": "Leading projects and collaborating in team environments using Agile methodologies.",
+    "history": [
+      { "role": "Software Engineer", "company": "Mechdyne", "year": "2021-2023" }
+    ],
+    "related_ids": ["tool-jira"],
+    "atlas_demo": null,
+    "artifacts": [],
+    "showcasePriority": "medium",
+    "portfolioHighlight": false,
+    "sub_competencies": []
+  },
+  {
+    "id": "tool-adobe",
+    "name": "Adobe Creative Suite",
+    "category": "Business",
+    "competency_type": "tooling",
+    "proficiency": "Proficient",
+    "tags": ["Design", "Video", "Graphics"],
+    "summary": "Producing video content and graphic design for marketing initiatives.",
+    "history": [
+      { "role": "Web Marketing Specialist", "company": "Meridium", "year": "2012-2013" }
+    ],
+    "related_ids": ["biz-marketing-strategy"],
+    "atlas_demo": null,
+    "artifacts": [],
+    "showcasePriority": "low",
+    "portfolioHighlight": false,
+    "sub_competencies": []
+  },
+  {
+    "id": "lang-go",
+    "name": "Go (Golang)",
+    "category": "Backend",
+    "competency_type": "language",
+    "proficiency": "Learning",
+    "tags": ["Backend", "Concurrency", "Google"],
+    "summary": "Building high-performance microservices and tools for the Atlas platform.",
+    "history": [],
+    "related_ids": ["lang-python", "cloud-devops"],
+    "atlas_demo": "apps/api-go",
+    "artifacts": ["demo-go-ticker"],
+    "showcasePriority": "high",
+    "portfolioHighlight": true,
+    "sub_competencies": []
+  },
+  {
+    "id": "ai-integration",
+    "name": "AI and LLM Integration",
+    "category": "Core",
+    "competency_type": "concept",
+    "proficiency": "Learning",
+    "tags": ["OpenAI API", "RAG", "Prompt Engineering", "Local Models"],
+    "summary": "Integrating Large Language Models into application workflows. Exploring Retrieval-Augmented Generation (RAG) for context-aware AI assistants.",
+    "history": [],
+    "related_ids": ["lang-python"],
+    "atlas_demo": null,
+    "artifacts": ["demo-python-fantasy", "demo-ai-rag"],
+    "showcasePriority": "high",
+    "portfolioHighlight": true,
+    "sub_competencies": []
+  },
+  {
+    "id": "doc-strategy",
+    "name": "Documentation Engineering",
+    "category": "Core",
+    "competency_type": "methodology",
+    "proficiency": "Expert",
+    "tags": ["Docs-as-Code", "C4 Model", "Architecture"],
+    "summary": "Treating documentation as a first-class citizen using version-controlled, automated pipelines.",
+    "history": [
+      { "role": "Lead Software Engineer", "company": "Black Lantern Security", "year": "2023-Present" }
+    ],
+    "related_ids": ["concept-agile", "tool-git"],
+    "atlas_demo": "apps/docs",
+    "artifacts": ["demo-docs-site"],
+    "showcasePriority": "medium",
+    "portfolioHighlight": true,
+    "sub_competencies": [
+      { "id": "doc-c4", "name": "C4 Model (Structurizr)", "desc": "Modeling architecture heirarchically (Context, Containers, Components) via DSL.", "code_anchor": "doc-structurizr" },
+      { "id": "doc-diagrams", "name": "Mermaid and Excalidraw", "desc": "Integrating live diagrams into markdown for evergreen technical specs.", "code_anchor": "doc-mermaid" },
+      { "id": "doc-ui", "name": "Storybook", "desc": "Component-driven documentation for design systems.", "code_anchor": "doc-storybook" },
+      { "id": "doc-api", "name": "OpenAPI / Swagger", "desc": "Auto-generating interactive API contracts from backend code.", "code_anchor": "doc-swagger" }
+    ]
+  },
+  {
+    "id": "framework-astro",
+    "name": "Astro",
+    "category": "Frontend",
+    "competency_type": "framework",
+    "proficiency": "Advanced",
+    "tags": ["Static Site Gen", "Islands Architecture", "Performance"],
+    "summary": "Utilized via Starlight to build high-performance, content-focused documentation sites.",
+    "history": [],
+    "related_ids": ["framework-nextjs", "lang-typescript"],
+    "atlas_demo": "apps/docs",
+    "artifacts": ["demo-docs-site"],
+    "showcasePriority": "medium",
+    "portfolioHighlight": false,
+    "sub_competencies": []
+  },
+  {
+    "id": "spec-graphql",
+    "name": "GraphQL",
+    "category": "Backend",
+    "competency_type": "language",
+    "proficiency": "Advanced",
+    "tags": ["API", "Query Language", "Schema"],
+    "summary": "Efficient API query language allowing clients to request specific data.",
+    "history": [],
+    "related_ids": ["framework-django", "framework-nextjs"],
+    "atlas_demo": "apps/api-django",
+    "artifacts": ["demo-graphql-schema", "demo-django-api"],
+    "showcasePriority": "high",
+    "portfolioHighlight": true,
+    "sub_competencies": []
+  }
+]
