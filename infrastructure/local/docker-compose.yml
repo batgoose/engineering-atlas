@@ -10,11 +10,11 @@ services:
       POSTGRES_PASSWORD: atlas_password
       POSTGRES_DB: atlas_db
     ports:
-      - "5432:5432" # Direct access (for Admin tools)
+      - '5432:5432' # Direct access (for Admin tools)
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U atlas_user -d atlas_db"]
+      test: ['CMD-SHELL', 'pg_isready -U atlas_user -d atlas_db']
       interval: 5s
       timeout: 5s
       retries: 5
@@ -32,7 +32,7 @@ services:
       MAX_CLIENT_CONN: 100
       DEFAULT_POOL_SIZE: 20
     ports:
-      - "6432:5432" # Apps connect here (mimics Postgres port)
+      - '6432:5432' # Apps connect here (mimics Postgres port)
     depends_on:
       postgres:
         condition: service_healthy
@@ -42,15 +42,15 @@ services:
     image: redis:7-alpine
     container_name: atlas-redis
     ports:
-      - "6379:6379"
+      - '6379:6379'
 
   # 4. OBJECT STORAGE (S3 Mock)
   minio:
     image: minio/minio
     container_name: atlas-minio
     ports:
-      - "9000:9000"
-      - "9001:9001"
+      - '9000:9000'
+      - '9001:9001'
     environment:
       MINIO_ROOT_USER: atlas_admin
       MINIO_ROOT_PASSWORD: atlas_password
@@ -63,12 +63,12 @@ services:
     image: traefik:v2.10
     container_name: atlas-traefik
     command:
-      - "--api.insecure=true"
-      - "--providers.docker=true"
-      - "--entrypoints.web.address=:80"
+      - '--api.insecure=true'
+      - '--providers.docker=true'
+      - '--entrypoints.web.address=:80'
     ports:
-      - "80:80"
-      - "8080:8080"
+      - '80:80'
+      - '8080:8080'
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
 

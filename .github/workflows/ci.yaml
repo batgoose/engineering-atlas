@@ -1,0 +1,23 @@
+name: Atlas CI
+
+on:
+  push:
+    branches: ['main']
+  pull_request:
+    branches: ['main']
+
+jobs:
+  # simple job to verify the runner works
+  systems-check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Run Diagnostics
+        run: |
+          echo "::group::System Status"
+          echo "Atlas CI/CD Pipeline: ONLINE"
+          echo "Branch: ${{ github.ref }}"
+          echo "Commit: ${{ github.sha }}"
+          echo "::endgroup::"

@@ -9,132 +9,325 @@ class Migration(migrations.Migration):
 
     initial = True
 
-    dependencies = [
-    ]
+    dependencies = []
 
     operations = [
         migrations.CreateModel(
-            name='Artifact',
+            name="Artifact",
             fields=[
-                ('id', models.SlugField(max_length=100, primary_key=True, serialize=False)),
-                ('title', models.CharField(max_length=200)),
-                ('status', models.CharField(choices=[('planned', 'Planned'), ('in-progress', 'In Progress'), ('complete', 'Complete')], default='planned', max_length=50)),
-                ('complexity', models.CharField(choices=[('beginner', 'Beginner'), ('intermediate', 'Intermediate'), ('advanced', 'Advanced')], max_length=50)),
-                ('demo_type', models.CharField(choices=[('code-snippet', 'Code Snippet'), ('interactive', 'Interactive Demo'), ('live-site', 'Live Website'), ('video', 'Video Walkthrough'), ('case-study', 'Case Study'), ('visual-asset', 'Visual Asset (Screenshot)'), ('config', 'Configuration File'), ('schema-def', 'Schema Definition')], max_length=50)),
-                ('description', models.TextField()),
-                ('repo_url', models.CharField(blank=True, default='', max_length=255)),
-                ('live_url', models.CharField(blank=True, default='', max_length=255)),
-                ('date_created', models.DateField(auto_now_add=True)),
-                ('last_updated', models.DateField(auto_now=True)),
-                ('tech_stack', django.contrib.postgres.fields.ArrayField(base_field=models.CharField(max_length=50), blank=True, default=list, size=None)),
+                (
+                    "id",
+                    models.SlugField(max_length=100, primary_key=True, serialize=False),
+                ),
+                ("title", models.CharField(max_length=200)),
+                (
+                    "status",
+                    models.CharField(
+                        choices=[
+                            ("planned", "Planned"),
+                            ("in-progress", "In Progress"),
+                            ("complete", "Complete"),
+                        ],
+                        default="planned",
+                        max_length=50,
+                    ),
+                ),
+                (
+                    "complexity",
+                    models.CharField(
+                        choices=[
+                            ("beginner", "Beginner"),
+                            ("intermediate", "Intermediate"),
+                            ("advanced", "Advanced"),
+                        ],
+                        max_length=50,
+                    ),
+                ),
+                (
+                    "demo_type",
+                    models.CharField(
+                        choices=[
+                            ("code-snippet", "Code Snippet"),
+                            ("interactive", "Interactive Demo"),
+                            ("live-site", "Live Website"),
+                            ("video", "Video Walkthrough"),
+                            ("case-study", "Case Study"),
+                            ("visual-asset", "Visual Asset (Screenshot)"),
+                            ("config", "Configuration File"),
+                            ("schema-def", "Schema Definition"),
+                        ],
+                        max_length=50,
+                    ),
+                ),
+                ("description", models.TextField()),
+                ("repo_url", models.CharField(blank=True, default="", max_length=255)),
+                ("live_url", models.CharField(blank=True, default="", max_length=255)),
+                ("date_created", models.DateField(auto_now_add=True)),
+                ("last_updated", models.DateField(auto_now=True)),
+                (
+                    "tech_stack",
+                    django.contrib.postgres.fields.ArrayField(
+                        base_field=models.CharField(max_length=50),
+                        blank=True,
+                        default=list,
+                        size=None,
+                    ),
+                ),
             ],
             options={
-                'ordering': ['-date_created'],
+                "ordering": ["-date_created"],
             },
         ),
         migrations.CreateModel(
-            name='Category',
+            name="Category",
             fields=[
-                ('id', models.SlugField(help_text="URL-safe ID (e.g. 'frontend')", primary_key=True, serialize=False)),
-                ('name', models.CharField(max_length=100)),
-                ('description', models.TextField(blank=True)),
-                ('display_order', models.IntegerField(default=0, help_text='Lower numbers appear first')),
+                (
+                    "id",
+                    models.SlugField(
+                        help_text="URL-safe ID (e.g. 'frontend')",
+                        primary_key=True,
+                        serialize=False,
+                    ),
+                ),
+                ("name", models.CharField(max_length=100)),
+                ("description", models.TextField(blank=True)),
+                (
+                    "display_order",
+                    models.IntegerField(
+                        default=0, help_text="Lower numbers appear first"
+                    ),
+                ),
             ],
             options={
-                'verbose_name_plural': 'Categories',
-                'ordering': ['display_order', 'name'],
+                "verbose_name_plural": "Categories",
+                "ordering": ["display_order", "name"],
             },
         ),
         migrations.CreateModel(
-            name='CommitCodeReference',
+            name="CommitCodeReference",
             fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('owner', models.CharField(default='batgoose', max_length=100)),
-                ('repository', models.CharField(default='engineering-atlas', max_length=100)),
-                ('commit_hash', models.CharField(help_text='Full SHA-1 hash', max_length=40)),
-                ('file_path', models.CharField(max_length=255)),
-                ('start_line', models.PositiveIntegerField()),
-                ('end_line', models.PositiveIntegerField(blank=True, null=True)),
-                ('language', models.CharField(blank=True, max_length=50)),
-                ('cached_snippet', models.TextField(blank=True)),
-                ('created_at', models.DateTimeField(auto_now_add=True)),
-                ('updated_at', models.DateTimeField(auto_now=True)),
+                (
+                    "id",
+                    models.BigAutoField(
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name="ID",
+                    ),
+                ),
+                ("owner", models.CharField(default="batgoose", max_length=100)),
+                (
+                    "repository",
+                    models.CharField(default="engineering-atlas", max_length=100),
+                ),
+                (
+                    "commit_hash",
+                    models.CharField(help_text="Full SHA-1 hash", max_length=40),
+                ),
+                ("file_path", models.CharField(max_length=255)),
+                ("start_line", models.PositiveIntegerField()),
+                ("end_line", models.PositiveIntegerField(blank=True, null=True)),
+                ("language", models.CharField(blank=True, max_length=50)),
+                ("cached_snippet", models.TextField(blank=True)),
+                ("created_at", models.DateTimeField(auto_now_add=True)),
+                ("updated_at", models.DateTimeField(auto_now=True)),
             ],
         ),
         migrations.CreateModel(
-            name='Competency',
+            name="Competency",
             fields=[
-                ('id', models.SlugField(max_length=100, primary_key=True, serialize=False)),
-                ('name', models.CharField(max_length=200)),
-                ('competency_type', models.CharField(choices=[('language', 'Language'), ('framework', 'Framework'), ('library', 'Library'), ('infrastructure', 'Infrastructure'), ('tooling', 'Tooling'), ('concept', 'Concept'), ('methodology', 'Methodology')], default='concept', max_length=50)),
-                ('proficiency', models.CharField(choices=[('Learning', 'Learning'), ('Proficient', 'Proficient'), ('Advanced', 'Advanced'), ('Expert', 'Expert'), ('Veteran', 'Veteran'), ('Professional', 'Professional')], max_length=50)),
-                ('summary', models.TextField()),
-                ('tags', django.contrib.postgres.fields.ArrayField(base_field=models.CharField(max_length=50), blank=True, default=list, size=None)),
-                ('history', models.JSONField(blank=True, default=list)),
-                ('showcase_priority', models.CharField(choices=[('high', 'High'), ('medium', 'Medium'), ('low', 'Low'), ('hidden', 'Hidden')], default='medium', max_length=20)),
-                ('portfolio_highlight', models.BooleanField(default=False)),
-                ('category', models.ForeignKey(on_delete=django.db.models.deletion.PROTECT, related_name='competencies', to='core.category')),
-                ('related_competencies', models.ManyToManyField(blank=True, to='core.competency')),
+                (
+                    "id",
+                    models.SlugField(max_length=100, primary_key=True, serialize=False),
+                ),
+                ("name", models.CharField(max_length=200)),
+                (
+                    "competency_type",
+                    models.CharField(
+                        choices=[
+                            ("language", "Language"),
+                            ("framework", "Framework"),
+                            ("library", "Library"),
+                            ("infrastructure", "Infrastructure"),
+                            ("tooling", "Tooling"),
+                            ("concept", "Concept"),
+                            ("methodology", "Methodology"),
+                        ],
+                        default="concept",
+                        max_length=50,
+                    ),
+                ),
+                (
+                    "proficiency",
+                    models.CharField(
+                        choices=[
+                            ("Learning", "Learning"),
+                            ("Proficient", "Proficient"),
+                            ("Advanced", "Advanced"),
+                            ("Expert", "Expert"),
+                            ("Veteran", "Veteran"),
+                            ("Professional", "Professional"),
+                        ],
+                        max_length=50,
+                    ),
+                ),
+                ("summary", models.TextField()),
+                (
+                    "tags",
+                    django.contrib.postgres.fields.ArrayField(
+                        base_field=models.CharField(max_length=50),
+                        blank=True,
+                        default=list,
+                        size=None,
+                    ),
+                ),
+                ("history", models.JSONField(blank=True, default=list)),
+                (
+                    "showcase_priority",
+                    models.CharField(
+                        choices=[
+                            ("high", "High"),
+                            ("medium", "Medium"),
+                            ("low", "Low"),
+                            ("hidden", "Hidden"),
+                        ],
+                        default="medium",
+                        max_length=20,
+                    ),
+                ),
+                ("portfolio_highlight", models.BooleanField(default=False)),
+                (
+                    "category",
+                    models.ForeignKey(
+                        on_delete=django.db.models.deletion.PROTECT,
+                        related_name="competencies",
+                        to="core.category",
+                    ),
+                ),
+                (
+                    "related_competencies",
+                    models.ManyToManyField(blank=True, to="core.competency"),
+                ),
             ],
             options={
-                'ordering': ['category__display_order', 'name'],
+                "ordering": ["category__display_order", "name"],
             },
         ),
         migrations.CreateModel(
-            name='ArtifactCompetency',
+            name="ArtifactCompetency",
             fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('role', models.CharField(choices=[('primary', 'Primary Tech'), ('secondary', 'Secondary Tech'), ('supporting', 'Supporting Tech')], max_length=50)),
-                ('artifact', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, to='core.artifact')),
-                ('competency', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, to='core.competency')),
+                (
+                    "id",
+                    models.BigAutoField(
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name="ID",
+                    ),
+                ),
+                (
+                    "role",
+                    models.CharField(
+                        choices=[
+                            ("primary", "Primary Tech"),
+                            ("secondary", "Secondary Tech"),
+                            ("supporting", "Supporting Tech"),
+                        ],
+                        max_length=50,
+                    ),
+                ),
+                (
+                    "artifact",
+                    models.ForeignKey(
+                        on_delete=django.db.models.deletion.CASCADE, to="core.artifact"
+                    ),
+                ),
+                (
+                    "competency",
+                    models.ForeignKey(
+                        on_delete=django.db.models.deletion.CASCADE,
+                        to="core.competency",
+                    ),
+                ),
             ],
         ),
         migrations.AddField(
-            model_name='artifact',
-            name='competencies',
-            field=models.ManyToManyField(related_name='artifacts', through='core.ArtifactCompetency', to='core.competency'),
+            model_name="artifact",
+            name="competencies",
+            field=models.ManyToManyField(
+                related_name="artifacts",
+                through="core.ArtifactCompetency",
+                to="core.competency",
+            ),
         ),
         migrations.CreateModel(
-            name='SubCompetency',
+            name="SubCompetency",
             fields=[
-                ('id', models.SlugField(max_length=100, primary_key=True, serialize=False)),
-                ('name', models.CharField(max_length=200)),
-                ('desc', models.TextField()),
-                ('display_order', models.IntegerField(default=0)),
-                ('code_references', models.ManyToManyField(blank=True, to='core.commitcodereference')),
-                ('parent', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='sub_competencies', to='core.competency')),
+                (
+                    "id",
+                    models.SlugField(max_length=100, primary_key=True, serialize=False),
+                ),
+                ("name", models.CharField(max_length=200)),
+                ("desc", models.TextField()),
+                ("display_order", models.IntegerField(default=0)),
+                (
+                    "code_references",
+                    models.ManyToManyField(blank=True, to="core.commitcodereference"),
+                ),
+                (
+                    "parent",
+                    models.ForeignKey(
+                        on_delete=django.db.models.deletion.CASCADE,
+                        related_name="sub_competencies",
+                        to="core.competency",
+                    ),
+                ),
             ],
             options={
-                'verbose_name_plural': 'Sub Competencies',
-                'ordering': ['parent', 'display_order', 'name'],
+                "verbose_name_plural": "Sub Competencies",
+                "ordering": ["parent", "display_order", "name"],
             },
         ),
         migrations.AddIndex(
-            model_name='competency',
-            index=models.Index(fields=['category', 'showcase_priority'], name='core_compet_categor_9800e1_idx'),
+            model_name="competency",
+            index=models.Index(
+                fields=["category", "showcase_priority"],
+                name="core_compet_categor_9800e1_idx",
+            ),
         ),
         migrations.AddIndex(
-            model_name='competency',
-            index=models.Index(fields=['competency_type', 'proficiency'], name='core_compet_compete_92ce3c_idx'),
+            model_name="competency",
+            index=models.Index(
+                fields=["competency_type", "proficiency"],
+                name="core_compet_compete_92ce3c_idx",
+            ),
         ),
         migrations.AddIndex(
-            model_name='competency',
-            index=models.Index(fields=['portfolio_highlight'], name='core_compet_portfol_845652_idx'),
+            model_name="competency",
+            index=models.Index(
+                fields=["portfolio_highlight"], name="core_compet_portfol_845652_idx"
+            ),
         ),
         migrations.AlterUniqueTogether(
-            name='artifactcompetency',
-            unique_together={('artifact', 'competency')},
+            name="artifactcompetency",
+            unique_together={("artifact", "competency")},
         ),
         migrations.AddIndex(
-            model_name='artifact',
-            index=models.Index(fields=['status', 'complexity'], name='core_artifa_status_a76bd5_idx'),
+            model_name="artifact",
+            index=models.Index(
+                fields=["status", "complexity"], name="core_artifa_status_a76bd5_idx"
+            ),
         ),
         migrations.AddIndex(
-            model_name='artifact',
-            index=models.Index(fields=['demo_type'], name='core_artifa_demo_ty_3d60a6_idx'),
+            model_name="artifact",
+            index=models.Index(
+                fields=["demo_type"], name="core_artifa_demo_ty_3d60a6_idx"
+            ),
         ),
         migrations.AddIndex(
-            model_name='artifact',
-            index=models.Index(fields=['-date_created'], name='core_artifa_date_cr_575356_idx'),
+            model_name="artifact",
+            index=models.Index(
+                fields=["-date_created"], name="core_artifa_date_cr_575356_idx"
+            ),
         ),
     ]
