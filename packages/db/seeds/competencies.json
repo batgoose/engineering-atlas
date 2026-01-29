@@ -204,6 +204,7 @@
     "portfolioHighlight": true,
     "sub_competencies": [
       { "id": "build-cmake", "name": "CMake configuration", "desc": "Writing modern CMakeLists.txt for dependency management.", "code_anchor": "build-cmake" },
+
       { "id": "build-conditional", "name": "Conditional Compilation", "desc": "Using preprocessor directives to handle OS-specific logic.", "code_anchor": "build-ifdef" },
       { "id": "build-matrix", "name": "CI Build Matrix", "desc": "Automating simultaneous builds for multiple OS versions.", "code_anchor": "build-matrix" }
     ]
@@ -768,5 +769,197 @@
     "showcasePriority": "high",
     "portfolioHighlight": true,
     "sub_competencies": []
+  },
+  {
+    "id": "technical-seo",
+    "name": "Technical SEO",
+    "category": "Business",
+    "proficiency": "Expert",
+    "competency_type": "methodology",
+    "summary": "Optimizing site architecture and rendering performance for search engine crawlers.",
+    "tags": ["Core Web Vitals", "Sitemap", "Structured Data"],
+    "showcasePriority": "high",
+    "portfolioHighlight": true,
+    "related_ids": ["framework-nextjs", "lib-react"],
+    "sub_competencies": [
+      {
+        "id": "seo-json-ld",
+        "name": "JSON-LD Structured Data",
+        "desc": "Implementing Schema.org definitions for rich snippets.",
+        "display_order": 1,
+        "code_anchor": "application/ld+json"
+      },
+      {
+        "id": "seo-dynamic-sitemap",
+        "name": "Dynamic Sitemaps",
+        "desc": "Programmatic generation of sitemaps for large-scale applications.",
+        "display_order": 2,
+        "code_anchor": "sitemap.xml"
+      }
+    ]
+  },
+  {
+    "id": "honeywhisker",
+    "name": "HoneyWhisker Strategy",
+    "category": "Business",
+    "proficiency": "Expert",
+    "competency_type": "methodology",
+    "summary": "A proprietary content strategy framework for maximizing organic reach through high-intent keywords.",
+    "tags": ["Content Strategy", "Growth Hacking", "Analytics"],
+    "showcasePriority": "high",
+    "portfolioHighlight": true,
+    "related_ids": ["technical-seo"],
+    "sub_competencies": [
+      {
+        "id": "hw-keyword-clustering",
+        "name": "Keyword Clustering",
+        "desc": "Grouping semantically related keywords to dominate niche authority.",
+        "display_order": 1,
+        "code_anchor": "competencies.json"
+      }
+    ]
+  },
+  {
+    "id": "marketing-automation",
+    "name": "Marketing Automation",
+    "category": "Business",
+    "proficiency": "Proficient",
+    "competency_type": "tooling",
+    "summary": "Automating user engagement loops and email drip campaigns.",
+    "tags": ["CRM", "Email Marketing", "User Retention"],
+    "showcasePriority": "medium",
+    "portfolioHighlight": false,
+    "related_ids": ["honeywhisker"],
+    "sub_competencies": []
+  },
+  {
+    "id": "lib-pandas",
+    "name": "Pandas",
+    "category": "Backend",
+    "proficiency": "Proficient",
+    "competency_type": "library",
+    "summary": "Data manipulation and analysis library for Python.",
+    "tags": ["Data Science", "ETL"],
+    "related_ids": ["lang-python"]
+  },
+  {
+    "id": "concept-wasm",
+    "name": "WebAssembly (Wasm)",
+    "category": "Systems",
+    "proficiency": "Learning",
+    "competency_type": "concept",
+    "summary": "Binary instruction format for a stack-based virtual machine.",
+    "tags": ["Performance", "Browser"],
+    "related_ids": ["lang-rust", "lang-cpp"]
+  },
+  {
+    "id": "lang-c",
+    "name": "C",
+    "category": "Systems",
+    "proficiency": "Proficient",
+    "competency_type": "language",
+    "summary": "The foundational procedural language for system programming.",
+    "tags": ["Embedded", "Memory Management"],
+    "related_ids": ["lang-cpp"]
+  },
+  {
+    "id": "lang-csharp",
+    "name": "C#",
+    "category": "Backend",
+    "proficiency": "Proficient",
+    "competency_type": "language",
+    "summary": "Modern, object-oriented language for the .NET ecosystem.",
+    "tags": ["Enterprise", "Game Dev"],
+    "related_ids": ["tool-visual-studio"]
+  },
+  {
+    "id": "tool-visual-studio",
+    "name": "Visual Studio",
+    "category": "Tooling",
+    "proficiency": "Proficient",
+    "competency_type": "tooling",
+    "summary": "Integrated Development Environment from Microsoft.",
+    "tags": ["IDE", "Debugger"],
+    "related_ids": []
+  },
+  {
+    "id": "db-mysql",
+    "name": "MySQL",
+    "category": "Backend",
+    "proficiency": "Proficient",
+    "competency_type": "infrastructure",
+    "summary": "Open-source relational database management system.",
+    "tags": ["SQL", "Relational"],
+    "related_ids": ["lang-sql"]
+  },
+  {
+    "id": "lang-html",
+    "name": "HTML5",
+    "category": "Frontend",
+    "proficiency": "Expert",
+    "competency_type": "language",
+    "summary": "Standard markup language for documents designed to be displayed in a web browser.",
+    "tags": ["Markup", "Accessibility"],
+    "related_ids": []
+  },
+  {
+    "id": "lang-php",
+    "name": "PHP",
+    "category": "Backend",
+    "proficiency": "Proficient",
+    "competency_type": "language",
+    "summary": "General-purpose scripting language geared towards web development.",
+    "tags": ["Server-side", "Legacy"],
+    "related_ids": ["lang-html"]
+  },
+  {
+    "id": "tool-github",
+    "name": "GitHub",
+    "category": "Tooling",
+    "proficiency": "Expert",
+    "competency_type": "tooling",
+    "summary": "Platform for hosting and collaboration.",
+    "tags": ["Version Control", "CI/CD"],
+    "related_ids": ["tool-git"]
+  },
+  {
+    "id": "tool-docker",
+    "name": "Docker",
+    "category": "Systems",
+    "proficiency": "Advanced",
+    "competency_type": "infrastructure",
+    "summary": "Platform for developing, shipping, and running applications in containers.",
+    "tags": ["Containers", "Virtualization"],
+    "related_ids": ["os-linux"]
+  },
+  {
+    "id": "devops-docker-multi",
+    "name": "Multi-Stage Builds",
+    "category": "Systems",
+    "proficiency": "Advanced",
+    "competency_type": "concept",
+    "summary": "Optimizing Docker images by separating build and runtime environments.",
+    "tags": ["Optimization", "DevOps"],
+    "related_ids": ["tool-docker"]
+  },
+  {
+    "id": "tool-jira",
+    "name": "Jira",
+    "category": "Business",
+    "proficiency": "Proficient",
+    "competency_type": "tooling",
+    "summary": "Issue tracking and project management software.",
+    "tags": ["Agile", "Scrum"],
+    "related_ids": []
+  },
+  {
+    "id": "concept-linux",
+    "name": "Linux Concepts",
+    "category": "Systems",
+    "proficiency": "Advanced",
+    "competency_type": "concept",
+    "summary": "Core understanding of the Linux kernel, permissions, and file systems.",
+    "tags": ["OS", "Kernel"],
+    "related_ids": ["os-linux"]
   }
 ]
