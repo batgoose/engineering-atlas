@@ -11,7 +11,9 @@ dependencies = [
     "djangorestframework (>=3.16.1,<4.0.0)",
     "django-environ (>=0.12.0,<0.13.0)",
     "psycopg[binary] (>=3.3.2,<4.0.0)",
-    "drf-spectacular (>=0.29.0,<0.30.0)"
+    "drf-spectacular (>=0.29.0,<0.30.0)",
+    "markdown (>=3.10.1,<4.0.0)",
+    "django-filter (>=25.2,<26.0)"
 ]
 
 

@@ -30,6 +30,7 @@ INSTALLED_APPS = [
     
     # Third Party
     'rest_framework',
+    'django_filters',
     'drf_spectacular', # OpenAPI generation
 
     # Local Apps
