@@ -1,0 +1,32 @@
+/* the source of truth for design tokens */
+
+:root {
+  /* backgrounds */
+  --atlas-dark: 255 255 255;  /* white */
+  --atlas-panel: 248 250 252; /* slate-50 */
+
+  /* domain colors (rgb channels) */
+  --frontend: 6 182 212;   /* cyan-500 */
+  --backend: 16 185 129;   /* emerald-500 */
+  --systems: 244 63 94;    /* rose-500 */
+  --devops: 139 92 246;    /* violet-500 */
+  --data: 245 158 11;      /* amber-500 */
+  --security: 220 38 38;   /* red-600 */
+  --business: 100 116 139; /* slate-500 */
+  --core: 113 113 122;     /* zinc-500 */
+}
+
+.dark {
+  /* dark mode overrides */
+  --atlas-dark: 15 23 42;  /* slate-900 */
+  --atlas-panel: 30 41 59; /* slate-800 */
+
+  --frontend: 34 211 238;  /* cyan-400 */
+  --backend: 52 211 153;   /* emerald-400 */
+  --systems: 251 113 133;  /* rose-400 */
+  --devops: 167 139 250;   /* violet-400 */
+  --data: 251 191 36;      /* amber-400 */
+  --security: 239 68 68;   /* red-500 */
+  --business: 148 163 184; /* slate-400 */
+  --core: 161 161 170;     /* zinc-400 */
+}

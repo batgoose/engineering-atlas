@@ -1,0 +1,66 @@
+{
+  "compilerOptions": {
+    // says I'm building for a browser and I want to use the newest javascript features
+    "lib": [
+      "dom",
+      "dom.iterable",
+      "esnext"
+    ],
+    // allow javascript .js files for legacy code without types
+    "allowJs": true,
+    // don't check node_modules/ for type errors
+    "skipLibCheck": true,
+    // don't allow implicit any, null checks, etc to keep code high-quality
+    "strict": true,
+    // makes sure attention to naming doesn't cause an issue like going from windows to linux
+    "forceConsistentCasingInFileNames": true,
+    // forces you to check if something[999] exists before accessing. prevents crashes
+    "noUncheckedIndexedAccess": true,
+    // forces you to write "import type { User }" when only importing a type so bundler knows which lines can be delted from final JS bundle
+    "verbatimModuleSyntax": true,
+    // don't have typescript create .js files. next.js uses a faster tool (SWC) to compile. TS is essentially just a spell checker
+    "noEmit": true,
+    // allows "import React from 'react'" instead of the old "const React = require('react')
+    "esModuleInterop": true,
+    // uses modern import/export syntax
+    "module": "esnext",
+    // tells typescript that a bundler (webpack) handles the files which allows you to import generic files that Node.js normally wouldn't
+    "moduleResolution": "bundler",
+    // allows "import from './file.json'"
+    "resolveJsonModule": true,
+    // required by nextjs since next compiles files individually in parallel, this prevents you from using TS features that require reading multiple files at once (like const enum)
+    "isolatedModules": true,
+    // tells TS to not transform the HTML <div /> tags (next will handle that step later)
+    "jsx": "preserve",
+    // speed- saves a cache file (.tsbuildinfo) so future builds only check files you change
+    "incremental": true,
+    "plugins": [
+      {
+        // enables the nextjs VS code plugin to better autocomplete
+        "name": "next"
+      }
+    ],
+    "paths": {
+      // allows imports like @/components/Button
+      "@/*": [
+        "./*"
+      ],
+      "@atlas/types": [
+        "../../packages/types"
+      ]
+    },
+    "baseUrl": ".",
+    // sets the output JS version. ES2017 supports async/await natively, which next is going to handle, so basically tells TS to not down-compile and let the bundler handle it
+    "target": "ES2017"
+  },
+  "include": [
+    "next-env.d.ts",
+    "**/*.ts",
+    "**/*.tsx",
+    ".next/types/**/*.ts"
+  ],
+  "exclude": [
+    // don't type check the entire internet
+    "node_modules"
+  ]
+}

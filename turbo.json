@@ -1,9 +1,6 @@
-/*
-    the build output for next.js is in teh .next/ folder while vue.js/angular/svelte will be in the dist/ folder
-*/
 {
   "$schema": "https://turbo.build/schema.json",
-  "pipeline": {
+  "tasks": {
     "build": {
       "dependsOn": ["^build"],
       "outputs": [".next/**", "!.next/cache/**", "dist/**"]

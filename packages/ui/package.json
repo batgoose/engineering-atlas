@@ -1,0 +1,21 @@
+{
+  "name": "@atlas/ui",
+  "version": "0.0.0",
+  "private": true,
+  "exports": {
+    ".": "./src/index.ts",
+    "./tokens": "./src/tokens.css",
+    "./styles": "./src/styles/index.ts",
+    "./brand-colors": "./src/brand-colors.ts",
+    "./atlas": "./src/atlas/index.ts",
+    "./config": "./src/config/index.ts",
+    "./contracts": "./src/contracts/index.ts",
+    "./package.json": "./package.json",
+    "./tailwind.config": "./tailwind.config.js",
+    "./tailwind.config.js": "./tailwind.config.js"
+  },
+  "dependencies": {
+    "@tailwindcss/typography": "^0.5.15",
+    "tailwindcss": "^3.4.1"
+  }
+}

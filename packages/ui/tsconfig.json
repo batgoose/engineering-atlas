@@ -1,0 +1,23 @@
+{
+  "compilerOptions": {
+    "lib": ["dom", "dom.iterable", "esnext"],
+    "allowJs": true,
+    "skipLibCheck": true,
+    "strict": true,
+    
+    // LIBRARY SPECIFIC SETTINGS
+    "jsx": "react-jsx",      // different from nextjs. libraries handle JSX directly
+    "noEmit": true,          // lets the consuming apps handle the compiling
+    "composite": true,       // helps VS Code understand this is part of a larger project
+    "declaration": true,     // helps other apps see the types (intelliSense)
+    
+    "esModuleInterop": true,
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "target": "ES2017"
+  },
+  "include": ["src/**/*"],
+  "exclude": ["node_modules"]
+}
