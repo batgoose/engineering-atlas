@@ -3,6 +3,7 @@ import { Inter, JetBrains_Mono } from 'next/font/google';
 import { Navigation } from '@/components/navigation';
 import { FrameworkSwitcher } from '@/components/framework-switcher';
 import './globals.css';
+import { Providers } from './providers';
 
 const inter = Inter({
   subsets: ['latin'],
@@ -22,17 +23,15 @@ export const metadata: Metadata = {
   description: 'A knowledge graph portfolio showcasing software engineering expertise.',
 };
 
-export default function RootLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" className={`${inter.variable} ${jetbrains.variable} dark`}>
       <body>
-        <Navigation />
-        <main>{children}</main>
-        <FrameworkSwitcher />
+        <Providers>
+          <Navigation />
+          <main>{children}</main>
+          <FrameworkSwitcher />
+        </Providers>
       </body>
     </html>
   );

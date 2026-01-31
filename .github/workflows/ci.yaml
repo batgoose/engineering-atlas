@@ -2,9 +2,9 @@ name: Atlas CI
 
 on:
   push:
-    branches: [ "main" ]
+    branches: ['main']
   pull_request:
-    branches: [ "main" ]
+    branches: ['main']
 
 jobs:
   # Job 1: Quick Health Check
@@ -23,7 +23,10 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: ./apps/api-django 
+        working-directory: ./apps/api-django
+    env:
+      SECRET_KEY: ${{ secrets.SECRET_KEY }}
+      DEBUG: 'False'
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
