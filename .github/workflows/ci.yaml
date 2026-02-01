@@ -27,6 +27,7 @@ jobs:
     env:
       SECRET_KEY: ${{ secrets.SECRET_KEY }}
       DEBUG: 'False'
+      DATABASE_URL: 'sqlite:///db.sqlite3'
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
