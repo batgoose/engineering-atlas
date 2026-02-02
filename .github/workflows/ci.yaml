@@ -60,3 +60,56 @@ jobs:
 
       - name: Run Integration Tests
         run: poetry run python manage.py test core
+
+  rust-ingestor-tests:
+    name: Rust Ingestor Tests
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_USER: admin
+          POSTGRES_PASSWORD: password
+          POSTGRES_DB: nfl_data
+        ports:
+          # CRITICAL: Map host 5433 to container 5432
+          # This tricks the runner into looking like my local setup
+          - 5433:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    defaults:
+      run:
+        working-directory: ./apps/service-rust/nflreadrust
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      # cache dependencies (speeds up builds by 500%+)
+      - name: Rust Cache
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: apps/service-rust/nflreadrust
+
+      - name: Apply SQL Schema
+        run: |
+          sudo apt-get install -y postgresql-client
+          # Connect to port 5433 and run the schema file from packages/db/init
+          psql "postgres://admin:password@localhost:5433/nfl_data" -f ../../../packages/db/init/01_schema.sql
+
+      - name: Check Formatting
+        run: cargo fmt -- --check
+
+      - name: Run Clippy
+        run: cargo clippy -- -D warnings
+
+      - name: Run Cargo Test
+        run: cargo test

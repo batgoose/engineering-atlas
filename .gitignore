@@ -19,3 +19,16 @@ db.sqlite3
 
 # Logs
 *.log
+
+# Rust Build Artifacts
+target/
+**/*.rs.bk
+
+# IDE settings
+.vscode/
+.idea/
+
+# Terraform
+.terraform/
+*.tfstate
+*.tfstate.backup
