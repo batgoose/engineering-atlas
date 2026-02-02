@@ -2,151 +2,156 @@ import json
 import os
 from django.core.management.base import BaseCommand
 from django.conf import settings
-from core.models import (
-    Category,
-    Competency,
-    SubCompetency,
-    Artifact,
-    ArtifactCompetency,
-)
-
+from django.db import transaction
+from core.models import Competency, Category, Artifact, ArtifactCompetency
 
 class Command(BaseCommand):
-    help = "Seeds the database with competencies and artifacts from JSON files"
+    help = 'Seeds the database with competencies, categories, and artifacts'
+
+    def add_arguments(self, parser):
+        parser.add_argument('--clear', action='store_true', help='Wipe data before seeding')
+
+    def find_file(self, filename, search_paths):
+        for path in search_paths:
+            full_path = os.path.join(path, filename)
+            if os.path.exists(full_path):
+                return full_path
+        return None
 
     def handle(self, *args, **options):
-        # Define paths
-        seeds_dir = os.path.join(settings.BASE_DIR, "../../packages/db/seeds")
+        # Define paths to look for JSON files
+        base_dir = settings.BASE_DIR.parent.parent 
+        search_paths = [
+            os.path.join(base_dir, 'packages/db/seeds'),
+            os.path.join(base_dir, 'packages/db/seeds'),
+            base_dir,
+        ]
 
-        self.stdout.write(self.style.SUCCESS(f"Loading seeds from: {seeds_dir}"))
+        comp_path = self.find_file('competencies.json', search_paths)
+        art_path = self.find_file('artifacts.json', search_paths)
 
-        # 1. Seed Competencies
-        self.seed_competencies(os.path.join(seeds_dir, "competencies.json"))
+        try:
+            with transaction.atomic():
+                # 1. Clear Old Data
+                if options['clear']:
+                    self.stdout.write(self.style.WARNING('Clearing all data...'))
+                    ArtifactCompetency.objects.all().delete() # Delete links first
+                    Artifact.objects.all().delete()
+                    Competency.objects.all().delete()
+                    Category.objects.all().delete()
 
-        # 2. Seed Artifacts
-        self.seed_artifacts(os.path.join(seeds_dir, "artifacts.json"))
+                # 2. Seed Competencies
+                if comp_path:
+                    self.seed_competencies(comp_path)
+                else:
+                    self.stdout.write(self.style.ERROR("Missing: competencies.json"))
+                
+                # 3. Seed Artifacts
+                if art_path:
+                    self.seed_artifacts(art_path)
+                else:
+                    self.stdout.write(self.style.WARNING("Missing: artifacts.json"))
 
-    def seed_competencies(self, file_path):
-        self.stdout.write("Seeding Competencies...")
-        with open(file_path, "r") as f:
+        except Exception as e:
+            self.stdout.write(self.style.ERROR(f"CRITICAL FAILURE: {e}"))
+            raise e
+
+    def seed_competencies(self, path):
+        with open(path, 'r') as f:
             data = json.load(f)
 
-        created_count = 0
-        updated_count = 0
+        self.stdout.write(f"Processing {len(data)} competencies...")
 
-        # Pass 1: Create Categories and Core Competencies
+        # STEP A: Create Categories (Required for Foreign Keys)
+        category_names = set(item.get('category') for item in data if item.get('category'))
+        category_map = {}
+        
+        for name in category_names:
+            cat_obj, _ = Category.objects.get_or_create(name=name)
+            category_map[name] = cat_obj
+
+        # STEP B: Create Competency Objects
         for item in data:
-            # 1. Ensure Category exists
-            category, _ = Category.objects.get_or_create(name=item["category"])
+            cat_instance = category_map.get(item.get('category'))
+            if not cat_instance: continue # Skip if no category
 
-            # 2. Create/Update Competency
-            defaults = {
-                "name": item["name"],
-                "category": category,
-                "competency_type": item.get(
-                    "competency_type", "concept"
-                ),  # Defaults to concept
-                "proficiency": item["proficiency"],
-                "summary": item.get("summary", ""),
-                "tags": item.get("tags", []),
-                "showcase_priority": item.get(
-                    "showcasePriority", "medium"
-                ),  # Handles camelCase if present
-                "portfolio_highlight": item.get("portfolioHighlight", False),
-            }
-
-            comp_obj, created = Competency.objects.update_or_create(
-                id=item["id"], defaults=defaults
+            Competency.objects.update_or_create(
+                id=item['id'],
+                defaults={
+                    'name': item['name'],
+                    'category': cat_instance,
+                    'competency_type': item.get('competency_type', 'concept'),
+                    'proficiency': item.get('proficiency', 'Learning'),
+                    'summary': item.get('summary', ''),
+                    
+                    # New field you requested
+                    'description': item.get('description', ''),
+                    
+                    # Store Arrays
+                    'tags': item.get('tags', []),
+                    'history': item.get('history', []),
+                    
+                    # UI Flags
+                    'showcase_priority': item.get('showcasePriority', 'medium'),
+                    'portfolio_highlight': item.get('portfolioHighlight', False),
+                }
             )
 
-            # 3. Handle Sub-Competencies
-            if "sub_competencies" in item:
-                for sub in item["sub_competencies"]:
-                    SubCompetency.objects.update_or_create(
-                        id=sub["id"],
-                        defaults={
-                            "parent": comp_obj,
-                            "name": sub["name"],
-                            "desc": sub["desc"],
-                            "display_order": sub.get("display_order", 0),
-                        },
-                    )
-
-            if created:
-                created_count += 1
-            else:
-                updated_count += 1
-
-        # Pass 2: Link Related Competencies (Must happen after all IDs exist)
-        self.stdout.write("Linking Related Competencies...")
-        links_count = 0
+        # STEP C: Link Related Competencies (ManyToMany)
+        # We do this AFTER creating all items so we don't link to non-existent IDs
+        self.stdout.write("Linking internal competency graph...")
         for item in data:
-            if "related_ids" in item:
-                current_comp = Competency.objects.get(id=item["id"])
-                for rel_id in item["related_ids"]:
-                    try:
-                        target = Competency.objects.get(id=rel_id)
-                        current_comp.related_competencies.add(target)
-                        links_count += 1
-                    except Competency.DoesNotExist:
-                        self.stdout.write(
-                            self.style.WARNING(
-                                f"Warning: Related ID '{rel_id}' not found for '{item['id']}'"
-                            )
-                        )
+            if 'related_ids' in item and item['related_ids']:
+                try:
+                    comp = Competency.objects.get(id=item['id'])
+                    valid_ids = Competency.objects.filter(id__in=item['related_ids'])
+                    comp.related_competencies.set(valid_ids) 
+                except Competency.DoesNotExist:
+                    continue
+        
+        self.stdout.write(self.style.SUCCESS("Competencies seeded."))
 
-        self.stdout.write(
-            self.style.SUCCESS(
-                f"  Created {created_count}, Updated {updated_count} competencies"
-            )
-        )
-        self.stdout.write(self.style.SUCCESS(f"  Linked {links_count} relations"))
-
-    def seed_artifacts(self, file_path):
-        self.stdout.write("Seeding Artifacts...")
-        with open(file_path, "r") as f:
+    def seed_artifacts(self, path):
+        with open(path, 'r') as f:
             data = json.load(f)
-
+        
+        self.stdout.write(f"Processing {len(data)} artifacts...")
+        
         for item in data:
-            # Prepare defaults using Snake Case (matching the JSON I gave you)
-            # We use .get() to be safe, but the keys should match models.py fields
-            defaults = {
-                "title": item["title"],
-                "status": item["status"],
-                "complexity": item["complexity"],
-                "demo_type": item.get("demo_type", "code-snippet"),
-                "description": item["description"],
-                "tech_stack": item.get("tech_stack", []),
-                "repo_url": item.get(
-                    "repo_url", ""
-                ),  # Critical: Matches snake_case JSON
-                "live_url": item.get("live_url", ""),
-                # Handle dates if present, else ignore (auto_now_add handles creation)
-            }
-
-            # Create the Artifact
-            art_obj, created = Artifact.objects.update_or_create(
-                id=item["id"], defaults=defaults
+            # 1. Create the Artifact
+            artifact, _ = Artifact.objects.update_or_create(
+                id=item['id'],
+                defaults={
+                    'title': item.get('title', item['id']),
+                    'status': item.get('status', 'planned'),
+                    'complexity': item.get('complexity', 'intermediate'),
+                    'demo_type': item.get('demo_type', 'code-snippet'),
+                    'description': item.get('description', ''),
+                    'repo_url': item.get('repo_url', ''),
+                    'live_url': item.get('live_url', ''),
+                    'tech_stack': item.get('tech_stack', []),
+                    
+                    # Optional: Handle date if your model expects it, otherwise Django defaults to now
+                    # 'date_created': item.get('date_created', '2025-01-01') 
+                }
             )
 
-            # Link Competencies
-            if "competencies" in item:
-                # Clear existing to prevent duplicates/stale links
-                ArtifactCompetency.objects.filter(artifact=art_obj).delete()
+            # 2. Link Competencies to Artifact (The "Through" Model)
+            # This populates the grid showing which tools were used in this project
+            if 'competencies' in item:
+                for comp_ref in item['competencies']:
+                    comp_id = comp_ref.get('id')
+                    role = comp_ref.get('role', 'supporting')
 
-                for comp_data in item["competencies"]:
+                    # Only link if competency exists
                     try:
-                        comp_obj = Competency.objects.get(id=comp_data["id"])
-                        ArtifactCompetency.objects.create(
-                            artifact=art_obj,
+                        comp_obj = Competency.objects.get(id=comp_id)
+                        ArtifactCompetency.objects.update_or_create(
+                            artifact=artifact,
                             competency=comp_obj,
-                            role=comp_data["role"],
+                            defaults={'role': role}
                         )
                     except Competency.DoesNotExist:
-                        self.stdout.write(
-                            self.style.WARNING(
-                                f"  Skill '{comp_data['id']}' not found for artifact '{item['id']}'"
-                            )
-                        )
+                        self.stdout.write(self.style.WARNING(f"Artifact {item['id']} references missing competency: {comp_id}"))
 
-        self.stdout.write(self.style.SUCCESS(f"  Processed {len(data)} artifacts"))
+        self.stdout.write(self.style.SUCCESS("Artifacts seeded and linked."))

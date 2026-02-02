@@ -60,7 +60,8 @@ class Competency(models.Model):
 
     id = models.SlugField(max_length=100, primary_key=True)
     name = models.CharField(max_length=200)
-
+    description = models.TextField(blank=True, default='')
+    
     category = models.ForeignKey(
         Category, on_delete=models.PROTECT, related_name="competencies"
     )
