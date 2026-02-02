@@ -47,7 +47,7 @@ pub async fn process_and_insert_season(path: &PathBuf, pool: &Pool<Postgres>) ->
     let mut batch: Vec<PlayRecord> = Vec::with_capacity(1000);
     let mut total_count = 0;
 
-    for record in rdr.deserialize().flatten() { 
+    for record in rdr.deserialize().flatten() {
         batch.push(record);
         if batch.len() >= 1000 {
             insert_batch(pool, &batch).await?;
