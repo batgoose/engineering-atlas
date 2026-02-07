@@ -36,7 +36,6 @@ class CommitCodeReferenceSerializer(serializers.ModelSerializer):
 
 
 class SubCompetencySerializer(serializers.ModelSerializer):
-    # Nesting code references directly so the frontend gets them in one fetch
     code_references = CommitCodeReferenceSerializer(many=True, read_only=True)
 
     class Meta:
@@ -45,10 +44,6 @@ class SubCompetencySerializer(serializers.ModelSerializer):
 
 
 class CompetencyLinkSerializer(serializers.ModelSerializer):
-    """
-    Tiny serializer for graph links.
-    Prevents recursion/bloat when fetching related skills.
-    """
 
     class Meta:
         model = Competency
@@ -59,7 +54,6 @@ class CompetencySerializer(serializers.ModelSerializer):
     category = CategorySerializer(read_only=True)
     sub_competencies = SubCompetencySerializer(many=True, read_only=True)
 
-    # Returns ID + Name so the frontend can build clickable <a> tags
     related_competencies = CompetencyLinkSerializer(many=True, read_only=True)
 
     class Meta:
@@ -81,9 +75,6 @@ class CompetencySerializer(serializers.ModelSerializer):
 
 
 class ArtifactCompetencySerializer(serializers.ModelSerializer):
-    """
-    Flattened serializer for Project Cards.
-    """
 
     id = serializers.ReadOnlyField(source="competency.id")
     name = serializers.ReadOnlyField(source="competency.name")
@@ -95,7 +86,6 @@ class ArtifactCompetencySerializer(serializers.ModelSerializer):
 
 
 class ArtifactSerializer(serializers.ModelSerializer):
-    # 'source' matches the custom Prefetch in views.py
     competencies = ArtifactCompetencySerializer(
         source="artifactcompetency_set", many=True, read_only=True
     )

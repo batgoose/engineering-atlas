@@ -74,7 +74,6 @@ jobs:
           POSTGRES_DB: nfl_data
         ports:
           # CRITICAL: Map host 5433 to container 5432
-          # This tricks the runner into looking like my local setup
           - 5433:5432
         options: >-
           --health-cmd pg_isready

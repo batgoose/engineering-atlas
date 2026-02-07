@@ -13,22 +13,22 @@ interface CompetencyIconProps {
   id: string;
   /** Size in pixels (default: 24) */
   size?: number;
-  /** Additional CSS classes */
+  
   className?: string;
-  /** Alt text for accessibility */
+  
   alt?: string;
 }
 
-// Force high-saturation glow colors to fight the darkness
+
 const GLOW_COLORS: Record<string, string> = {
-  'lang-rust': 'bg-[#ff4d00]',      // Vivid Rust Orange
-  'framework-django': 'bg-[#00ff41]', // Neon Matrix Green
-  'framework-astro': 'bg-[#ff00ea]',  // Astro Purple/Pink
-  'db-postgres': 'bg-[#00a2ff]',     // Postgres Sky Blue
+  'lang-rust': 'bg-[#ff4d00]',      
+  'framework-django': 'bg-[#00ff41]', 
+  'framework-astro': 'bg-[#ff00ea]',  
+  'db-postgres': 'bg-[#00a2ff]',     
 };
 
 export function CompetencyIcon({ id, size = 32 }: { id: string; size?: number }) {
-  // Icons that need extra help against dark backgrounds
+  
   const darkIcons = {
     'lang-rust': { glow: '#ff4d00', brightness: 1.5 },
     'framework-django': { glow: '#00ff41', brightness: 1.4 },
@@ -40,7 +40,6 @@ export function CompetencyIcon({ id, size = 32 }: { id: string; size?: number })
 
   return (
     <div className="relative flex items-center justify-center w-full h-full group/icon">
-      {/* Only add glow for problematic icons */}
       {needsBoost && (
         <div 
           className="absolute inset-[-2px] rounded-full blur-[10px] opacity-30 group-hover:opacity-50 transition-opacity duration-500"

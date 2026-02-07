@@ -1,8 +1,3 @@
-/**
- * Atlas Icon Registry
- * * Optimized SVG strings for the 3D competency sphere
- */
-
 export const ICONS: Record<string, string> = {
   'ai-integration': `<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 99.96 99.96">
@@ -1601,14 +1596,11 @@ export const ICONS: Record<string, string> = {
 </svg>`,
 };
 
-/**
- * Get icon definition by ID, with fallback to a default generic icon.
- */
 export function getIconString(id: string): string {
   if (ICONS[id]) {
     return ICONS[id];
   }
   console.warn(`Icon missing for: ${id}`);
-  // Fallback to a generic "Code" icon if missing
+  
   return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>`;
 }

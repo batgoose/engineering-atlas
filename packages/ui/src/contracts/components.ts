@@ -1,14 +1,4 @@
-/**
- * Component Contracts
- *
- * TypeScript interfaces defining the props/data shape for each UI component
- * Framework implementations (React/Vue/Angular/Svelte) each create their own
- * components that satisfy these contracts
- */
 
-// ============================================================
-// PRIMITIVES
-// ============================================================
 
 export interface LinkProps {
   href: string;
@@ -21,9 +11,7 @@ export interface BadgeProps {
   variant: 'success' | 'warning' | 'neutral';
 }
 
-// ============================================================
-// NAVIGATION
-// ============================================================
+
 
 export interface NavItemProps {
   label: string;
@@ -52,9 +40,7 @@ export interface FrameworkSwitcherProps {
   onToggle: () => void;
 }
 
-// ============================================================
-// HOME PAGE
-// ============================================================
+
 
 export interface HeroProps {
   greeting: string;
@@ -87,9 +73,7 @@ export interface HomePageProps {
   apiSectionTitle: string;
 }
 
-// ============================================================
-// ATLAS PAGE
-// ============================================================
+
 
 export interface FilterOption {
   id: string;
@@ -105,9 +89,7 @@ export interface AtlasPageProps {
   onFilterChange: (filterId: string | null) => void;
 }
 
-// ============================================================
-// DEMOS PAGE
-// ============================================================
+
 
 export interface ProjectCardProps {
   id: string;
@@ -131,9 +113,7 @@ export interface DemosPageProps {
   activeComplexityFilter: string;
 }
 
-// ============================================================
-// ABOUT PAGE
-// ============================================================
+
 
 export interface TimelineEntryProps {
   role: string;
@@ -154,9 +134,7 @@ export interface AboutPageProps {
   highlights: string[];
 }
 
-// ============================================================
-// CONTACT PAGE
-// ============================================================
+
 
 export interface ContactMethodProps {
   type: 'email' | 'github' | 'linkedin';

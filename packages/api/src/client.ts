@@ -1,9 +1,3 @@
-/**
- * Atlas API Client
- * 
- * Framework-agnostic typed fetch wrapper for the Django REST API.
- * Used by React Query hooks, Vue composables, Angular services, etc.
- */
 
 import type {
   CompetencyNode,
@@ -15,9 +9,7 @@ import type {
   DemoType,
 } from '@atlas/types';
 
-// ============================================================
-// CONFIGURATION
-// ============================================================
+
 
 export interface ApiConfig {
   baseUrl: string;
@@ -37,9 +29,7 @@ export function getApiConfig(): ApiConfig {
   return config;
 }
 
-// ============================================================
-// ERROR HANDLING
-// ============================================================
+
 
 export class ApiError extends Error {
   constructor(
@@ -53,11 +43,8 @@ export class ApiError extends Error {
   }
 }
 
-// ============================================================
-// RESPONSE TYPES
-// ============================================================
 
-// Category (no pagination)
+
 export interface Category {
   id: number;
   name: string;
@@ -65,9 +52,7 @@ export interface Category {
   display_order: number;
 }
 
-// ============================================================
-// FILTER TYPES
-// ============================================================
+
 
 export interface CompetencyFilters {
   category?: number | string;
@@ -85,9 +70,7 @@ export interface ArtifactFilters {
   search?: string;
 }
 
-// ============================================================
-// CORE FETCH WRAPPER
-// ============================================================
+
 
 async function apiFetch<T>(
   endpoint: string,
@@ -115,7 +98,7 @@ async function apiFetch<T>(
       try {
         data = await response.json();
       } catch {
-        // Response body wasn't JSON
+        
       }
       throw new ApiError(response.status, response.statusText, url, data);
     }
@@ -136,9 +119,7 @@ async function apiFetch<T>(
   }
 }
 
-// ============================================================
-// QUERY STRING BUILDER
-// ============================================================
+
 
 function buildQueryString(params: Record<string, unknown>): string {
   const searchParams = new URLSearchParams();
@@ -153,9 +134,6 @@ function buildQueryString(params: Record<string, unknown>): string {
   return query ? `?${query}` : '';
 }
 
-// ============================================================
-// CATEGORY ENDPOINTS (returns array, no pagination)
-// ============================================================
 
 export async function getCategories(): Promise<Category[]> {
   return apiFetch<Category[]>('/categories/');
@@ -165,9 +143,6 @@ export async function getCategory(id: number | string): Promise<Category> {
   return apiFetch<Category>(`/categories/${id}/`);
 }
 
-// ============================================================
-// COMPETENCY ENDPOINTS (returns array, no pagination)
-// ============================================================
 
 export async function getCompetencies(
   filters?: CompetencyFilters
@@ -196,9 +171,6 @@ export async function searchCompetencies(
   return getCompetencies({ search: query });
 }
 
-// ============================================================
-// ARTIFACT ENDPOINTS (returns array, no pagination)
-// ============================================================
 
 export async function getArtifacts(
   filters?: ArtifactFilters

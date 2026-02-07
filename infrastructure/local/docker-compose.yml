@@ -1,7 +1,6 @@
 version: '3.8'
 
 services:
-  # 1. DATABASE (With Vector Support)
   postgres:
     image: pgvector/pgvector:pg16
     container_name: atlas-postgres
@@ -10,7 +9,7 @@ services:
       POSTGRES_PASSWORD: atlas_password
       POSTGRES_DB: atlas_db
     ports:
-      - '5432:5432' # Direct access (for Admin tools)
+      - '5432:5432'
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -19,7 +18,6 @@ services:
       timeout: 5s
       retries: 5
 
-  # 2. CONNECTION POOLER (The RAM Saver)
   pgbouncer:
     image: edoburu/pgbouncer
     container_name: atlas-pgbouncer
@@ -28,23 +26,21 @@ services:
       DB_PASSWORD: atlas_password
       DB_HOST: postgres
       DB_NAME: atlas_db
-      POOL_MODE: transaction # Best for Django
+      POOL_MODE: transaction
       MAX_CLIENT_CONN: 100
       DEFAULT_POOL_SIZE: 20
     ports:
-      - '6432:5432' # Apps connect here (mimics Postgres port)
+      - '6432:5432'
     depends_on:
       postgres:
         condition: service_healthy
 
-  # 3. CACHE & PUB/SUB
   redis:
     image: redis:7-alpine
     container_name: atlas-redis
     ports:
       - '6379:6379'
 
-  # 4. OBJECT STORAGE (S3 Mock)
   minio:
     image: minio/minio
     container_name: atlas-minio
@@ -58,7 +54,6 @@ services:
     volumes:
       - minio_data:/data
 
-  # 5. INGRESS (Routing)
   traefik:
     image: traefik:v2.10
     container_name: atlas-traefik

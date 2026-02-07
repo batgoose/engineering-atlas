@@ -15,7 +15,7 @@ import { PROCESSED_CONSTELLATIONS } from './constellations';
 const TEXTURE_CACHE: Record<string, THREE.Texture> = {};
 const loader = new THREE.TextureLoader();
 
-// 1. Register Post-Processing
+
 extend({ UnrealBloomPass });
 declare module '@react-three/fiber' {
   interface ThreeElements {
@@ -23,9 +23,7 @@ declare module '@react-three/fiber' {
   }
 }
 
-// ============================================================
-// Types
-// ============================================================
+
 
 interface StarMapProps {
   competencies: CompetencyNode[];
@@ -36,17 +34,12 @@ interface StarMapProps {
   onStarHover: (competency: CompetencyNode | null) => void;
 }
 
-// ============================================================
-// Constants
-// ============================================================
+
 
 const STAR_BASE_SIZE = 0.15;
 const STAR_HOVER_SIZE = 0.28;
 const STAR_ACTIVE_SIZE = 0.2;
 
-// ============================================================
-// Helper: Procedural Glow Texture
-// ============================================================
 function useGlowTexture() {
   return useMemo(() => {
     if (typeof document === 'undefined') return null;
@@ -68,9 +61,7 @@ function useGlowTexture() {
   }, []);
 }
 
-// ============================================================
-// Main Component
-// ============================================================
+
 
 export function StarMap({
   competencies,
@@ -80,7 +71,6 @@ export function StarMap({
   onStarClick,
   onStarHover,
 }: StarMapProps) {
-  // NEW: Track which category is being hovered
   const [hoveredCategory, setHoveredCategory] = useState<string | null>(null);
   const [isInteracting, setIsInteracting] = useState(false);
   const bloomRef = useRef<any>(null);
@@ -97,14 +87,12 @@ export function StarMap({
     <div className="w-full h-full bg-slate-950">
       <Canvas
         camera={{ position: [0, 0, 18], fov: 60 }}
-        // OPTIMIZATION: Disabling native antialias significantly boosts FPS when using Bloom.
-        // Setting powerPreference to high-performance tells the browser to prefer the dedicated GPU.
+        
         gl={{
           antialias: false,
           powerPreference: 'high-performance',
-          precision: 'lowp', // Tell the GPU to use lower-precision math for speed
+          precision: 'lowp', 
         }}
-        // OPTIMIZATION: Limits pixel density on Retina/4K screens to prevent GPU bottlenecking.
         dpr={[1]}
       >
         <color attach="background" args={['#0a0a12']} />
@@ -144,9 +132,7 @@ export function StarMap({
   );
 }
 
-// ============================================================
-// Constellation Field
-// ============================================================
+
 
 function ConstellationField({
   competencies,
@@ -173,7 +159,6 @@ function ConstellationField({
 
   return (
     <group>
-      {/* FIX: Use PROCESSED_CONSTELLATIONS instead of Object.entries(CONSTELLATIONS) */}
       {PROCESSED_CONSTELLATIONS.map((constellation) => {
         const categoryName = constellation.name;
         const categoryCompetencies = competenciesByCategory[categoryName] || [];
@@ -189,7 +174,7 @@ function ConstellationField({
           <Constellation
             key={categoryName}
             name={categoryName}
-            definition={constellation} // This now contains .geometries
+            definition={constellation} 
             competencies={categoryCompetencies}
             isActive={isActive}
             isHovered={isHovered}
@@ -206,9 +191,7 @@ function ConstellationField({
   );
 }
 
-// ============================================================
-// Single Constellation
-// ============================================================
+
 
 interface ConstellationProps {
   name: string;
@@ -364,12 +347,9 @@ function Constellation({
   );
 }
 
-// ============================================================
-// Constellation Backdrop (SVG Loader)
-// ============================================================
 
 function ConstellationBackdrop({
-  geometries = [], // Default to empty array to prevent 'undefined' errors
+  geometries = [], 
   center,
   scale,
   color,
@@ -377,7 +357,7 @@ function ConstellationBackdrop({
   isHovered,
   onHover,
 }: {
-  geometries?: THREE.BufferGeometry[]; // Made optional with ?
+  geometries?: THREE.BufferGeometry[]; 
   center: THREE.Vector3;
   scale: number;
   color: string;
@@ -393,7 +373,6 @@ function ConstellationBackdrop({
     }
   });
 
-  // Safety check: if geometries somehow didn't load, render nothing instead of crashing
   if (!geometries || geometries.length === 0) {
     return null;
   }
@@ -426,12 +405,12 @@ function ConstellationBackdrop({
             <lineBasicMaterial
               color={color}
               transparent
-              opacity={isActive || isHovered ? 0.4 : 0.05} // Lowered base opacity
+              opacity={isActive || isHovered ? 0.4 : 0.05} 
               depthWrite={false}
               blending={THREE.AdditiveBlending}
             />
           </line>
-          {/* Only render points if the constellation is Active or Hovered */}
+          
           {(isActive || isHovered) && (
             <points geometry={geo}>
               <pointsMaterial
@@ -450,8 +429,6 @@ function ConstellationBackdrop({
   );
 }
 
-// ... Star, BackgroundStars, StarMapLoading components remain the same ...
-// ... (Including the fixed Icon Scaling and Glow Texture) ...
 interface StarProps {
   competency: CompetencyNode;
   position: THREE.Vector3;
@@ -482,13 +459,13 @@ function Star({
 
   useEffect(() => {
     const id = competency.id;
-    // Check if we already have this icon in memory
+    
     if (TEXTURE_CACHE[id]) {
       setTexture(TEXTURE_CACHE[id]);
       return;
     }
 
-    // Otherwise, load it once and store it
+    
     const dataUrl = getIconDataUrl(id);
     loader.load(dataUrl, (tex) => {
       tex.minFilter = THREE.LinearFilter;

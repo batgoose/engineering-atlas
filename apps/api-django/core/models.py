@@ -5,9 +5,6 @@ from django.utils.text import slugify
 
 
 class Category(models.Model):
-    """
-    High-level groupings (Frontend, Systems, etc.).
-    """
 
     id = models.SlugField(
         max_length=50, primary_key=True, help_text="URL-safe ID (e.g. 'frontend')"
@@ -60,8 +57,8 @@ class Competency(models.Model):
 
     id = models.SlugField(max_length=100, primary_key=True)
     name = models.CharField(max_length=200)
-    description = models.TextField(blank=True, default='')
-    
+    description = models.TextField(blank=True, default="")
+
     category = models.ForeignKey(
         Category, on_delete=models.PROTECT, related_name="competencies"
     )
@@ -93,7 +90,6 @@ class Competency(models.Model):
 
     def save(self, *args, **kwargs):
         if not self.id:
-            # Robust slug generation for tech terms
             replacements = {
                 "++": "pp",
                 "#": "sharp",
@@ -105,7 +101,6 @@ class Competency(models.Model):
                 clean_name = clean_name.replace(old, new)
             self.id = slugify(clean_name)
 
-        # Validation runs AFTER slug is set
         self.full_clean()
         super().save(*args, **kwargs)
 
@@ -174,10 +169,9 @@ class SubCompetency(models.Model):
 
     def save(self, *args, **kwargs):
         if not self.id:
-            if self.parent_id:  # Safer check that avoids DB query
+            if self.parent_id:
                 self.id = slugify(f"{self.parent_id}-{self.name}")
             else:
-                # Should not happen if foreign key is enforced, but good for fixtures
                 raise ValidationError("SubCompetency must have a parent before saving")
         super().save(*args, **kwargs)
 
@@ -234,14 +228,9 @@ class Artifact(models.Model):
         ordering = ["-date_created"]
 
     def clean(self):
-        """
-        Enforce business logic, but relax rules for Planned/In-Progress items.
-        """
-        # SKIP validation if the project isn't finished yet
         if self.status in ["planned", "in-progress"]:
             return
 
-        # STRICT validation for 'complete' items
         if self.demo_type in ["interactive", "live-site"] and not self.live_url:
             raise ValidationError(
                 {"live_url": "Interactive/Live demos must have a valid Live URL."}
@@ -256,21 +245,17 @@ class Artifact(models.Model):
             raise ValidationError({"id": "Generated slug cannot be empty"})
 
     def save(self, *args, **kwargs):
-        # 1. Auto-generate Slug from Title if missing
         if not self.id:
             base_slug = slugify(self.title)
             slug = base_slug
             counter = 1
-            # Handle collisions (e.g. two projects named "Portfolio")
             while Artifact.objects.filter(id=slug).exclude(pk=self.pk).exists():
                 slug = f"{base_slug}-{counter}"
                 counter += 1
             self.id = slug
 
-        # 2. Run Validation (calls clean() above)
         self.full_clean()
 
-        # 3. Save to DB
         super().save(*args, **kwargs)
 
     def __str__(self):

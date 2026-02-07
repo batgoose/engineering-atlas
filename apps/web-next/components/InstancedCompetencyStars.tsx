@@ -24,17 +24,15 @@ export function InstancedCompetencyStars({
       const isHero = hoveredId === competency.id || selectedId === competency.id;
       const isActiveCategory = activeCategory === competency.category.name;
 
-      // 1. SCALE: Small world units, but we'll use overdrive color to keep them visible
       let scale = isHero ? 0 : (isActiveCategory ? 0.15 : 0.1);
       
       TEMP_OBJ.position.copy(position);
-      // Neutral Z, we will handle layering via renderOrder instead of physical distance
+      
       TEMP_OBJ.position.z = position.z; 
       TEMP_OBJ.scale.setScalar(scale);
       TEMP_OBJ.updateMatrix();
       meshRef.current!.setMatrixAt(i, TEMP_OBJ.matrix);
 
-      // 2. COLOR: Overdrive colors help dots "survive" the fog at distance
       if (isActiveCategory) {
         TEMP_COLOR.set('#00ffff').multiplyScalar(2.0); 
       } else {
@@ -52,14 +50,14 @@ export function InstancedCompetencyStars({
       ref={meshRef} 
       args={[null, null, count]} 
       frustumCulled={false}
-      renderOrder={10} // Forces stars to draw AFTER the backdrops
+      renderOrder={10} 
     >
       <sphereGeometry args={[1, 8, 8]} /> 
       <meshBasicMaterial 
         transparent 
         opacity={1.0} 
-        depthTest={true}   // Still check depth so they hide behind icons
-        depthWrite={false}  // But don't block other stars/backdrops
+        depthTest={true}   
+        depthWrite={false}  
         blending={THREE.AdditiveBlending}
       />
     </instancedMesh>

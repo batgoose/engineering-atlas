@@ -12,7 +12,7 @@ export default function AboutPage() {
     <div className={`${layout.page} py-12`}>
       <div className={layout.containerNarrow}>
         <h1 className={`${typography.h1} mb-8`}>{props.title}</h1>
-        
+
         <div className={aboutStyles.prose}>
           <p className={aboutStyles.intro}>{props.intro}</p>
 

@@ -1,6 +1,6 @@
 /** @type {import('tailwindcss').Config} */
 
-// helper to allow opacity usage with CSS variables
+
 function withOpacity(variableName) {
   return ({ opacityValue }) => {
     if (opacityValue !== undefined) {
@@ -11,7 +11,6 @@ function withOpacity(variableName) {
 }
 
 module.exports = {
-  // use a preset so it doesn't overwrite the app's 'content' array
   theme: {
     extend: {
       colors: {

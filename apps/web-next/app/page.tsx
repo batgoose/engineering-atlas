@@ -10,16 +10,10 @@ import type { CompetencyNode, Artifact } from '@atlas/types';
 
 export default function HomePage() {
   const props = buildHomePageProps();
-  
-  const { 
-    data: competencies, 
-    isLoading: competenciesLoading 
-  } = useHighlightedCompetencies();
-  
-  const { 
-    data: artifacts, 
-    isLoading: artifactsLoading 
-  } = useArtifacts();
+
+  const { data: competencies, isLoading: competenciesLoading } = useHighlightedCompetencies();
+
+  const { data: artifacts, isLoading: artifactsLoading } = useArtifacts();
 
   const highlightedSkills = competencies ?? [];
   const recentArtifacts = (artifacts ?? []).slice(0, 4);
@@ -27,14 +21,10 @@ export default function HomePage() {
   return (
     <div className={layout.page}>
       <Hero {...props.hero} />
-      
-      {/* Skills Section */}
+
       <section className={layout.sectionWithBorder}>
         <div className={layout.container}>
-          <SectionHeader 
-            title={props.skillsSectionTitle} 
-            link={props.skillsSectionLink} 
-          />
+          <SectionHeader title={props.skillsSectionTitle} link={props.skillsSectionLink} />
           {competenciesLoading ? (
             <SkillsGridSkeleton />
           ) : highlightedSkills.length > 0 ? (
@@ -49,12 +39,11 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* Projects Section */}
       <section className={layout.sectionWithBorder}>
         <div className={layout.container}>
-          <SectionHeader 
-            title="Recent Projects" 
-            link={{ href: '/demos', label: 'View all demos →' }} 
+          <SectionHeader
+            title="Recent Projects"
+            link={{ href: '/demos', label: 'View all demos →' }}
           />
           {artifactsLoading ? (
             <ProjectsGridSkeleton />
@@ -70,7 +59,6 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* API Methods Section */}
       <section className={layout.sectionAlt}>
         <div className={layout.container}>
           <h2 className={`${typography.h2} mb-8`}>{props.apiSectionTitle}</h2>
@@ -85,9 +73,7 @@ export default function HomePage() {
   );
 }
 
-// ============================================================
 // Hero (static content)
-// ============================================================
 
 function Hero({ greeting, headline, subhead, description, primaryCta, secondaryCta }: HeroProps) {
   return (
@@ -115,10 +101,6 @@ function Hero({ greeting, headline, subhead, description, primaryCta, secondaryC
   );
 }
 
-// ============================================================
-// Section Header
-// ============================================================
-
 function SectionHeader({ title, link }: { title: string; link: { href: string; label: string } }) {
   return (
     <div className={`${layout.flexBetween} mb-8`}>
@@ -130,9 +112,7 @@ function SectionHeader({ title, link }: { title: string; link: { href: string; l
   );
 }
 
-// ============================================================
 // Skill Card (from API data)
-// ============================================================
 
 function SkillCard({ skill }: { skill: CompetencyNode }) {
   return (
@@ -151,16 +131,14 @@ function SkillCard({ skill }: { skill: CompetencyNode }) {
       </div>
       <div className="flex flex-wrap gap-1">
         {skill.tags.slice(0, 3).map((tag) => (
-          <span key={tag} className={`${badges.neutral} text-xs`}>{tag}</span>
+          <span key={tag} className={`${badges.neutral} text-xs`}>
+            {tag}
+          </span>
         ))}
       </div>
     </Link>
   );
 }
-
-// ============================================================
-// Project Card (from API data)
-// ============================================================
 
 function ProjectCard({ artifact }: { artifact: Artifact }) {
   const statusBadge = {
@@ -175,8 +153,7 @@ function ProjectCard({ artifact }: { artifact: Artifact }) {
     planned: 'Planned',
   }[artifact.status];
 
-  // Get primary competency for icon
-  const primaryCompetency = artifact.competencies.find(c => c.role === 'primary');
+  const primaryCompetency = artifact.competencies.find((c) => c.role === 'primary');
 
   return (
     <Link href={`/demos/${artifact.id}`} className={cards.baseHover}>
@@ -196,16 +173,14 @@ function ProjectCard({ artifact }: { artifact: Artifact }) {
       </div>
       <div className="flex flex-wrap gap-1">
         {artifact.tech_stack.slice(0, 4).map((tech) => (
-          <span key={tech} className={badges.tech}>{tech}</span>
+          <span key={tech} className={badges.tech}>
+            {tech}
+          </span>
         ))}
       </div>
     </Link>
   );
 }
-
-// ============================================================
-// API Method Card (static)
-// ============================================================
 
 function ApiMethodCard({ title, description, status }: ApiMethodCardProps) {
   const statusBadge = {
@@ -230,10 +205,6 @@ function ApiMethodCard({ title, description, status }: ApiMethodCardProps) {
     </div>
   );
 }
-
-// ============================================================
-// Loading Skeletons
-// ============================================================
 
 function SkillsGridSkeleton() {
   return (
@@ -275,10 +246,6 @@ function ProjectsGridSkeleton() {
     </div>
   );
 }
-
-// ============================================================
-// Empty State
-// ============================================================
 
 function EmptyState({ message }: { message: string }) {
   return (

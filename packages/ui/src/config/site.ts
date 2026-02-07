@@ -1,9 +1,4 @@
-/**
- * Site Configuration
- *
- * Shared across all framework implementations
- * Navigation structure, metadata, and common content
- */
+
 
 export interface NavItem {
   label: string;

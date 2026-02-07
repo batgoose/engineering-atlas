@@ -21,26 +21,22 @@ export default function DemosPage() {
 
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
 
-  // In your filtering logic
-  const filteredArtifacts = (artifacts ?? []).filter(artifact => {
-    // Existing filters
+  const filteredArtifacts = (artifacts ?? []).filter((artifact) => {
     if (statusFilter !== 'all' && artifact.status !== statusFilter) return false;
     if (domainFilter !== 'all' && artifact.domain !== domainFilter) return false;
-    
-    // Category filter
+
     if (categoryFilter !== 'all') {
-      const primaryCompetency = artifact.competencies.find(c => c.role === 'primary');
+      const primaryCompetency = artifact.competencies.find((c) => c.role === 'primary');
       if (!primaryCompetency || primaryCompetency.category_name.toLowerCase() !== categoryFilter) {
         return false;
       }
     }
-  
+
     return true;
   });
 
   return (
     <div className={layout.page}>
-      {/* Header */}
       <section className={demosStyles.header}>
         <div className={layout.container}>
           <h1 className={`${typography.h1} text-3xl mb-4`}>Project Demos</h1>
@@ -50,82 +46,83 @@ export default function DemosPage() {
         </div>
       </section>
 
-      {/* Filters */}
       <section className="py-6 border-b border-slate-800/50">
-  <div className={layout.container}>
-    <div className="flex flex-wrap gap-6">
-      {/* Status Filter */}
-      <div className="flex items-center gap-3">
-        <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Status</span>
-        <div className="flex gap-1 bg-slate-900/50 rounded-lg p-1 border border-slate-800">
-          {(['all', 'complete', 'in-progress', 'planned'] as const).map((status) => (
-            <button
-              key={status}
-              onClick={() => setStatusFilter(status)}
-              className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all ${
-                statusFilter === status 
-                  ? 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/30' 
-                  : 'text-slate-400 hover:text-slate-200'
-              }`}
-            >
-              {status === 'all' 
-                ? 'All' 
-                : status === 'in-progress' 
-                  ? 'In Progress' 
-                  : capitalize(status)}
-            </button>
-          ))}
-        </div>
-      </div>
+        <div className={layout.container}>
+          <div className="flex flex-wrap gap-6">
+            <div className="flex items-center gap-3">
+              <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+                Status
+              </span>
+              <div className="flex gap-1 bg-slate-900/50 rounded-lg p-1 border border-slate-800">
+                {(['all', 'complete', 'in-progress', 'planned'] as const).map((status) => (
+                  <button
+                    key={status}
+                    onClick={() => setStatusFilter(status)}
+                    className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all ${
+                      statusFilter === status
+                        ? 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/30'
+                        : 'text-slate-400 hover:text-slate-200'
+                    }`}
+                  >
+                    {status === 'all'
+                      ? 'All'
+                      : status === 'in-progress'
+                        ? 'In Progress'
+                        : capitalize(status)}
+                  </button>
+                ))}
+              </div>
+            </div>
 
-      {/* Project Filter */}
-      <div className="flex items-center gap-3">
-        <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Project</span>
-        <div className="flex gap-1 bg-slate-900/50 rounded-lg p-1 border border-slate-800">
-          {(['all', 'football', 'infrastructure', 'atlas'] as const).map((project) => (
-            <button
-              key={project}
-              onClick={() => setDomainFilter(project)}
-              className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all ${
-                domainFilter === project 
-                  ? 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/30' 
-                  : 'text-slate-400 hover:text-slate-200'
-              }`}
-            >
-              {project === 'all' 
-                ? 'All' 
-                : project === 'football' 
-                  ? 'Redzone' 
-                  : capitalize(project)}
-            </button>
-          ))}
-        </div>
-      </div>
+            <div className="flex items-center gap-3">
+              <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+                Project
+              </span>
+              <div className="flex gap-1 bg-slate-900/50 rounded-lg p-1 border border-slate-800">
+                {(['all', 'football', 'infrastructure', 'atlas'] as const).map((project) => (
+                  <button
+                    key={project}
+                    onClick={() => setDomainFilter(project)}
+                    className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all ${
+                      domainFilter === project
+                        ? 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/30'
+                        : 'text-slate-400 hover:text-slate-200'
+                    }`}
+                  >
+                    {project === 'all'
+                      ? 'All'
+                      : project === 'football'
+                        ? 'Redzone'
+                        : capitalize(project)}
+                  </button>
+                ))}
+              </div>
+            </div>
 
-      {/* Category Filter */}
-      <div className="flex items-center gap-3">
-        <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Category</span>
-        <div className="flex gap-1 bg-slate-900/50 rounded-lg p-1 border border-slate-800">
-          {(['all', 'systems', 'frontend', 'backend', 'devops'] as const).map((category) => (
-            <button
-              key={category}
-              onClick={() => setCategoryFilter(category)}
-              className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all ${
-                categoryFilter === category 
-                  ? 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/30' 
-                  : 'text-slate-400 hover:text-slate-200'
-              }`}
-            >
-              {capitalize(category)}
-            </button>
-          ))}
+            <div className="flex items-center gap-3">
+              <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+                Category
+              </span>
+              <div className="flex gap-1 bg-slate-900/50 rounded-lg p-1 border border-slate-800">
+                {(['all', 'systems', 'frontend', 'backend', 'devops'] as const).map((category) => (
+                  <button
+                    key={category}
+                    onClick={() => setCategoryFilter(category)}
+                    className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all ${
+                      categoryFilter === category
+                        ? 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/30'
+                        : 'text-slate-400 hover:text-slate-200'
+                    }`}
+                  >
+                    {capitalize(category)}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
         </div>
-      </div>
-    </div>
-  </div>
-</section>
+      </section>
 
-      {/* Project Grid */}
       <section className={demosStyles.projectGrid}>
         <div className={layout.container}>
           {isLoading ? (
@@ -146,10 +143,6 @@ export default function DemosPage() {
     </div>
   );
 }
-
-// ============================================================
-// Loading Skeleton
-// ============================================================
 
 function ProjectsGridSkeleton() {
   return (
@@ -178,10 +171,6 @@ function ProjectsGridSkeleton() {
   );
 }
 
-// ============================================================
-// States
-// ============================================================
-
 function EmptyState({ message }: { message: string }) {
   return (
     <div className={`${cards.base} text-center py-12`}>
@@ -197,10 +186,6 @@ function ErrorState({ message }: { message: string }) {
     </div>
   );
 }
-
-// ============================================================
-// Utils
-// ============================================================
 
 function capitalize(str: string): string {
   return str.charAt(0).toUpperCase() + str.slice(1);

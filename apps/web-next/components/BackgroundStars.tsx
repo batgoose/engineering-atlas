@@ -25,7 +25,7 @@ export function BackgroundStars({ count = 400 }) {
     if (!meshRef.current) return;
     
     starData.forEach((star, i) => {
-      // Subtle twinkle effect by modifying scale
+      
       const twinkle = 0.8 + Math.sin(clock.elapsedTime * star.speed + star.phase) * 0.2;
       TEMP_OBJ.position.copy(star.pos);
       TEMP_OBJ.scale.setScalar(twinkle);

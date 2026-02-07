@@ -6,7 +6,6 @@ import { layout, buttons, typography, badges } from '@atlas/ui/styles';
 import { CompetencyIcon } from '@/components/CompetencyIcon';
 import type { CompetencyNode, Artifact } from '@atlas/types';
 
-// Lazy load the 3D starmap
 const StarMap = lazy(() =>
   import('@/components/StarMap').then((mod) => ({ default: mod.StarMap }))
 );
@@ -24,7 +23,6 @@ export default function AtlasPage() {
   const allSkills = competencies ?? [];
   const allArtifacts = artifacts ?? [];
 
-  // Get artifacts linked to selected competency
   const relatedArtifacts = useMemo(() => {
     if (!selectedCompetency) return [];
     return allArtifacts.filter((artifact) =>
@@ -32,26 +30,23 @@ export default function AtlasPage() {
     );
   }, [selectedCompetency, allArtifacts]);
 
-  // Get related competencies (same category for now)
   const relatedCompetencies = useMemo(() => {
     if (!selectedCompetency) return [];
-    return allSkills.filter(
-      (s) =>
-        s.id !== selectedCompetency.id &&
-        s.category.name === selectedCompetency.category.name
-    ).slice(0, 5);
+    return allSkills
+      .filter(
+        (s) =>
+          s.id !== selectedCompetency.id && s.category.name === selectedCompetency.category.name
+      )
+      .slice(0, 5);
   }, [selectedCompetency, allSkills]);
 
-  // Handlers
   const handleCategoryFilter = useCallback((categoryName: string | null) => {
     setActiveCategory(categoryName);
     setSelectedCompetency(null);
   }, []);
 
   const handleStarClick = useCallback((competency: CompetencyNode) => {
-    setSelectedCompetency((prev) =>
-      prev?.id === competency.id ? null : competency
-    );
+    setSelectedCompetency((prev) => (prev?.id === competency.id ? null : competency));
   }, []);
 
   const handleStarHover = useCallback((competency: CompetencyNode | null) => {
@@ -64,9 +59,7 @@ export default function AtlasPage() {
 
   return (
     <div className="h-screen flex bg-slate-950 overflow-hidden">
-      {/* Main starmap area */}
       <div className="flex-1 flex flex-col min-w-0">
-        {/* Filter bar */}
         <header className="flex-shrink-0 border-b border-slate-800/50 bg-slate-900/30 backdrop-blur-sm z-10">
           <div className="px-6 py-3 flex items-center justify-between gap-4 flex-wrap">
             <div className="flex items-center gap-2 flex-wrap">
@@ -82,9 +75,7 @@ export default function AtlasPage() {
                   key={category.id}
                   onClick={() => handleCategoryFilter(category.name)}
                   className={
-                    activeCategory === category.name
-                      ? buttons.filterActive
-                      : buttons.filterInactive
+                    activeCategory === category.name ? buttons.filterActive : buttons.filterInactive
                   }
                 >
                   {category.name}
@@ -100,7 +91,6 @@ export default function AtlasPage() {
           </div>
         </header>
 
-        {/* Starmap canvas */}
         <main className="flex-1 relative min-h-0">
           {isLoading ? (
             <LoadingState />
@@ -121,7 +111,6 @@ export default function AtlasPage() {
         </main>
       </div>
 
-      {/* Detail panel - slides in from right */}
       <aside
         className={`
           flex-shrink-0 w-96 border-l border-slate-800/50 bg-slate-900/95 backdrop-blur-md
@@ -144,10 +133,6 @@ export default function AtlasPage() {
   );
 }
 
-// ============================================================
-// Competency Detail Panel
-// ============================================================
-
 function CompetencyDetail({
   competency,
   relatedArtifacts,
@@ -163,7 +148,6 @@ function CompetencyDetail({
 }) {
   return (
     <div className="p-6">
-      {/* Header */}
       <div className="flex items-start gap-4 mb-6">
         <div className="p-3 rounded-xl bg-slate-800/50 border border-slate-700/50">
           <CompetencyIcon id={competency.id} size={48} />
@@ -184,7 +168,6 @@ function CompetencyDetail({
         </div>
       </div>
 
-      {/* Proficiency */}
       <div className="mb-6">
         <div className="flex items-center justify-between mb-2">
           <span className="text-slate-400 text-sm">Proficiency</span>
@@ -193,13 +176,11 @@ function CompetencyDetail({
         <ProficiencyBar level={competency.proficiency} />
       </div>
 
-      {/* Summary */}
       <div className="mb-6">
         <h3 className="text-slate-300 text-sm font-medium mb-2">Summary</h3>
         <p className="text-slate-400 text-sm leading-relaxed">{competency.summary}</p>
       </div>
 
-      {/* Tags */}
       {competency.tags.length > 0 && (
         <div className="mb-6">
           <h3 className="text-slate-300 text-sm font-medium mb-2">Tags</h3>
@@ -216,7 +197,6 @@ function CompetencyDetail({
         </div>
       )}
 
-      {/* Related Artifacts */}
       {relatedArtifacts.length > 0 && (
         <div className="mb-6">
           <h3 className="text-slate-300 text-sm font-medium mb-3">
@@ -239,7 +219,6 @@ function CompetencyDetail({
         </div>
       )}
 
-      {/* Related Competencies */}
       {relatedCompetencies.length > 0 && (
         <div className="mb-6">
           <h3 className="text-slate-300 text-sm font-medium mb-3">Related Skills</h3>
@@ -257,16 +236,9 @@ function CompetencyDetail({
           </div>
         </div>
       )}
-
-      {/* Sub-competencies placeholder */}
-      {/* TODO: Add when data model supports it */}
     </div>
   );
 }
-
-// ============================================================
-// Proficiency Bar
-// ============================================================
 
 function ProficiencyBar({ level }: { level: string }) {
   const levels = ['Learning', 'Familiar', 'Proficient', 'Expert'];
@@ -282,10 +254,6 @@ function ProficiencyBar({ level }: { level: string }) {
     </div>
   );
 }
-
-// ============================================================
-// States
-// ============================================================
 
 function LoadingState() {
   return (

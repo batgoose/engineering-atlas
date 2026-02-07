@@ -21,7 +21,6 @@ export default function ContactPage() {
         <h1 className={`${typography.h1} mb-4`}>{props.title}</h1>
         <p className={`${typography.bodyMuted} mb-12`}>{props.description}</p>
 
-        {/* contact methods */}
         <div className={contactStyles.methodsContainer}>
           {props.methods.map((method) => (
             <a
@@ -42,7 +41,6 @@ export default function ContactPage() {
           ))}
         </div>
 
-        {/* contact form */}
         <div className={contactStyles.formContainer}>
           <h2 className={`${typography.h4} mb-4`}>Send a Message</h2>
           <form className={contactStyles.formFields}>

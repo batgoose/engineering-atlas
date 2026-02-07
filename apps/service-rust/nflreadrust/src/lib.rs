@@ -11,7 +11,6 @@ use tokio::io::AsyncWriteExt;
 
 pub const BASE_URL: &str = "https://github.com/nflverse/nflverse-data/releases/download/pbp";
 
-/// Streams the CSV file from GitHub to a local temp file.
 pub async fn download_season(year: i32) -> Result<PathBuf> {
     let url = format!("{}/play_by_play_{}.csv", BASE_URL, year);
     let mut save_path = std::env::temp_dir();
@@ -21,7 +20,7 @@ pub async fn download_season(year: i32) -> Result<PathBuf> {
         return Ok(save_path);
     }
 
-    // Use reqwest to fetch
+    
     let response = reqwest::get(&url).await?;
     if !response.status().is_success() {
         anyhow::bail!("Failed to get file: Status {}", response.status());
@@ -37,7 +36,6 @@ pub async fn download_season(year: i32) -> Result<PathBuf> {
     Ok(save_path)
 }
 
-/// Reads CSV and inserts in batches
 pub async fn process_and_insert_season(path: &PathBuf, pool: &Pool<Postgres>) -> Result<usize> {
     let mut rdr = csv::ReaderBuilder::new()
         .has_headers(true)
@@ -64,7 +62,6 @@ pub async fn process_and_insert_season(path: &PathBuf, pool: &Pool<Postgres>) ->
     Ok(total_count)
 }
 
-/// The actual SQL writing logic
 pub async fn insert_batch(pool: &Pool<Postgres>, plays: &[PlayRecord]) -> Result<()> {
     let mut query_builder = sqlx::QueryBuilder::new(
         "INSERT INTO plays (
@@ -159,12 +156,10 @@ mod unit_tests {
 
     #[test]
     fn test_parse_sparse_row_timeout() {
-        // FIXED: We only include the mandatory columns + posteam.
-        // This is much harder to break than the long string.
+        
         let csv_data = "\
 play_id,game_id,home_team,away_team,season_type,week,shotgun,no_huddle,posteam
 50,2023_01_DET_KC,KC,DET,REG,1,0,0,";
-        // Note the trailing comma above ^ explicitly making 'posteam' empty
 
         let mut rdr = csv::ReaderBuilder::new()
             .has_headers(true)
@@ -179,14 +174,12 @@ play_id,game_id,home_team,away_team,season_type,week,shotgun,no_huddle,posteam
 
         assert_eq!(record.play_id, 50.0);
         assert_eq!(record.week, 1);
-        // The core test: 'posteam' should be None because we left it empty
         assert_eq!(record.posteam, None);
     }
 
     #[test]
     fn test_date_parsing_logic() {
-        // We manually test the logic we used inside insert_batch
-        // (String -> NaiveDate conversion)
+        
 
         let date_str = Some("2023-12-25".to_string());
 
@@ -203,14 +196,13 @@ play_id,game_id,home_team,away_team,season_type,week,shotgun,no_huddle,posteam
 
     #[test]
     fn test_bad_date_handling() {
-        // What happens if the date is garbage?
+        
         let date_str = Some("Not-A-Date".to_string());
 
         let parsed = date_str
             .as_ref()
             .and_then(|d| NaiveDate::parse_from_str(d, "%Y-%m-%d").ok());
 
-        // It should gracefully return None, not panic
         assert!(parsed.is_none());
     }
 }

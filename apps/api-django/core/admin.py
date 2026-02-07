@@ -11,17 +11,15 @@ from .models import (
 
 
 class TechStackFilter(admin.SimpleListFilter):
-    """Custom filter for ArrayField tech_stack"""
 
     title = "Tech Stack"
     parameter_name = "tech_stack"
 
     def lookups(self, request, model_admin):
-        # Optimized: Get distinct values faster
         artifacts = model_admin.model.objects.values_list("tech_stack", flat=True)
         unique_tags = set()
         for stack in artifacts:
-            if stack:  # Guard against None/Empty
+            if stack:
                 unique_tags.update(stack)
         return sorted([(tag, tag) for tag in unique_tags])
 
@@ -182,19 +180,16 @@ class ArtifactAdmin(admin.ModelAdmin):
 
     def get_form(self, request, obj=None, **kwargs):
         form = super().get_form(request, obj, **kwargs)
-        # Add a hint directly to the UI input
         field = form.base_fields["tech_stack"]
         field.help_text = (
             "Enter technologies separated by commas (e.g. 'Python, React, AWS')"
         )
         field.widget.attrs["placeholder"] = "Python, React, AWS"
-        field.widget.attrs["style"] = "width: 400px;"  # Make it wider for easier typing
+        field.widget.attrs["style"] = "width: 400px;"
         return form
 
-    # Prefetch related data to solve N+1 query problem
     def get_queryset(self, request):
         qs = super().get_queryset(request)
-        # Prefetch with select_related to get the competency data in one go
         return qs.prefetch_related(
             Prefetch(
                 "artifactcompetency_set",
@@ -203,8 +198,6 @@ class ArtifactAdmin(admin.ModelAdmin):
         )
 
     def primary_competencies_list(self, obj):
-        # Use Python list filtering (in memory) instead of DB queries
-        # because I already prefetched 'artifactcompetency_set'
         primaries = [
             ac.competency.name
             for ac in obj.artifactcompetency_set.all()

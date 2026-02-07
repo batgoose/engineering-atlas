@@ -1,9 +1,7 @@
 import * as THREE from 'three';
 import { SVGLoader } from 'three-stdlib';
 
-// ============================================================
-// Types
-// ============================================================
+
 
 export interface ConstellationPoint {
   x: number;
@@ -19,9 +17,7 @@ export interface ConstellationDefinition {
   radius: number;
 }
 
-// ============================================================
-// SVG ASSETS
-// ============================================================
+
 
 const SVGS = {
   CHART: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path stroke="#000" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21H7.8c-1.68 0-2.52 0-3.162-.327a3 3 0 0 1-1.311-1.311C3 18.72 3 17.88 3 16.2V3m3 12 4-4 4 4 6-6m0 0v4m0-4h-4"/></svg>`,
@@ -33,9 +29,7 @@ const SVGS = {
   TOOLS: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 65 65"><g fill="none" fill-rule="evenodd" stroke="#6B6C6E" stroke-width="2"><path d="M26.6 19.1c1.9-4.7 3.4-7.9-2.8-14.1-2.6-2.6-6.1-3.9-9.5-3.8l5.1 5.1-2.7 10-10 2.7-5.1-5.1c-.1 3.4 1.2 6.8 3.8 9.5 6.2 6.2 9.4 4.8 14.1 2.8M38.6 45.3c-1.9 4.7-3.4 7.8 2.8 14.1 2.6 2.6 6 3.9 9.5 3.8L46 58.3l2.7-10 10-2.7 4.9 4.9c.1-3.4-1.2-6.9-3.8-9.5-6.2-6.2-9.4-4.8-14-2.9M26.8 33.5l-9.3-9.4M40.7 47.3l-9.5-9.5M41.2 33.7l6.6 6.6M24.5 17.1l6.3 6.2M5.1 62.5l-2.8-2.8 5.6-8.5 3.6-2.1 17.6-17.7 4.3 4.3-17.7 17.7-2.1 3.5-8.5 5.6Z"/><path d="m41.2 33.6 21.9-21.9c.8-.8.8-2 0-2.8L56 1.8c-.8-.8-2-.8-2.8 0L31.3 23.7c-.6.6-.7 1.5-.4 2.3-.4.1-3.2 1.3-3.2 1.3-.8.8-.8 2 0 2.8l7.1 7.1c.8.8 2 .8 2.8 0 0 0 1.2-2.8 1.3-3.2.7.3 1.6.2 2.3-.4ZM53.9 6.7 36.2 24.4M58.1 10.9 40.5 28.6"/></g></svg>`,
 };
 
-// ============================================================
-// CONSTELLATION DEFINITIONS
-// ============================================================
+
 
 export const CONSTELLATIONS: Record<string, ConstellationDefinition> = {
   Frontend: {
@@ -156,7 +150,7 @@ function preProcessSVG(svgString: string) {
   const data = loader.parse(svgString);
   const lineGeometries: THREE.BufferGeometry[] = [];
 
-  // 1. First, find the bounding box of the ENTIRE SVG to normalize it as a whole
+  
   const totalBBox = new THREE.Box3();
 
   data.paths.forEach((path) => {
@@ -173,20 +167,19 @@ function preProcessSVG(svgString: string) {
   const centerOffset = new THREE.Vector3();
   totalBBox.getCenter(centerOffset);
 
-  // 2. Calculate a normalization factor (fitting the largest dimension into 1 unit)
   const maxDim = Math.max(size.x, size.y);
   const normalizationScale = 1 / (maxDim || 1);
 
-  // 3. Apply the transformation to each sub-path geometry
+  
   data.paths.forEach((path) => {
     path.subPaths.forEach((subPath) => {
       const points = subPath.getPoints();
       const geometry = new THREE.BufferGeometry().setFromPoints(points);
 
-      // Center based on the TOTAL SVG center, not just the subpath center
+      
       geometry.translate(-centerOffset.x, -centerOffset.y, -centerOffset.z);
 
-      // Scale down to 1x1 unit size
+      
       geometry.scale(normalizationScale, normalizationScale, normalizationScale);
 
       lineGeometries.push(geometry);
@@ -196,8 +189,8 @@ function preProcessSVG(svgString: string) {
   return lineGeometries;
 }
 
-// Transform the raw definitions into 3D-ready data.
-// We map the record to an array for easier iteration in the components.
+
+
 export const PROCESSED_CONSTELLATIONS = Object.entries(CONSTELLATIONS).map(([name, def]) => ({
   name,
   ...def,

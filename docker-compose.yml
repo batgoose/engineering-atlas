@@ -1,9 +1,6 @@
 version: '3.8'
 
 services:
-  # ============================================================================
-  # DATABASE LAYER
-  # ============================================================================
   
   # Atlas Application Database (with Vector Support)
   postgres-atlas:
@@ -26,7 +23,6 @@ services:
       timeout: 5s
       retries: 5
 
-  # NFL Data Database
   postgres-nfl:
     image: postgres:15-alpine
     container_name: atlas-nfl-postgres
@@ -48,11 +44,7 @@ services:
       timeout: 5s
       retries: 5
 
-  # ============================================================================
-  # CONNECTION POOLING LAYER
-  # ============================================================================
 
-  # Atlas DB Connection Pooler
   pgbouncer-atlas:
     image: edoburu/pgbouncer
     container_name: atlas-pgbouncer
@@ -65,7 +57,7 @@ services:
       POOL_MODE: transaction
       MAX_CLIENT_CONN: 100
       DEFAULT_POOL_SIZE: 20
-      AUTH_TYPE: scram-sha-256  # ADD THIS LINE
+      AUTH_TYPE: scram-sha-256
     ports:
       - '6432:5432'
     networks:
@@ -74,7 +66,6 @@ services:
       postgres-atlas:
         condition: service_healthy
 
-  # NFL DB Connection Pooler
   pgbouncer-nfl:
     image: edoburu/pgbouncer
     container_name: atlas-nfl-pgbouncer
@@ -87,7 +78,7 @@ services:
       POOL_MODE: transaction
       MAX_CLIENT_CONN: 100
       DEFAULT_POOL_SIZE: 20
-      AUTH_TYPE: scram-sha-256  # ADD THIS LINE
+      AUTH_TYPE: scram-sha-256
     ports:
       - '6433:5432'
     networks:
@@ -96,11 +87,7 @@ services:
       postgres-nfl:
         condition: service_healthy
 
-  # ============================================================================
-  # INFRASTRUCTURE LAYER
-  # ============================================================================
 
-  # Cache & Pub/Sub
   redis:
     image: redis:7-alpine
     container_name: atlas-redis
@@ -135,7 +122,6 @@ services:
       timeout: 20s
       retries: 3
 
-  # Reverse Proxy & Load Balancer
   traefik:
     image: traefik:v2.10
     container_name: atlas-traefik
@@ -160,11 +146,7 @@ services:
       - "traefik.http.middlewares.cors.headers.accesscontrolallowcredentials=true"
       - "traefik.http.middlewares.cors.headers.accesscontrolmaxage=100"
 
-  # ============================================================================
-  # APPLICATION LAYER - API GATEWAY
-  # ============================================================================
 
-  # Django API Gateway
   api-django:
     build:
       context: ./apps/api-django
@@ -181,8 +163,8 @@ services:
     volumes:
       - ./apps/api-django:/app
       - django-static:/app/staticfiles
-      - /app/.venv  # Don't overwrite container's virtualenv
-      - ./packages/db/seeds:/app/seeds        # ADD THIS LINE
+      - /app/.venv
+      - ./packages/db/seeds:/app/seeds
     ports:
       - '8000:8000'
     networks:
@@ -207,9 +189,7 @@ services:
       - "traefik.http.services.api.loadbalancer.server.port=8000"
       - "traefik.http.routers.api.middlewares=cors@docker"
 
-  # ============================================================================
   # APPLICATION LAYER - FRONTENDS (Polymorphic)
-  # ============================================================================
 
   # Next.js Frontend (Active)
   web-next:
@@ -219,16 +199,16 @@ services:
     container_name: atlas-web-next
     restart: unless-stopped
     environment:
-      - NEXT_PUBLIC_API_URL=https://lxjshlcs-8000.use2.devtunnels.ms/api  # CHANGE THIS LINE      
+      - NEXT_PUBLIC_API_URL=https://lxjshlcs-8000.use2.devtunnels.ms/api
       - NODE_ENV=development
     volumes:
-      - ./apps/web-next/src:/app/apps/web-next/src              # Mount source code
-      - ./apps/web-next/public:/app/apps/web-next/public        # Mount public assets
-      - ./apps/web-next/app:/app/apps/web-next/app              # Mount app directory (if using App Router)
-      - ./apps/web-next/pages:/app/apps/web-next/pages          # Mount pages directory (if using Pages Router)
-      - ./apps/web-next/.env.local:/app/apps/web-next/.env.local  # Mount env file
-      - /app/node_modules                                        # Don't overwrite root node_modules
-      - /app/apps/web-next/node_modules                          # Don't overwrite app node_modules
+      - ./apps/web-next/src:/app/apps/web-next/src
+      - ./apps/web-next/public:/app/apps/web-next/public
+      - ./apps/web-next/app:/app/apps/web-next/app
+      - ./apps/web-next/pages:/app/apps/web-next/pages
+      - ./apps/web-next/.env.local:/app/apps/web-next/.env.local
+      - /app/node_modules
+      - /app/apps/web-next/node_modules
       - /app/apps/web-next/.next
     ports:
       - '3000:3000'
@@ -321,11 +301,8 @@ services:
   #     - "traefik.http.routers.web-svelte.entrypoints=web"
   #     - "traefik.http.services.web-svelte.loadbalancer.server.port=5174"
 
-  # ============================================================================
   # APPLICATION LAYER - MICROSERVICES (Placeholder - Uncomment when ready)
-  # ============================================================================
 
-  # Rust Microservice
   # service-rust:
   #   build:
   #     context: ./apps/service-rust
@@ -347,7 +324,6 @@ services:
   #     - "traefik.http.routers.service-rust.entrypoints=web"
   #     - "traefik.http.services.service-rust.loadbalancer.server.port=8001"
 
-  # Go Microservice
   # service-go:
   #   build:
   #     context: ./apps/service-go
@@ -368,7 +344,6 @@ services:
   #     - "traefik.http.routers.service-go.entrypoints=web"
   #     - "traefik.http.services.service-go.loadbalancer.server.port=8002"
 
-  # C++ Microservice
   # service-cpp:
   #   build:
   #     context: ./apps/service-cpp
@@ -389,7 +364,6 @@ services:
   #     - "traefik.http.routers.service-cpp.entrypoints=web"
   #     - "traefik.http.services.service-cpp.loadbalancer.server.port=8003"
 
-  # Python Microservice
   # service-python:
   #   build:
   #     context: ./apps/service-python
@@ -411,17 +385,11 @@ services:
   #     - "traefik.http.routers.service-python.entrypoints=web"
   #     - "traefik.http.services.service-python.loadbalancer.server.port=8004"
 
-# ============================================================================
-# NETWORKS
-# ============================================================================
 networks:
   atlas-network:
     driver: bridge
     name: atlas-network
 
-# ============================================================================
-# VOLUMES
-# ============================================================================
 volumes:
   postgres-atlas-data:
     name: atlas-postgres-data

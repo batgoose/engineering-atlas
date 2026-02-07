@@ -1,10 +1,8 @@
-# Node
 node_modules/
 .turbo/
 dist/
 .next/
 
-# Python
 __pycache__/
 *.py[cod]
 *$py.class
@@ -13,22 +11,17 @@ venv/
 ENV/
 db.sqlite3
 
-# Environment
 .env
 .env.local
 
-# Logs
 *.log
 
-# Rust Build Artifacts
 target/
 **/*.rs.bk
 
-# IDE settings
 .vscode/
 .idea/
 
-# Terraform
 .terraform/
 *.tfstate
 *.tfstate.backup

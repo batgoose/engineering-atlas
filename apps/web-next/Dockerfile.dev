@@ -1,51 +1,27 @@
-# ============================================================================
-# Next.js Frontend Development Dockerfile
-# ============================================================================
-# This Dockerfile is optimized for local development with hot-reload.
-# For production, create a separate Dockerfile.prod
-# ============================================================================
 
 FROM node:20-alpine as base
 
-# Install pnpm
 RUN corepack enable && corepack prepare pnpm@latest --activate
 
-# ============================================================================
-# Dependencies Stage
-# ============================================================================
 FROM base as deps
 
 WORKDIR /app
 
-# Copy package files from monorepo root
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY apps/web-next/package.json ./apps/web-next/
 
-# Install all dependencies
 RUN pnpm install --frozen-lockfile
 
-# ============================================================================
-# Development Stage
-# ============================================================================
 FROM base as development
 
 WORKDIR /app
 
-# Copy node_modules from deps stage
 COPY --from=deps /app/node_modules ./node_modules
 COPY --from=deps /app/apps/web-next/node_modules ./apps/web-next/node_modules
-
-# Copy application code
-# Note: In docker-compose, we mount the entire app directory as a volume
-# This COPY is for the initial build; the volume mount overrides it
 COPY . .
 
-# Change to the Next.js app directory
 WORKDIR /app/apps/web-next
 
-# Expose port
 EXPOSE 3000
 
-# Development command (with hot-reload)
-# Use pnpm from the monorepo root with explicit path
 CMD ["pnpm", "dev", "--hostname", "0.0.0.0"]

@@ -1,9 +1,3 @@
-/**
- * Data Builders
- *
- * Functions that transform raw content/API data into component props
- * Used by all framework implementations to ensure consistent data shapes
- */
 
 import type {
   HomePageProps,
@@ -23,9 +17,7 @@ import type {
   FrameworkOption,
 } from './components';
 
-// ============================================================
-// NAVIGATION
-// ============================================================
+
 
 const NAV_ITEMS = [
   { label: 'Home', href: '/' },
@@ -57,9 +49,7 @@ export function getFrameworkOptions(): FrameworkOption[] {
   ];
 }
 
-// ============================================================
-// HOME PAGE
-// ============================================================
+
 
 export function buildHomePageProps(): HomePageProps {
   const hero: HeroProps = {
@@ -126,9 +116,7 @@ export function buildHomePageProps(): HomePageProps {
   };
 }
 
-// ============================================================
-// ATLAS PAGE
-// ============================================================
+
 
 const ATLAS_CATEGORIES = ['All', 'Frontend', 'Backend', 'Systems', 'DevOps', 'Data', 'Security'];
 
@@ -145,18 +133,15 @@ export function buildAtlasPageProps(activeFilter: string | null): AtlasPageProps
       'Interactive 3D sphere visualization. Click and drag to rotate. Click an icon to explore.',
     filters,
     activeFilter,
-    onFilterChange: () => {}, // Implemented by framework
+    onFilterChange: () => {}, 
   };
 }
 
-// ============================================================
-// DEMOS PAGE
-// ============================================================
+
 
 const STATUS_OPTIONS = ['All', 'Complete', 'In Progress', 'Planned'];
 const COMPLEXITY_OPTIONS = ['All', 'Beginner', 'Intermediate', 'Advanced'];
 
-// Placeholder projects - will come from API
 const PLACEHOLDER_PROJECTS: ProjectCardProps[] = [
   {
     id: 'demo-cpp-win-prob',
@@ -216,7 +201,7 @@ export function buildDemosPageProps(
     isActive: activeComplexity === c.toLowerCase(),
   }));
 
-  // Filter projects based on active filters
+  
   let filteredProjects = PLACEHOLDER_PROJECTS;
   if (activeStatus !== 'all') {
     filteredProjects = filteredProjects.filter((p) => p.status === activeStatus);
@@ -236,9 +221,7 @@ export function buildDemosPageProps(
   };
 }
 
-// ============================================================
-// ABOUT PAGE
-// ============================================================
+
 
 export function buildAboutPageProps(): AboutPageProps {
   const timeline: TimelineEntryProps[] = [
@@ -278,9 +261,7 @@ export function buildAboutPageProps(): AboutPageProps {
   };
 }
 
-// ============================================================
-// CONTACT PAGE
-// ============================================================
+
 
 export function buildContactPageProps(): ContactPageProps {
   const methods: ContactMethodProps[] = [
@@ -311,6 +292,6 @@ export function buildContactPageProps(): ContactPageProps {
     title: 'Contact',
     description: "Interested in working together? Let's talk.",
     methods,
-    formEnabled: false, // set true when form backend is ready
+    formEnabled: false, 
   };
 }

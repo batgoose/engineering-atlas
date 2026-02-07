@@ -1,8 +1,4 @@
-/**
- * Page-Specific Styles
- *
- * Styles for specific page sections that don't fit general categories
- */
+
 
 export const hero = {
   section: 'relative py-24 md:py-32',

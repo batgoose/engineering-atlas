@@ -1,4 +1,4 @@
-// src/components/ui/AtlasIcon.tsx
+
 import { getIconDataUrl } from '@atlas/ui/atlas';
 
 export function getIconAttrs(id: string, size: number = 16) {

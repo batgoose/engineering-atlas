@@ -29,9 +29,7 @@ import {
 
 import type { CompetencyNode, Artifact } from '@atlas/types';
 
-// ============================================================
-// QUERY KEYS
-// ============================================================
+
 
 export const queryKeys = {
   categories: {
@@ -51,9 +49,7 @@ export const queryKeys = {
   },
 };
 
-// ============================================================
-// CATEGORY HOOKS
-// ============================================================
+
 
 export function useCategories(
   options?: Omit<UseQueryOptions<Category[]>, 'queryKey' | 'queryFn'>
@@ -61,7 +57,7 @@ export function useCategories(
   return useQuery({
     queryKey: queryKeys.categories.all,
     queryFn: getCategories,
-    staleTime: 1000 * 60 * 10, // Categories rarely change
+    staleTime: 1000 * 60 * 10, 
     ...options,
   });
 }
@@ -78,9 +74,7 @@ export function useCategory(
   });
 }
 
-// ============================================================
-// COMPETENCY HOOKS
-// ============================================================
+
 
 export function useCompetencies(
   filters?: CompetencyFilters,
@@ -117,9 +111,7 @@ export function useHighlightedCompetencies(
   });
 }
 
-// ============================================================
-// ARTIFACT HOOKS
-// ============================================================
+
 
 export function useArtifacts(
   filters?: ArtifactFilters,
@@ -145,9 +137,7 @@ export function useArtifact(
   });
 }
 
-// ============================================================
 // SUSPENSE HOOKS (for Server Components / Suspense boundaries)
-// ============================================================
 
 export function useCategoriesSuspense(
   options?: Omit<UseSuspenseQueryOptions<Category[]>, 'queryKey' | 'queryFn'>

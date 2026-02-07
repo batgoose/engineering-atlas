@@ -1,8 +1,8 @@
-// packages/types/index.ts
+
 
 // --- ENUMS & UNIONS ---
 
-// matches PROFICIENCY_CHOICES in Competency model
+
 export type Proficiency =
   | 'Learning'
   | 'Proficient'
@@ -11,7 +11,7 @@ export type Proficiency =
   | 'Veteran'
   | 'Professional';
 
-// matches TYPE_CHOICES in Competency model
+
 export type CompetencyType =
   | 'language'
   | 'framework'
@@ -21,13 +21,13 @@ export type CompetencyType =
   | 'concept'
   | 'methodology';
 
-// matches STATUS_CHOICES in Artifact model
+
 export type ArtifactStatus = 'planned' | 'in-progress' | 'complete';
 
-// matches DOMAIN_CHOICES in Artifact model
+
 export type ArtifactDomain = 'football' | 'atlas' | 'infrastructure';
 
-// matches DEMO_TYPE_CHOICES in Artifact model
+
 export type DemoType =
   | 'code-snippet'
   | 'interactive'
@@ -38,11 +38,10 @@ export type DemoType =
   | 'config'
   | 'schema-def';
 
-// --- INTERFACES ---
 
-// matches CommitCodeReferenceSerializer
+
 export interface CodeReference {
-  id: number; // django default ID is integer
+  id: number; 
   repository: string;
   file_path: string;
   start_line: number;
@@ -53,7 +52,7 @@ export interface CodeReference {
   cached_snippet: string;
 }
 
-// matches SubCompetencySerializer
+
 export interface SubCompetency {
   id: string;
   name: string;
@@ -62,21 +61,20 @@ export interface SubCompetency {
   code_references: CodeReference[];
 }
 
-// minimal data for related nodes (to prevent recursion)
 export interface CompetencyLink {
   id: string;
   name: string;
   competency_type: CompetencyType;
 }
 
-// matches the History JSON structure
+
 export interface CompetencyHistory {
   role: string;
   company: string;
   year: string;
 }
 
-// matches CompetencySerializer output
+
 export interface CompetencyNode {
   id: string;
   name: string;
@@ -102,9 +100,6 @@ export interface CompetencyNode {
   history: CompetencyHistory[];
 }
 
-// --- ARTIFACT TYPES ---
-
-// matches ArtifactCompetencySerializer (flattened for cards)
 export interface ArtifactSkill {
   id: string;
   name: string;

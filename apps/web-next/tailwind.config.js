@@ -1,6 +1,6 @@
 /** @type {import('tailwindcss').Config} */
 module.exports = {
-  // use the shared config from packages/ui
+  
   presets: [
     require('@atlas/ui/tailwind.config')
   ],

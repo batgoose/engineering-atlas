@@ -1,4 +1,4 @@
-// src/components/ui/CodeWindow.tsx
+
 import { codeWindow } from '@atlas/ui/styles';
 
 export function CodeWindow({
