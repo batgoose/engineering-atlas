@@ -39,11 +39,6 @@ jobs:
       run:
         working-directory: ./apps/api-django
     
-    env:
-      SECRET_KEY: ${{ secrets.SECRET_KEY }}
-      DEBUG: 'True'
-      DATABASE_URL: 'postgresql://atlas_user:atlas_password@localhost:5432/atlas_db'
-    
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
@@ -56,6 +51,12 @@ jobs:
       - name: Install UV
         run: pip install uv
       
+      - name: Create .env file
+        run: |
+          echo "SECRET_KEY=test-secret-key-for-ci-pipeline" > .env
+          echo "DEBUG=True" >> .env
+          echo "DATABASE_URL=postgresql://atlas_user:atlas_password@localhost:5432/atlas_db" >> .env
+      
       - name: Install Dependencies
         run: |
           uv pip install --system \
@@ -66,8 +67,7 @@ jobs:
             "drf-spectacular>=0.29.0,<0.30.0" \
             "markdown>=3.10.1,<4.0.0" \
             "django-filter>=25.2,<26.0" \
-            "django-cors-headers>=4.9.0,<5.0.0" \
-            "black>=26.1.0,<27.0.0"
+            "django-cors-headers>=4.9.0,<5.0.0"
       
       - name: Run Migrations
         run: python manage.py migrate --noinput
@@ -133,8 +133,6 @@ jobs:
       
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
-        with:
-          version: 10
       
       - name: Setup Node.js
         uses: actions/setup-node@v4
