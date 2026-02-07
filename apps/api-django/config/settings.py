@@ -1,4 +1,4 @@
-import os
+import os, sys
 from pathlib import Path
 import environ
 
@@ -144,3 +144,18 @@ MINIO_ENDPOINT = env("MINIO_ENDPOINT", default="localhost:9000")
 MINIO_ACCESS_KEY = env("MINIO_ACCESS_KEY", default="atlas_admin")
 MINIO_SECRET_KEY = env("MINIO_SECRET_KEY", default="atlas_password")
 MINIO_USE_SSL = env.bool("MINIO_USE_SSL", default=False)
+
+if 'test' in sys.argv:
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.postgresql',
+            'NAME': 'atlas_db',
+            'USER': 'atlas_user',
+            'PASSWORD': 'atlas_password',
+            'HOST': 'postgres-atlas',
+            'PORT': '5432',
+            'TEST': {
+                'NAME': 'test_atlas_db',
+            }
+        }
+    }

@@ -1,8 +1,5 @@
-version: '3.8'
-
 services:
   
-  # Atlas Application Database (with Vector Support)
   postgres-atlas:
     image: pgvector/pgvector:pg16
     container_name: atlas-postgres
@@ -100,7 +97,6 @@ services:
       - atlas-network
     command: redis-server --appendonly yes
 
-  # Object Storage (S3 Compatible)
   minio:
     image: minio/minio
     container_name: atlas-minio
@@ -139,7 +135,6 @@ services:
     networks:
       - atlas-network
     labels:
-      # CORS Middleware (shared across all services)
       - "traefik.http.middlewares.cors.headers.accesscontrolalloworiginlist=http://localhost:3000,http://app.localhost,http://angular.localhost,http://vue.localhost,http://svelte.localhost"
       - "traefik.http.middlewares.cors.headers.accesscontrolallowmethods=GET,POST,PUT,DELETE,OPTIONS,PATCH,HEAD"
       - "traefik.http.middlewares.cors.headers.accesscontrolallowheaders=*"
@@ -189,9 +184,7 @@ services:
       - "traefik.http.services.api.loadbalancer.server.port=8000"
       - "traefik.http.routers.api.middlewares=cors@docker"
 
-  # APPLICATION LAYER - FRONTENDS (Polymorphic)
 
-  # Next.js Frontend (Active)
   web-next:
     build:
       context: .
@@ -303,26 +296,26 @@ services:
 
   # APPLICATION LAYER - MICROSERVICES (Placeholder - Uncomment when ready)
 
-  # service-rust:
-  #   build:
-  #     context: ./apps/service-rust
-  #     dockerfile: Dockerfile.dev
-  #   container_name: atlas-service-rust
-  #   restart: unless-stopped
-  #   volumes:
-  #     - ./apps/service-rust:/app
-  #     - /app/target
-  #   ports:
-  #     - '8001:8001'
-  #   networks:
-  #     - atlas-network
-  #   depends_on:
-  #     - redis
-  #   labels:
-  #     - "traefik.enable=true"
-  #     - "traefik.http.routers.service-rust.rule=Host(`rust-service.localhost`)"
-  #     - "traefik.http.routers.service-rust.entrypoints=web"
-  #     - "traefik.http.services.service-rust.loadbalancer.server.port=8001"
+  service-rust:
+     build:
+       context: ./apps/service-rust
+       dockerfile: Dockerfile.dev
+     container_name: atlas-service-rust
+     restart: unless-stopped
+     volumes:
+       - ./apps/service-rust:/app
+       - /app/target
+     ports:
+      - '8001:8001'
+     networks:
+       - atlas-network
+     depends_on:
+       - redis
+     labels:
+       - "traefik.enable=true"
+       - "traefik.http.routers.service-rust.rule=Host(`rust-service.localhost`)"
+       - "traefik.http.routers.service-rust.entrypoints=web"
+       - "traefik.http.services.service-rust.loadbalancer.server.port=8001"
 
   # service-go:
   #   build:

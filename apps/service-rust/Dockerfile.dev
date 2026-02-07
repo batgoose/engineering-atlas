@@ -1,0 +1,17 @@
+FROM rust:latest
+
+WORKDIR /app
+
+RUN apt-get update && apt-get install -y \
+    postgresql-client \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY . .
+
+WORKDIR /app/nflreadrust
+
+RUN cargo build
+
+EXPOSE 8001
+
+CMD ["cargo", "run"]
