@@ -1,0 +1,96 @@
+# ============================================================================
+# Django API Development Dockerfile (UV - Simplified)
+# ============================================================================
+# This Dockerfile is optimized for local development with hot-reload.
+# Uses UV for fast dependency installation without editable mode.
+# ============================================================================
+
+FROM python:3.10-slim as base
+
+# Prevent Python from writing pyc files and buffering stdout/stderr
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PIP_NO_CACHE_DIR=off \
+    PIP_DISABLE_PIP_VERSION_CHECK=on
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    libpq-dev \
+    curl \
+    git \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install uv
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
+
+# ============================================================================
+# Development Stage
+# ============================================================================
+FROM base as development
+
+WORKDIR /app
+
+# Install dependencies using uv (directly, not editable)
+# Each package quoted to prevent shell interpretation of < and >
+RUN uv pip install --system \
+    "django>=5.1,<6.0" \
+    "djangorestframework>=3.16.1,<4.0.0" \
+    "django-environ>=0.12.0,<0.13.0" \
+    "psycopg[binary]>=3.3.2,<4.0.0" \
+    "drf-spectacular>=0.29.0,<0.30.0" \
+    "markdown>=3.10.1,<4.0.0" \
+    "django-filter>=25.2,<26.0" \
+    "django-cors-headers>=4.9.0,<5.0.0" \
+    "black>=26.1.0,<27.0.0"
+
+# Copy application code
+# Note: In docker-compose, we mount the entire app directory as a volume
+# This COPY is for the initial build; the volume mount overrides it
+COPY . .
+
+# Create necessary directories
+RUN mkdir -p staticfiles media logs
+
+# Expose port
+EXPOSE 8000
+
+# Development command (with hot-reload)
+CMD ["python", "manage.py", "runserver", "0.0.0.0:8000"]
+
+# ============================================================================
+# Optional: Production Stage (for future use)
+# ============================================================================
+# Uncomment and customize when ready to deploy
+#
+# FROM base as production
+# 
+# WORKDIR /app
+# 
+# # Copy and install dependencies
+# RUN uv pip install --system \
+#     "django>=5.1,<6.0" \
+#     "djangorestframework>=3.16.1,<4.0.0" \
+#     "django-environ>=0.12.0,<0.13.0" \
+#     "psycopg[binary]>=3.3.2,<4.0.0" \
+#     "drf-spectacular>=0.29.0,<0.30.0" \
+#     "markdown>=3.10.1,<4.0.0" \
+#     "django-filter>=25.2,<26.0" \
+#     "django-cors-headers>=4.9.0,<5.0.0" \
+#     gunicorn
+# 
+# # Copy application code
+# COPY . .
+# 
+# # Collect static files
+# RUN python manage.py collectstatic --noinput
+# 
+# # Create non-root user
+# RUN useradd -m -u 1000 django && chown -R django:django /app
+# USER django
+# 
+# # Expose port
+# EXPOSE 8000
+# 
+# # Production command
+# CMD ["gunicorn", "config.wsgi:application", "--bind", "0.0.0.0:8000", "--workers", "4"]

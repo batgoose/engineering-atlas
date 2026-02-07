@@ -1,8 +1,36 @@
+version: '3.8'
+
 services:
-  db:
+  # ============================================================================
+  # DATABASE LAYER
+  # ============================================================================
+  
+  # Atlas Application Database (with Vector Support)
+  postgres-atlas:
+    image: pgvector/pgvector:pg16
+    container_name: atlas-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: atlas_user
+      POSTGRES_PASSWORD: atlas_password
+      POSTGRES_DB: atlas_db
+    ports:
+      - '5432:5432'
+    volumes:
+      - postgres-atlas-data:/var/lib/postgresql/data
+    networks:
+      - atlas-network
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U atlas_user -d atlas_db']
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # NFL Data Database
+  postgres-nfl:
     image: postgres:15-alpine
-    container_name: nfl_postgres
-    restart: always
+    container_name: atlas-nfl-postgres
+    restart: unless-stopped
     environment:
       POSTGRES_USER: admin
       POSTGRES_PASSWORD: password
@@ -10,8 +38,398 @@ services:
     ports:
       - '5433:5432'
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - postgres-nfl-data:/var/lib/postgresql/data
       - ./packages/db/init:/docker-entrypoint-initdb.d
+    networks:
+      - atlas-network
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U admin -d nfl_data']
+      interval: 5s
+      timeout: 5s
+      retries: 5
 
+  # ============================================================================
+  # CONNECTION POOLING LAYER
+  # ============================================================================
+
+  # Atlas DB Connection Pooler
+  pgbouncer-atlas:
+    image: edoburu/pgbouncer
+    container_name: atlas-pgbouncer
+    restart: unless-stopped
+    environment:
+      DB_USER: atlas_user
+      DB_PASSWORD: atlas_password
+      DB_HOST: postgres-atlas
+      DB_NAME: atlas_db
+      POOL_MODE: transaction
+      MAX_CLIENT_CONN: 100
+      DEFAULT_POOL_SIZE: 20
+      AUTH_TYPE: scram-sha-256  # ADD THIS LINE
+    ports:
+      - '6432:5432'
+    networks:
+      - atlas-network
+    depends_on:
+      postgres-atlas:
+        condition: service_healthy
+
+  # NFL DB Connection Pooler
+  pgbouncer-nfl:
+    image: edoburu/pgbouncer
+    container_name: atlas-nfl-pgbouncer
+    restart: unless-stopped
+    environment:
+      DB_USER: admin
+      DB_PASSWORD: password
+      DB_HOST: postgres-nfl
+      DB_NAME: nfl_data
+      POOL_MODE: transaction
+      MAX_CLIENT_CONN: 100
+      DEFAULT_POOL_SIZE: 20
+      AUTH_TYPE: scram-sha-256  # ADD THIS LINE
+    ports:
+      - '6433:5432'
+    networks:
+      - atlas-network
+    depends_on:
+      postgres-nfl:
+        condition: service_healthy
+
+  # ============================================================================
+  # INFRASTRUCTURE LAYER
+  # ============================================================================
+
+  # Cache & Pub/Sub
+  redis:
+    image: redis:7-alpine
+    container_name: atlas-redis
+    restart: unless-stopped
+    ports:
+      - '6379:6379'
+    volumes:
+      - redis-data:/data
+    networks:
+      - atlas-network
+    command: redis-server --appendonly yes
+
+  # Object Storage (S3 Compatible)
+  minio:
+    image: minio/minio
+    container_name: atlas-minio
+    restart: unless-stopped
+    ports:
+      - '9000:9000'
+      - '9001:9001'
+    environment:
+      MINIO_ROOT_USER: atlas_admin
+      MINIO_ROOT_PASSWORD: atlas_password
+    command: server /data --console-address ":9001"
+    volumes:
+      - minio-data:/data
+    networks:
+      - atlas-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+
+  # Reverse Proxy & Load Balancer
+  traefik:
+    image: traefik:v2.10
+    container_name: atlas-traefik
+    restart: unless-stopped
+    command:
+      - '--api.insecure=true'
+      - '--providers.docker=true'
+      - '--providers.docker.exposedbydefault=false'
+      - '--entrypoints.web.address=:80'
+    ports:
+      - '80:80'
+      - '8080:8080'
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks:
+      - atlas-network
+    labels:
+      # CORS Middleware (shared across all services)
+      - "traefik.http.middlewares.cors.headers.accesscontrolalloworiginlist=http://localhost:3000,http://app.localhost,http://angular.localhost,http://vue.localhost,http://svelte.localhost"
+      - "traefik.http.middlewares.cors.headers.accesscontrolallowmethods=GET,POST,PUT,DELETE,OPTIONS,PATCH,HEAD"
+      - "traefik.http.middlewares.cors.headers.accesscontrolallowheaders=*"
+      - "traefik.http.middlewares.cors.headers.accesscontrolallowcredentials=true"
+      - "traefik.http.middlewares.cors.headers.accesscontrolmaxage=100"
+
+  # ============================================================================
+  # APPLICATION LAYER - API GATEWAY
+  # ============================================================================
+
+  # Django API Gateway
+  api-django:
+    build:
+      context: ./apps/api-django
+      dockerfile: Dockerfile.dev
+    container_name: atlas-api-django
+    restart: unless-stopped
+    environment:
+      - DEBUG=True
+      - DATABASE_URL=postgresql://atlas_user:atlas_password@pgbouncer-atlas:5432/atlas_db
+      - REDIS_URL=redis://redis:6379/0
+      - MINIO_ENDPOINT=minio:9000
+      - MINIO_ACCESS_KEY=atlas_admin
+      - MINIO_SECRET_KEY=atlas_password
+    volumes:
+      - ./apps/api-django:/app
+      - django-static:/app/staticfiles
+      - /app/.venv  # Don't overwrite container's virtualenv
+      - ./packages/db/seeds:/app/seeds        # ADD THIS LINE
+    ports:
+      - '8000:8000'
+    networks:
+      - atlas-network
+    depends_on:
+      pgbouncer-atlas:
+        condition: service_started
+      redis:
+        condition: service_started
+      minio:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8000/admin/ || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.api.rule=Host(`api.localhost`)"
+      - "traefik.http.routers.api.entrypoints=web"
+      - "traefik.http.services.api.loadbalancer.server.port=8000"
+      - "traefik.http.routers.api.middlewares=cors@docker"
+
+  # ============================================================================
+  # APPLICATION LAYER - FRONTENDS (Polymorphic)
+  # ============================================================================
+
+  # Next.js Frontend (Active)
+  web-next:
+    build:
+      context: .
+      dockerfile: ./apps/web-next/Dockerfile.dev
+    container_name: atlas-web-next
+    restart: unless-stopped
+    environment:
+      - NEXT_PUBLIC_API_URL=https://lxjshlcs-8000.use2.devtunnels.ms/api  # CHANGE THIS LINE      
+      - NODE_ENV=development
+    volumes:
+      - ./apps/web-next/src:/app/apps/web-next/src              # Mount source code
+      - ./apps/web-next/public:/app/apps/web-next/public        # Mount public assets
+      - ./apps/web-next/app:/app/apps/web-next/app              # Mount app directory (if using App Router)
+      - ./apps/web-next/pages:/app/apps/web-next/pages          # Mount pages directory (if using Pages Router)
+      - ./apps/web-next/.env.local:/app/apps/web-next/.env.local  # Mount env file
+      - /app/node_modules                                        # Don't overwrite root node_modules
+      - /app/apps/web-next/node_modules                          # Don't overwrite app node_modules
+      - /app/apps/web-next/.next
+    ports:
+      - '3000:3000'
+    networks:
+      - atlas-network
+    depends_on:
+      api-django:
+        condition: service_healthy
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.web-next.rule=Host(`app.localhost`)"
+      - "traefik.http.routers.web-next.entrypoints=web"
+      - "traefik.http.services.web-next.loadbalancer.server.port=3000"
+
+  # Angular Frontend (Placeholder - Uncomment when ready)
+  # web-angular:
+  #   build:
+  #     context: ./apps/web-angular
+  #     dockerfile: Dockerfile.dev
+  #   container_name: atlas-web-angular
+  #   restart: unless-stopped
+  #   environment:
+  #     - API_URL=http://api.localhost/api
+  #   volumes:
+  #     - ./apps/web-angular:/app
+  #     - /app/node_modules
+  #     - /app/dist
+  #   ports:
+  #     - '4200:4200'
+  #   networks:
+  #     - atlas-network
+  #   depends_on:
+  #     api-django:
+  #       condition: service_healthy
+  #   labels:
+  #     - "traefik.enable=true"
+  #     - "traefik.http.routers.web-angular.rule=Host(`angular.localhost`)"
+  #     - "traefik.http.routers.web-angular.entrypoints=web"
+  #     - "traefik.http.services.web-angular.loadbalancer.server.port=4200"
+
+  # Vue.js Frontend (Placeholder - Uncomment when ready)
+  # web-vue:
+  #   build:
+  #     context: ./apps/web-vue
+  #     dockerfile: Dockerfile.dev
+  #   container_name: atlas-web-vue
+  #   restart: unless-stopped
+  #   environment:
+  #     - VITE_API_URL=http://api.localhost/api
+  #   volumes:
+  #     - ./apps/web-vue:/app
+  #     - /app/node_modules
+  #     - /app/dist
+  #   ports:
+  #     - '5173:5173'
+  #   networks:
+  #     - atlas-network
+  #   depends_on:
+  #     api-django:
+  #       condition: service_healthy
+  #   labels:
+  #     - "traefik.enable=true"
+  #     - "traefik.http.routers.web-vue.rule=Host(`vue.localhost`)"
+  #     - "traefik.http.routers.web-vue.entrypoints=web"
+  #     - "traefik.http.services.web-vue.loadbalancer.server.port=5173"
+
+  # Svelte Frontend (Placeholder - Uncomment when ready)
+  # web-svelte:
+  #   build:
+  #     context: ./apps/web-svelte
+  #     dockerfile: Dockerfile.dev
+  #   container_name: atlas-web-svelte
+  #   restart: unless-stopped
+  #   environment:
+  #     - VITE_API_URL=http://api.localhost/api
+  #   volumes:
+  #     - ./apps/web-svelte:/app
+  #     - /app/node_modules
+  #     - /app/.svelte-kit
+  #   ports:
+  #     - '5174:5174'
+  #   networks:
+  #     - atlas-network
+  #   depends_on:
+  #     api-django:
+  #       condition: service_healthy
+  #   labels:
+  #     - "traefik.enable=true"
+  #     - "traefik.http.routers.web-svelte.rule=Host(`svelte.localhost`)"
+  #     - "traefik.http.routers.web-svelte.entrypoints=web"
+  #     - "traefik.http.services.web-svelte.loadbalancer.server.port=5174"
+
+  # ============================================================================
+  # APPLICATION LAYER - MICROSERVICES (Placeholder - Uncomment when ready)
+  # ============================================================================
+
+  # Rust Microservice
+  # service-rust:
+  #   build:
+  #     context: ./apps/service-rust
+  #     dockerfile: Dockerfile.dev
+  #   container_name: atlas-service-rust
+  #   restart: unless-stopped
+  #   volumes:
+  #     - ./apps/service-rust:/app
+  #     - /app/target
+  #   ports:
+  #     - '8001:8001'
+  #   networks:
+  #     - atlas-network
+  #   depends_on:
+  #     - redis
+  #   labels:
+  #     - "traefik.enable=true"
+  #     - "traefik.http.routers.service-rust.rule=Host(`rust-service.localhost`)"
+  #     - "traefik.http.routers.service-rust.entrypoints=web"
+  #     - "traefik.http.services.service-rust.loadbalancer.server.port=8001"
+
+  # Go Microservice
+  # service-go:
+  #   build:
+  #     context: ./apps/service-go
+  #     dockerfile: Dockerfile.dev
+  #   container_name: atlas-service-go
+  #   restart: unless-stopped
+  #   volumes:
+  #     - ./apps/service-go:/app
+  #   ports:
+  #     - '8002:8002'
+  #   networks:
+  #     - atlas-network
+  #   depends_on:
+  #     - redis
+  #   labels:
+  #     - "traefik.enable=true"
+  #     - "traefik.http.routers.service-go.rule=Host(`go-service.localhost`)"
+  #     - "traefik.http.routers.service-go.entrypoints=web"
+  #     - "traefik.http.services.service-go.loadbalancer.server.port=8002"
+
+  # C++ Microservice
+  # service-cpp:
+  #   build:
+  #     context: ./apps/service-cpp
+  #     dockerfile: Dockerfile.dev
+  #   container_name: atlas-service-cpp
+  #   restart: unless-stopped
+  #   volumes:
+  #     - ./apps/service-cpp:/app
+  #   ports:
+  #     - '8003:8003'
+  #   networks:
+  #     - atlas-network
+  #   depends_on:
+  #     - redis
+  #   labels:
+  #     - "traefik.enable=true"
+  #     - "traefik.http.routers.service-cpp.rule=Host(`cpp-service.localhost`)"
+  #     - "traefik.http.routers.service-cpp.entrypoints=web"
+  #     - "traefik.http.services.service-cpp.loadbalancer.server.port=8003"
+
+  # Python Microservice
+  # service-python:
+  #   build:
+  #     context: ./apps/service-python
+  #     dockerfile: Dockerfile.dev
+  #   container_name: atlas-service-python
+  #   restart: unless-stopped
+  #   volumes:
+  #     - ./apps/service-python:/app
+  #     - /app/.venv
+  #   ports:
+  #     - '8004:8004'
+  #   networks:
+  #     - atlas-network
+  #   depends_on:
+  #     - redis
+  #   labels:
+  #     - "traefik.enable=true"
+  #     - "traefik.http.routers.service-python.rule=Host(`python-service.localhost`)"
+  #     - "traefik.http.routers.service-python.entrypoints=web"
+  #     - "traefik.http.services.service-python.loadbalancer.server.port=8004"
+
+# ============================================================================
+# NETWORKS
+# ============================================================================
+networks:
+  atlas-network:
+    driver: bridge
+    name: atlas-network
+
+# ============================================================================
+# VOLUMES
+# ============================================================================
 volumes:
-  postgres_data:
+  postgres-atlas-data:
+    name: atlas-postgres-data
+  postgres-nfl-data:
+    name: atlas-nfl-postgres-data
+  redis-data:
+    name: atlas-redis-data
+  minio-data:
+    name: atlas-minio-data
+  django-static:
+    name: atlas-django-static
