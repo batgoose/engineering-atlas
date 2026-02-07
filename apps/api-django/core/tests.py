@@ -27,7 +27,7 @@ class AtlasApiTests(APITestCase):
             id="engineering-atlas",
             title="Engineering Atlas",
             status="in-progress",
-            complexity="advanced",
+            domain="atlas",
             demo_type="live-site",
             description="The mothership project.",
         )
@@ -86,7 +86,7 @@ class AtlasApiTests(APITestCase):
             id="future-ai",
             title="Future AI",
             status="planned",
-            complexity="advanced",
+            domain="football",
             demo_type="case-study",
             description="Drake Maye is overrated.",
         )

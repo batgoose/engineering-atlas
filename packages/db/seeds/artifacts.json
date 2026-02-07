@@ -2,8 +2,8 @@
   {
     "id": "demo-cpp-win-prob",
     "title": "NFL Win Probability Engine (Monte Carlo)",
-    "status": "complete",
-    "complexity": "advanced",
+    "status": "planned",
+    "domain": "football",
     "demo_type": "code-snippet",
     "date_created": "2025-02-01",
     "repo_url": "https://github.com/batgoose/engineering-atlas/tree/main/experiments/cpp/win-prob-engine",
@@ -19,8 +19,8 @@
   {
     "id": "demo-rust-parser",
     "title": "nflverse Data Ingestion (Safety Valve)",
-    "status": "in-progress",
-    "complexity": "advanced",
+    "status": "complete",
+    "domain": "football",
     "demo_type": "code-snippet",
     "date_created": "2025-03-01",
     "repo_url": "https://github.com/batgoose/engineering-atlas/tree/main/apps/service-rust",
@@ -37,7 +37,7 @@
     "id": "demo-python-fantasy",
     "title": "Fantasy Point Projector",
     "status": "planned",
-    "complexity": "intermediate",
+    "domain": "football",
     "demo_type": "interactive",
     "date_created": "2025-04-01",
     "repo_url": "https://github.com/batgoose/engineering-atlas/tree/main/apps/service-ml",
@@ -53,8 +53,8 @@
   {
     "id": "demo-django-api",
     "title": "The League API (Gateway)",
-    "status": "complete",
-    "complexity": "advanced",
+    "status": "planned",
+    "domain": "football",
     "demo_type": "code-snippet",
     "date_created": "2025-01-01",
     "repo_url": "https://github.com/batgoose/engineering-atlas/tree/main/apps/api-django",
@@ -71,8 +71,8 @@
   {
     "id": "demo-sql-warehouse",
     "title": "Historical Stat Warehouse",
-    "status": "complete",
-    "complexity": "intermediate",
+    "status": "planned",
+    "domain": "football",
     "demo_type": "code-snippet",
     "date_created": "2025-01-01",
     "repo_url": "https://github.com/batgoose/engineering-atlas/tree/main/packages/db/schema.sql",
@@ -88,7 +88,7 @@
     "id": "demo-go-ticker",
     "title": "Live Score WebSocket Hub",
     "status": "planned",
-    "complexity": "intermediate",
+    "domain": "football",
     "demo_type": "video",
     "date_created": "2025-05-01",
     "repo_url": "https://github.com/batgoose/engineering-atlas/tree/main/apps/service-go",
@@ -103,12 +103,12 @@
   {
     "id": "demo-react-draft",
     "title": "Live Fantasy Draft Board",
-    "status": "in-progress",
-    "complexity": "intermediate",
+    "status": "planned",
+    "domain": "football",
     "demo_type": "interactive",
     "date_created": "2025-02-01",
     "repo_url": "https://github.com/batgoose/engineering-atlas/tree/main/apps/web-main/components/draft-board",
-    "live_url": "https://batgoose.com/draft",
+    "live_url": "",
     "description": "A polymorphic React component that displays a drag-and-drop fantasy draft board. Demonstrates complex state management (Context API) and performance optimization (memoization) when rendering hundreds of player cards.",
     "competencies": [
       { "id": "lib-react", "role": "primary" },
@@ -120,8 +120,8 @@
   {
     "id": "demo-infra-k3s",
     "title": "The Stadium (Infrastructure)",
-    "status": "complete",
-    "complexity": "advanced",
+    "status": "planned",
+    "domain": "infrastructure",
     "demo_type": "code-snippet",
     "date_created": "2025-01-01",
     "repo_url": "https://github.com/batgoose/engineering-atlas/tree/main/infrastructure/terraform",
@@ -138,8 +138,8 @@
   {
     "id": "demo-ci-pipeline",
     "title": "League Ops Pipeline",
-    "status": "complete",
-    "complexity": "intermediate",
+    "status": "planned",
+    "domain": "infrastructure",
     "demo_type": "code-snippet",
     "date_created": "2025-01-01",
     "repo_url": "https://github.com/batgoose/engineering-atlas/tree/main/.github/workflows/ci.yml",
@@ -155,8 +155,8 @@
   {
     "id": "case-honey-whisker",
     "title": "Scaling E-Commerce Traffic",
-    "status": "complete",
-    "complexity": "intermediate",
+    "status": "planned",
+    "domain": "atlas",
     "demo_type": "case-study",
     "date_created": "2024-06-01",
     "repo_url": "",
@@ -164,8 +164,7 @@
     "description": "A retrospective case study on how I improved organic search traffic for Honey Whisker by 40% using structured data (JSON-LD) and Core Web Vitals optimization.",
     "competencies": [
       { "id": "biz-seo", "role": "primary" },
-      { "id": "biz-ecommerce", "role": "secondary" },
-      { "id": "biz-marketing-strategy", "role": "supporting" }
+      { "id": "biz-ecommerce", "role": "secondary" }
     ],
     "tech_stack": ["SEO", "Google Analytics", "Shopify"]
   },
@@ -173,7 +172,7 @@
     "id": "demo-ai-rag",
     "title": "NFL Rulebook Assistant (RAG)",
     "status": "planned",
-    "complexity": "advanced",
+    "domain": "football",
     "demo_type": "interactive",
     "date_created": "2025-05-01",
     "repo_url": "https://github.com/batgoose/engineering-atlas/tree/main/apps/service-ml/rag_agent.py",
@@ -189,12 +188,12 @@
   {
     "id": "demo-docs-site",
     "title": "The Engineering Atlas (Docs)",
-    "status": "complete",
-    "complexity": "intermediate",
+    "status": "planned",
+    "domain": "atlas",
     "demo_type": "live-site",
     "date_created": "2025-01-01",
     "repo_url": "https://github.com/batgoose/engineering-atlas/tree/main/apps/docs",
-    "live_url": "https://docs.batgoose.com",
+    "live_url": "",
     "description": "This documentation site itself. Built with Astro Starlight to demonstrate 'Docs-as-Code' principles, Islands Architecture for performance, and a custom MDX pipeline.",
     "competencies": [
       { "id": "framework-astro", "role": "primary" },
@@ -206,8 +205,8 @@
   {
     "id": "demo-graphql-schema",
     "title": "Unified Data Graph",
-    "status": "in-progress",
-    "complexity": "advanced",
+    "status": "planned",
+    "domain": "football",
     "demo_type": "schema-def",
     "date_created": "2025-03-01",
     "repo_url": "https://github.com/batgoose/engineering-atlas/tree/main/packages/api-gateway/schema.graphql",
@@ -223,8 +222,8 @@
   {
     "id": "demo-embedded-lab",
     "title": "Bitwise Register Simulator",
-    "status": "complete",
-    "complexity": "beginner",
+    "status": "planned",
+    "domain": "infrastructure",
     "demo_type": "code-snippet",
     "date_created": "2025-02-01",
     "repo_url": "https://github.com/batgoose/engineering-atlas/tree/main/experiments/cpp/embedded_sim.cpp",
@@ -239,8 +238,8 @@
   {
     "id": "demo-ansible-hardening",
     "title": "Server Hardening Playbook",
-    "status": "complete",
-    "complexity": "intermediate",
+    "status": "planned",
+    "domain": "infrastructure",
     "demo_type": "code-snippet",
     "date_created": "2025-01-01",
     "repo_url": "https://github.com/batgoose/engineering-atlas/tree/main/infrastructure/ansible/roles/security",
@@ -255,8 +254,8 @@
   {
     "id": "demo-cross-platform-build",
     "title": "Universal C++ Build System",
-    "status": "complete",
-    "complexity": "advanced",
+    "status": "planned",
+    "domain": "infrastructure",
     "demo_type": "config",
     "date_created": "2025-02-01",
     "repo_url": "https://github.com/batgoose/engineering-atlas/tree/main/experiments/cpp/CMakeLists.txt",
@@ -273,8 +272,8 @@
   {
     "id": "demo-qt-dashboard",
     "title": "Legacy Qt Dashboard (Screenshot)",
-    "status": "complete",
-    "complexity": "intermediate",
+    "status": "planned",
+    "domain": "infrastructure",
     "demo_type": "visual-asset",
     "date_created": "2022-01-01",
     "repo_url": "https://github.com/batgoose/engineering-atlas/tree/main/assets/images/legacy-qt-dashboard.png",
@@ -289,17 +288,17 @@
   {
     "id": "honeywhisker-site",
     "title": "HoneyWhisker.com",
-    "status": "complete",
-    "complexity": "intermediate",
+    "status": "planned",
+    "domain": "atlas",
     "demo_type": "live-site",
     "date_created": "2024-06-01",
     "repo_url": "",
     "live_url": "https://honeywhisker.com",
     "description": "The flagship implementation of the HoneyWhisker SEO strategy. Features programmatic content clusters and high-performance Core Web Vitals.",
     "competencies": [
-      { "id": "honeywhisker", "role": "primary" },
-      { "id": "technical-seo", "role": "primary" },
-      { "id": "marketing-automation", "role": "secondary" }
+      { "id": "biz-seo", "role": "primary" },
+      { "id": "biz-ecommerce", "role": "secondary" },
+      { "id": "framework-nextjs", "role": "supporting" }
     ],
     "tech_stack": ["Next.js", "Tailwind", "Google Analytics"]
   }

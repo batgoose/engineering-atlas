@@ -31,7 +31,7 @@
     // required by nextjs since next compiles files individually in parallel, this prevents you from using TS features that require reading multiple files at once (like const enum)
     "isolatedModules": true,
     // tells TS to not transform the HTML <div /> tags (next will handle that step later)
-    "jsx": "preserve",
+    "jsx": "react-jsx",
     // speed- saves a cache file (.tsbuildinfo) so future builds only check files you change
     "incremental": true,
     "plugins": [
@@ -57,7 +57,8 @@
     "next-env.d.ts",
     "**/*.ts",
     "**/*.tsx",
-    ".next/types/**/*.ts"
+    ".next/types/**/*.ts",
+    ".next/dev/types/**/*.ts"
   ],
   "exclude": [
     // don't type check the entire internet

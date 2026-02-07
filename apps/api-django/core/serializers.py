@@ -106,7 +106,7 @@ class ArtifactSerializer(serializers.ModelSerializer):
             "id",
             "title",
             "status",
-            "complexity",
+            "domain",
             "demo_type",
             "description",
             "tech_stack",

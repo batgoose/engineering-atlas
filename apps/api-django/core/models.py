@@ -189,10 +189,10 @@ class Artifact(models.Model):
         ("complete", "Complete"),
     ]
 
-    COMPLEXITY_CHOICES = [
-        ("beginner", "Beginner"),
-        ("intermediate", "Intermediate"),
-        ("advanced", "Advanced"),
+    DOMAIN_CHOICES = [
+        ("football", "Project Redzone"),
+        ("atlas", "Engineering Atlas"),
+        ("infrastructure", "Infrastructure"),
     ]
 
     DEMO_TYPE_CHOICES = [
@@ -209,7 +209,7 @@ class Artifact(models.Model):
     id = models.SlugField(max_length=100, primary_key=True)
     title = models.CharField(max_length=200)
     status = models.CharField(max_length=50, choices=STATUS_CHOICES, default="planned")
-    complexity = models.CharField(max_length=50, choices=COMPLEXITY_CHOICES)
+    domain = models.CharField(max_length=50, choices=DOMAIN_CHOICES, default="atlas")
     demo_type = models.CharField(max_length=50, choices=DEMO_TYPE_CHOICES)
 
     description = models.TextField()
@@ -227,7 +227,7 @@ class Artifact(models.Model):
 
     class Meta:
         indexes = [
-            models.Index(fields=["status", "complexity"]),
+            models.Index(fields=["status", "domain"]),
             models.Index(fields=["demo_type"]),
             models.Index(fields=["-date_created"]),
         ]

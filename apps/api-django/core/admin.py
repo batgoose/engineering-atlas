@@ -147,12 +147,12 @@ class ArtifactAdmin(admin.ModelAdmin):
     list_display = (
         "title",
         "status",
-        "complexity",
+        "domain",
         "demo_type",
         "primary_competencies_list",
         "date_created",
     )
-    list_filter = ("status", "complexity", "demo_type", TechStackFilter, "date_created")
+    list_filter = ("status", "domain", "demo_type", TechStackFilter, "date_created")
     search_fields = ("title", "description")
     date_hierarchy = "date_created"
     readonly_fields = ("date_created", "last_updated")
@@ -167,7 +167,7 @@ class ArtifactAdmin(admin.ModelAdmin):
                     "title",
                     "description",
                     "status",
-                    "complexity",
+                    "domain",
                     "demo_type",
                 )
             },

@@ -1,36 +1,33 @@
 // API Client
 export {
-  // Config
+  // config
   configureApi,
   getApiConfig,
   type ApiConfig,
-  
-  // Error
+
+  // error
   ApiError,
-  
-  // Types
-  type PaginatedResponse,
+
+  // types
   type Category,
   type CompetencyFilters,
   type ArtifactFilters,
-  
-  // Category endpoints
+
+  // category endpoints
   getCategories,
   getCategory,
-  
-  // Competency endpoints
+
+  // competency endpoints
   getCompetencies,
   getCompetency,
   getCompetenciesByCategory,
   getHighlightedCompetencies,
   searchCompetencies,
-  getAllCompetencies,
-  
-  // Artifact endpoints
+
+  // artifact endpoints
   getArtifacts,
   getArtifact,
   getArtifactsByStatus,
   getArtifactsByTech,
   searchArtifacts,
-  getAllArtifacts,
 } from './client';

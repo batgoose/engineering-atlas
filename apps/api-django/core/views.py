@@ -68,7 +68,7 @@ class ArtifactViewSet(viewsets.ReadOnlyModelViewSet):
     filter_backends = [filters.SearchFilter]
     if DjangoFilterBackend:
         filter_backends.append(DjangoFilterBackend)
-        filterset_fields = ["status", "complexity", "demo_type"]
+        filterset_fields = ["status", "domain", "demo_type"]
 
     search_fields = ["title", "description"]
 

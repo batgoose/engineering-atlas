@@ -24,8 +24,8 @@ export type CompetencyType =
 // matches STATUS_CHOICES in Artifact model
 export type ArtifactStatus = 'planned' | 'in-progress' | 'complete';
 
-// matches COMPLEXITY_CHOICES in Artifact model
-export type ArtifactComplexity = 'beginner' | 'intermediate' | 'advanced';
+// matches DOMAIN_CHOICES in Artifact model
+export type ArtifactDomain = 'football' | 'atlas' | 'infrastructure';
 
 // matches DEMO_TYPE_CHOICES in Artifact model
 export type DemoType =
@@ -112,20 +112,16 @@ export interface ArtifactSkill {
   role: 'primary' | 'secondary' | 'supporting';
 }
 
-// matches ArtifactSerializer
 export interface Artifact {
   id: string;
   title: string;
   status: ArtifactStatus;
-  complexity: ArtifactComplexity;
+  domain: ArtifactDomain;
   demo_type: DemoType;
   description: string;
-  tech_stack: string[]; // array of strings
-
+  tech_stack: string[];
   repo_url: string;
   live_url: string;
-
-  date_created: string; // ISO Date String
-
-  competencies: ArtifactSkill[]; // the sorted list of badges
+  date_created: string;
+  competencies: ArtifactSkill[];
 }
