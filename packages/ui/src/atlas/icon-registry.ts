@@ -1,179 +1,76 @@
 /**
- * Icon Registry
+ * Atlas Icon Registry
  *
- * Maps competency/technology IDs to their icon assets
- * Icons should be SVG files stored in a shared assets folder
+ * Provides icon lookup for the 3D competency sphere.
+ * SVG strings are stored separately in ./icon-strings.ts
  */
 
-export interface IconDefinition {
-  id: string;
-  name: string;
-  iconPath: string; // path to SVG file
-  fallbackEmoji?: string; // fallback if icon not available
-  category: string;
+import { ICONS, getIconString } from './icon_strings';
+
+// Re-export for convenience
+export { ICONS, getIconString };
+
+/**
+ * Check if an icon exists for a given competency ID
+ */
+export function hasIcon(id: string): boolean {
+  return id in ICONS;
 }
 
 /**
- * Registry of all competency icons
- * Icon paths are relative to assets directory
- *
- * TODO: Update paths to match actual asset locations
+ * Get all available icon IDs
  */
-export const ICON_REGISTRY: Record<string, IconDefinition> = {
-  // Frameworks
-  'framework-nextjs': {
-    id: 'framework-nextjs',
-    name: 'Next.js',
-    iconPath: '/icons/nextjs.svg',
-    fallbackEmoji: '▲',
-    category: 'frontend',
-  },
-  'lib-react': {
-    id: 'lib-react',
-    name: 'React',
-    iconPath: '/icons/react.svg',
-    fallbackEmoji: '⚛️',
-    category: 'frontend',
-  },
-  'framework-angular': {
-    id: 'framework-angular',
-    name: 'Angular',
-    iconPath: '/icons/angular.svg',
-    fallbackEmoji: '🅰️',
-    category: 'frontend',
-  },
-  'framework-vue': {
-    id: 'framework-vue',
-    name: 'Vue',
-    iconPath: '/icons/vue.svg',
-    fallbackEmoji: '💚',
-    category: 'frontend',
-  },
-  'framework-svelte': {
-    id: 'framework-svelte',
-    name: 'Svelte',
-    iconPath: '/icons/svelte.svg',
-    fallbackEmoji: '🔥',
-    category: 'frontend',
-  },
-
-  // languages
-  'lang-typescript': {
-    id: 'lang-typescript',
-    name: 'TypeScript',
-    iconPath: '/icons/typescript.svg',
-    fallbackEmoji: '🔷',
-    category: 'frontend',
-  },
-  'lang-python': {
-    id: 'lang-python',
-    name: 'Python',
-    iconPath: '/icons/python.svg',
-    fallbackEmoji: '🐍',
-    category: 'backend',
-  },
-  'lang-rust': {
-    id: 'lang-rust',
-    name: 'Rust',
-    iconPath: '/icons/rust.svg',
-    fallbackEmoji: '🦀',
-    category: 'systems',
-  },
-  'lang-go': {
-    id: 'lang-go',
-    name: 'Go',
-    iconPath: '/icons/go.svg',
-    fallbackEmoji: '🐹',
-    category: 'systems',
-  },
-  'lang-cpp': {
-    id: 'lang-cpp',
-    name: 'C++',
-    iconPath: '/icons/cpp.svg',
-    fallbackEmoji: '⚙️',
-    category: 'systems',
-  },
-
-  // backend
-  'framework-django': {
-    id: 'framework-django',
-    name: 'Django',
-    iconPath: '/icons/django.svg',
-    fallbackEmoji: '🎸',
-    category: 'backend',
-  },
-  'db-postgres': {
-    id: 'db-postgres',
-    name: 'PostgreSQL',
-    iconPath: '/icons/postgresql.svg',
-    fallbackEmoji: '🐘',
-    category: 'backend',
-  },
-  'spec-graphql': {
-    id: 'spec-graphql',
-    name: 'GraphQL',
-    iconPath: '/icons/graphql.svg',
-    fallbackEmoji: '◇',
-    category: 'backend',
-  },
-
-  // devOps
-  'tool-docker': {
-    id: 'tool-docker',
-    name: 'Docker',
-    iconPath: '/icons/docker.svg',
-    fallbackEmoji: '🐳',
-    category: 'devops',
-  },
-  'cloud-kubernetes': {
-    id: 'cloud-kubernetes',
-    name: 'Kubernetes',
-    iconPath: '/icons/kubernetes.svg',
-    fallbackEmoji: '☸️',
-    category: 'devops',
-  },
-  'tool-terraform': {
-    id: 'tool-terraform',
-    name: 'Terraform',
-    iconPath: '/icons/terraform.svg',
-    fallbackEmoji: '🏗️',
-    category: 'devops',
-  },
-  'tool-git': {
-    id: 'tool-git',
-    name: 'Git',
-    iconPath: '/icons/git.svg',
-    fallbackEmoji: '📦',
-    category: 'devops',
-  },
-};
-
-/**
- * Get icon definition by ID, with fallback
- */
-export function getIcon(id: string): IconDefinition {
-  return (
-    ICON_REGISTRY[id] || {
-      id,
-      name: id,
-      iconPath: '/icons/default.svg',
-      fallbackEmoji: '📌',
-      category: 'core',
-    }
-  );
+export function getIconIds(): string[] {
+  return Object.keys(ICONS);
 }
 
 /**
- * Get all icons for a category
+ * Get icons matching a prefix (e.g., 'lang-', 'tool-', 'db-')
  */
-export function getIconsByCategory(category: string): IconDefinition[] {
-  return Object.values(ICON_REGISTRY).filter((icon) => icon.category === category);
+export function getIconsByPrefix(prefix: string): string[] {
+  return Object.keys(ICONS).filter((id) => id.startsWith(prefix));
 }
 
 /**
- * Get all unique categories
+ * Convert SVG string to a data URL for use in <img src> or CSS background
+ * Works in all frameworks without special rendering
  */
-export function getCategories(): string[] {
-  const categories = new Set(Object.values(ICON_REGISTRY).map((icon) => icon.category));
-  return Array.from(categories);
+export function getIconDataUrl(id: string): string {
+  const svg = getIconString(id);
+  const encoded = encodeURIComponent(svg).replace(/'/g, '%27').replace(/"/g, '%22');
+  return `data:image/svg+xml,${encoded}`;
+}
+
+/**
+ * Convert SVG string to base64 data URL
+ * Use when URL encoding causes issues
+ */
+export function getIconBase64(id: string): string {
+  const svg = getIconString(id);
+  // Works in browser and Node with Buffer polyfill
+  if (typeof btoa !== 'undefined') {
+    return `data:image/svg+xml;base64,${btoa(svg)}`;
+  }
+  // Node.js fallback
+  return `data:image/svg+xml;base64,${Buffer.from(svg).toString('base64')}`;
+}
+
+/**
+ * Get icon with custom size applied
+ * Returns SVG string with width/height attributes set
+ */
+export function getIconWithSize(id: string, size: number): string {
+  const svg = getIconString(id);
+  // Insert width and height after the opening <svg tag
+  return svg.replace(/^<svg/, `<svg width="${size}" height="${size}"`);
+}
+
+/**
+ * Get icon with custom color applied (for single-color icons)
+ * Only works with icons using "currentColor" or no fill
+ */
+export function getIconWithColor(id: string, color: string): string {
+  const svg = getIconString(id);
+  // Add fill attribute and replace currentColor
+  return svg.replace(/currentColor/g, color).replace(/^<svg/, `<svg fill="${color}"`);
 }

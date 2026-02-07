@@ -42,11 +42,15 @@ export {
   type TransitionConfig,
 } from './transitions';
 
-// icon registry
+// icon registry and utilities
 export {
-  ICON_REGISTRY,
-  getIcon,
-  getIconsByCategory,
-  getCategories,
-  type IconDefinition,
+  ICONS,
+  getIconString,
+  hasIcon,
+  getIconIds,
+  getIconsByPrefix,
+  getIconDataUrl,
+  getIconBase64,
+  getIconWithSize,
+  getIconWithColor,
 } from './icon-registry';
