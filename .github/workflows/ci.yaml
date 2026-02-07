@@ -150,8 +150,9 @@ jobs:
         run: pnpm --filter @atlas/ui test
       
       - name: Lint Next.js
-        working-directory: ./apps/web-next
-        run: pnpm lint
+        run: |
+          cd apps/web-next
+          npx next lint
 
   format-check:
     name: Code Formatting
