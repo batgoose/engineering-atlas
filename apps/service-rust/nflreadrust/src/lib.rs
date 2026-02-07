@@ -20,7 +20,6 @@ pub async fn download_season(year: i32) -> Result<PathBuf> {
         return Ok(save_path);
     }
 
-    
     let response = reqwest::get(&url).await?;
     if !response.status().is_success() {
         anyhow::bail!("Failed to get file: Status {}", response.status());
@@ -156,7 +155,6 @@ mod unit_tests {
 
     #[test]
     fn test_parse_sparse_row_timeout() {
-        
         let csv_data = "\
 play_id,game_id,home_team,away_team,season_type,week,shotgun,no_huddle,posteam
 50,2023_01_DET_KC,KC,DET,REG,1,0,0,";
@@ -179,8 +177,6 @@ play_id,game_id,home_team,away_team,season_type,week,shotgun,no_huddle,posteam
 
     #[test]
     fn test_date_parsing_logic() {
-        
-
         let date_str = Some("2023-12-25".to_string());
 
         let parsed = date_str
@@ -196,7 +192,6 @@ play_id,game_id,home_team,away_team,season_type,week,shotgun,no_huddle,posteam
 
     #[test]
     fn test_bad_date_handling() {
-        
         let date_str = Some("Not-A-Date".to_string());
 
         let parsed = date_str

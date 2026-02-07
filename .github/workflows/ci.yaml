@@ -123,7 +123,7 @@ jobs:
       - name: Run Tests
         run: cargo test
 
-  frontend-tests:
+frontend-tests:
     name: Frontend Tests
     runs-on: ubuntu-latest
     
@@ -149,10 +149,11 @@ jobs:
       - name: Run UI Package Tests
         run: pnpm --filter @atlas/ui test
       
-      - name: Lint
-        run: pnpm --filter @atlas/web-next lint
+      - name: Lint Next.js
+        working-directory: ./apps/web-next
+        run: pnpm lint
 
-  format-check:
+format-check:
     name: Code Formatting
     runs-on: ubuntu-latest
     

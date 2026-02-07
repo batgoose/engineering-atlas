@@ -145,17 +145,19 @@ MINIO_ACCESS_KEY = env("MINIO_ACCESS_KEY", default="atlas_admin")
 MINIO_SECRET_KEY = env("MINIO_SECRET_KEY", default="atlas_password")
 MINIO_USE_SSL = env.bool("MINIO_USE_SSL", default=False)
 
-if 'test' in sys.argv:
+if "test" in sys.argv:
+    db_host = "localhost" if os.getenv("CI") else "postgres-atlas"
+
     DATABASES = {
-        'default': {
-            'ENGINE': 'django.db.backends.postgresql',
-            'NAME': 'atlas_db',
-            'USER': 'atlas_user',
-            'PASSWORD': 'atlas_password',
-            'HOST': 'postgres-atlas',
-            'PORT': '5432',
-            'TEST': {
-                'NAME': 'test_atlas_db',
-            }
+        "default": {
+            "ENGINE": "django.db.backends.postgresql",
+            "NAME": "atlas_db",
+            "USER": "atlas_user",
+            "PASSWORD": "atlas_password",
+            "HOST": db_host,
+            "PORT": "5432",
+            "TEST": {
+                "NAME": "test_atlas_db",
+            },
         }
     }

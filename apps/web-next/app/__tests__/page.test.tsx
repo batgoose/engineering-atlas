@@ -1,9 +1,7 @@
-// apps/web-next/app/__tests__/page.test.tsx
 import { describe, it, expect, vi } from 'vitest';
 import { render } from '@testing-library/react';
 import HomePage from '../page';
 
-// Mock Next.js navigation
 vi.mock('next/navigation', () => ({
   useRouter: () => ({
     push: vi.fn(),
@@ -12,7 +10,6 @@ vi.mock('next/navigation', () => ({
   usePathname: () => '/',
 }));
 
-// Mock ALL hooks from your hooks file
 vi.mock('@/lib/hooks', () => ({
   useCompetencies: () => ({
     data: [],
@@ -24,12 +21,11 @@ vi.mock('@/lib/hooks', () => ({
     isLoading: false,
     error: null,
   }),
-  useHighlightedCompetencies: () => ({  // ADD THIS
+  useHighlightedCompetencies: () => ({
     data: [],
     isLoading: false,
     error: null,
   }),
-  // Add any other hooks your page uses
 }));
 
 describe('HomePage', () => {

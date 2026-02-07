@@ -5,13 +5,11 @@ const DB_URL: &str = "postgres://admin:password@localhost:5433/nfl_data";
 
 #[tokio::test]
 async fn test_database_insert_read_flow() {
-    
     let pool = PgPoolOptions::new()
         .connect(DB_URL)
         .await
         .expect("Failed to connect to Docker DB - is it running?");
 
-    
     // We use a fake game_id so we don't clash with real data
     let mock_play = PlayRecord {
         play_id: 99999.0,
@@ -19,12 +17,11 @@ async fn test_database_insert_read_flow() {
         home_team: "TEST_HOME".to_string(),
         away_team: "TEST_AWAY".to_string(),
         posteam: Some("TEST_HOME".to_string()),
-        game_date: Some("2025-12-25".to_string()), 
+        game_date: Some("2025-12-25".to_string()),
         play_type: Some("pass".to_string()),
         yards_gained: Some(50.0),
         touchdown: Some(1.0),
 
-        
         old_game_id: None,
         drive: None,
         posteam_type: None,
@@ -70,12 +67,10 @@ async fn test_database_insert_read_flow() {
         penalty_yards: None,
     };
 
-    
     insert_batch(&pool, &[mock_play])
         .await
         .expect("Insert failed");
 
-    
     // FIX: We must use f32 because the DB column is 'REAL' (Float4)
     let row: (f32, String) = sqlx::query_as(
         "SELECT yards_gained, passer_player_name FROM plays WHERE game_id = 'TEST_GAME_001'",
@@ -84,7 +79,6 @@ async fn test_database_insert_read_flow() {
     .await
     .expect("Fetch failed");
 
-    
     assert_eq!(row.0, 50.0);
     assert_eq!(row.1, "Test QB");
 
@@ -156,7 +150,6 @@ async fn test_insert_idempotency() {
         penalty_yards: None,
     };
 
-    
     let result1 = insert_batch(&pool, &[mock_play.clone()]).await;
     assert!(result1.is_ok());
 
@@ -167,13 +160,12 @@ async fn test_insert_idempotency() {
         away_team: "B".to_string(),
         season_type: "REG".to_string(),
         week: 1,
-        ..mock_play.clone() 
+        ..mock_play.clone()
     };
 
     let result2 = insert_batch(&pool, &[mock_play_copy]).await;
     assert!(result2.is_ok());
 
-    
     sqlx::query("DELETE FROM plays WHERE game_id = 'TEST_GAME_DUPE'")
         .execute(&pool)
         .await
