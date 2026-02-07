@@ -13,22 +13,25 @@
 export { layout } from './layout';
 export { typography } from './typography';
 export { buttons, inputs } from './interactive';
-export { cards, badges } from './cards';
+export { cards, badges, card_buttons } from './cards';
 export { nav } from './navigation';
 export { hero, atlas, about, contact, demos } from './pages';
+export { codeWindow, syntax } from './code-window';
 
 // re-export everything as a single object for convenience
 import { layout } from './layout';
 import { typography } from './typography';
 import { buttons, inputs } from './interactive';
-import { cards, badges } from './cards';
+import { cards, badges, card_buttons } from './cards';
 import { nav } from './navigation';
 import { hero, atlas, about, contact, demos } from './pages';
+import { codeWindow, syntax } from './code-window';
 
 export const styles = {
   layout,
   typography,
   buttons,
+  card_buttons,
   inputs,
   cards,
   badges,
@@ -38,4 +41,6 @@ export const styles = {
   about,
   contact,
   demos,
+  codeWindow,
+  syntax,
 };

@@ -28,9 +28,9 @@ export const buttons = {
   // filter pills
   filterInactive:
     'px-3 py-1.5 text-sm rounded-md text-slate-400 hover:text-white hover:bg-slate-800 transition-colors',
-  filterActive:
-    'px-3 py-1.5 text-sm rounded-md bg-cyan-500/20 text-cyan-400 border border-cyan-500/50',
 
+  filterActive: 'px-3 py-1.5 text-sm rounded-md bg-cyan-500/10 text-cyan-400 border border-cyan-500/50 shadow-[0_0_15px_rgba(34,211,238,0.15)]',
+ 
   // full width
   fullWidth:
     'w-full px-6 py-3 bg-cyan-500 hover:bg-cyan-400 text-slate-900 font-semibold rounded-lg transition-colors',

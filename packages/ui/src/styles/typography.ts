@@ -25,7 +25,7 @@ export const typography = {
   accent: 'text-cyan-400',
 
   // labels and captions
-  label: 'block text-sm text-slate-400 mb-1',
+  label: 'block text-[10px] uppercase tracking-widest text-slate-500 mb-1', 
   caption: 'text-xs text-slate-500',
 
   // links
