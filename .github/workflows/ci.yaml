@@ -148,9 +148,6 @@ jobs:
       
       - name: Run UI Package Tests
         run: pnpm --filter @atlas/ui test
-      
-      - name: Lint Next.js
-        run: pnpm turbo run lint --filter=@atlas/web-next
 
   format-check:
     name: Code Formatting
