@@ -22,10 +22,7 @@ import {
   getHighlightedCompetencies,
   getArtifacts,
   getArtifact,
-  getAllCompetencies,
-  getAllArtifacts,
   type Category,
-  type PaginatedResponse,
   type CompetencyFilters,
   type ArtifactFilters,
 } from '@atlas/api';
@@ -39,7 +36,7 @@ import type { CompetencyNode, Artifact } from '@atlas/types';
 export const queryKeys = {
   categories: {
     all: ['categories'] as const,
-    detail: (id: number) => ['categories', id] as const,
+    detail: (id: number | string) => ['categories', id] as const,
   },
   competencies: {
     all: ['competencies'] as const,
@@ -70,7 +67,7 @@ export function useCategories(
 }
 
 export function useCategory(
-  id: number,
+  id: number | string,
   options?: Omit<UseQueryOptions<Category>, 'queryKey' | 'queryFn'>
 ) {
   return useQuery({
@@ -87,7 +84,7 @@ export function useCategory(
 
 export function useCompetencies(
   filters?: CompetencyFilters,
-  options?: Omit<UseQueryOptions<PaginatedResponse<CompetencyNode>>, 'queryKey' | 'queryFn'>
+  options?: Omit<UseQueryOptions<CompetencyNode[]>, 'queryKey' | 'queryFn'>
 ) {
   return useQuery({
     queryKey: queryKeys.competencies.list(filters),
@@ -110,23 +107,11 @@ export function useCompetency(
 }
 
 export function useHighlightedCompetencies(
-  options?: Omit<UseQueryOptions<PaginatedResponse<CompetencyNode>>, 'queryKey' | 'queryFn'>
+  options?: Omit<UseQueryOptions<CompetencyNode[]>, 'queryKey' | 'queryFn'>
 ) {
   return useQuery({
     queryKey: queryKeys.competencies.highlighted,
     queryFn: getHighlightedCompetencies,
-    staleTime: 1000 * 60 * 5,
-    ...options,
-  });
-}
-
-export function useAllCompetencies(
-  filters?: CompetencyFilters,
-  options?: Omit<UseQueryOptions<CompetencyNode[]>, 'queryKey' | 'queryFn'>
-) {
-  return useQuery({
-    queryKey: [...queryKeys.competencies.all, 'all', filters],
-    queryFn: () => getAllCompetencies(filters),
     staleTime: 1000 * 60 * 5,
     ...options,
   });
@@ -138,7 +123,7 @@ export function useAllCompetencies(
 
 export function useArtifacts(
   filters?: ArtifactFilters,
-  options?: Omit<UseQueryOptions<PaginatedResponse<Artifact>>, 'queryKey' | 'queryFn'>
+  options?: Omit<UseQueryOptions<Artifact[]>, 'queryKey' | 'queryFn'>
 ) {
   return useQuery({
     queryKey: queryKeys.artifacts.list(filters),
@@ -155,18 +140,6 @@ export function useArtifact(
   return useQuery({
     queryKey: queryKeys.artifacts.detail(id),
     queryFn: () => getArtifact(id),
-    staleTime: 1000 * 60 * 5,
-    ...options,
-  });
-}
-
-export function useAllArtifacts(
-  filters?: ArtifactFilters,
-  options?: Omit<UseQueryOptions<Artifact[]>, 'queryKey' | 'queryFn'>
-) {
-  return useQuery({
-    queryKey: [...queryKeys.artifacts.all, 'all', filters],
-    queryFn: () => getAllArtifacts(filters),
     staleTime: 1000 * 60 * 5,
     ...options,
   });
@@ -189,7 +162,7 @@ export function useCategoriesSuspense(
 
 export function useCompetenciesSuspense(
   filters?: CompetencyFilters,
-  options?: Omit<UseSuspenseQueryOptions<PaginatedResponse<CompetencyNode>>, 'queryKey' | 'queryFn'>
+  options?: Omit<UseSuspenseQueryOptions<CompetencyNode[]>, 'queryKey' | 'queryFn'>
 ) {
   return useSuspenseQuery({
     queryKey: queryKeys.competencies.list(filters),
@@ -201,7 +174,7 @@ export function useCompetenciesSuspense(
 
 export function useArtifactsSuspense(
   filters?: ArtifactFilters,
-  options?: Omit<UseSuspenseQueryOptions<PaginatedResponse<Artifact>>, 'queryKey' | 'queryFn'>
+  options?: Omit<UseSuspenseQueryOptions<Artifact[]>, 'queryKey' | 'queryFn'>
 ) {
   return useSuspenseQuery({
     queryKey: queryKeys.artifacts.list(filters),
