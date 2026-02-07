@@ -29,7 +29,7 @@ export default function ContactPage() {
               href={method.href}
               target={method.type !== 'email' ? '_blank' : undefined}
               rel={method.type !== 'email' ? 'noopener noreferrer' : undefined}
-              className={cards.contactMethod}
+              className={cards.base}
             >
               <div className={cards.iconBox}>
                 <span>{method.icon}</span>

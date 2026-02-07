@@ -1,7 +1,7 @@
 use anyhow::{Context, Result};
 use sqlx::postgres::PgPoolOptions;
 use std::time::Duration;
-// Import from our new library
+use chrono::Datelike;
 use nflreadrust::{download_season, process_and_insert_season};
 
 const DB_URL: &str = "postgres://admin:password@localhost:5433/nfl_data";
@@ -16,22 +16,41 @@ async fn main() -> Result<()> {
         .context("Failed to connect to Postgres")?;
     println!("✅ Database connected.");
 
-    let start_year = 2010;
-    let end_year = 2023;
+    // 1999 is the start of reliable play-by-play data in nflverse
+    let start_year = 1999;
+    
+    // Dynamically get the current year
+    let current_year = chrono::Utc::now().year();
 
-    for year in start_year..=end_year {
-        println!("\n🏈 Processing NFL Season {}...", year);
+    println!("🚀 Starting Archive Sequence: {} to Present ({})", start_year, current_year);
+
+    for year in start_year..=current_year {
+        println!("\n------------------------------------------------");
+        println!("🏈 Checking NFL Season {}...", year);
+        
         match download_season(year).await {
             Ok(path) => {
+                // If download succeeds, insert it
                 if let Err(e) = process_and_insert_season(&path, &pool).await {
                     eprintln!("❌ DB Error {}: {}", year, e);
                 } else {
-                    println!("🎉 Finished {}.", year);
+                    println!("🎉 Verified {}.", year);
+                }
+            },
+            Err(e) => {
+                // This handles "future" years gracefully (asking for 2026 in March 2026)
+                if e.to_string().contains("404") {
+                     println!("Example: Season {} data not published yet.", year);
+                } else {
+                     eprintln!("❌ Download Error {}: {}", year, e);
                 }
             }
-            Err(e) => eprintln!("❌ Download Error {}: {}", year, e),
         }
-        tokio::time::sleep(Duration::from_millis(500)).await;
+        
+        // Slight delay to be polite to gitHub
+        tokio::time::sleep(Duration::from_millis(200)).await;
     }
+    
+    println!("\n✅ Archive complete.");
     Ok(())
 }
