@@ -12,6 +12,7 @@ jobs:
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
+      
       - name: Run Diagnostics
         run: |
           echo "Atlas CI/CD Pipeline: ONLINE"
@@ -21,11 +22,11 @@ jobs:
     runs-on: ubuntu-latest
     services:
       postgres:
-        image: postgres:15
+        image: pgvector/pgvector:pg16
         env:
-          POSTGRES_DB: atlas_test_db
+          POSTGRES_DB: atlas_db
           POSTGRES_USER: atlas_user
-          POSTGRES_PASSWORD: password
+          POSTGRES_PASSWORD: atlas_password
         ports:
           - 5432:5432
         options: >-
@@ -33,38 +34,50 @@ jobs:
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
-
+    
     defaults:
       run:
         working-directory: ./apps/api-django
-
+    
     env:
       SECRET_KEY: ${{ secrets.SECRET_KEY }}
-      DEBUG: 'False'
-      DATABASE_URL: 'postgres://atlas_user:password@localhost:5432/atlas_test_db'
-
+      DEBUG: 'True'
+      DATABASE_URL: 'postgresql://atlas_user:atlas_password@localhost:5432/atlas_db'
+    
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
-
+      
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.10'
-
-      - name: Install Poetry
-        run: pip install poetry
-
+      
+      - name: Install UV
+        run: pip install uv
+      
       - name: Install Dependencies
-        run: poetry install --no-interaction --no-root
-
-      - name: Run Integration Tests
-        run: poetry run python manage.py test core
+        run: |
+          uv pip install --system \
+            "django>=5.1,<6.0" \
+            "djangorestframework>=3.16.1,<4.0.0" \
+            "django-environ>=0.12.0,<0.13.0" \
+            "psycopg[binary]>=3.3.2,<4.0.0" \
+            "drf-spectacular>=0.29.0,<0.30.0" \
+            "markdown>=3.10.1,<4.0.0" \
+            "django-filter>=25.2,<26.0" \
+            "django-cors-headers>=4.9.0,<5.0.0" \
+            "black>=26.1.0,<27.0.0"
+      
+      - name: Run Migrations
+        run: python manage.py migrate --noinput
+      
+      - name: Run Tests
+        run: python manage.py test
 
   rust-ingestor-tests:
     name: Rust Ingestor Tests
     runs-on: ubuntu-latest
-
     services:
       postgres:
         image: postgres:15-alpine
@@ -73,42 +86,89 @@ jobs:
           POSTGRES_PASSWORD: password
           POSTGRES_DB: nfl_data
         ports:
-          # CRITICAL: Map host 5433 to container 5432
           - 5433:5432
         options: >-
           --health-cmd pg_isready
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
-
+    
     defaults:
       run:
         working-directory: ./apps/service-rust/nflreadrust
-
+    
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
-
+      
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
-
-      # cache dependencies (speeds up builds by 500%+)
+      
       - name: Rust Cache
         uses: swatinem/rust-cache@v2
         with:
           workspaces: apps/service-rust/nflreadrust
-
+      
       - name: Apply SQL Schema
         run: |
           sudo apt-get install -y postgresql-client
-          # Connect to port 5433 and run the schema file from packages/db/init
           psql "postgres://admin:password@localhost:5433/nfl_data" -f ../../../packages/db/init/01_schema.sql
-
+      
       - name: Check Formatting
         run: cargo fmt -- --check
-
+      
       - name: Run Clippy
         run: cargo clippy -- -D warnings
-
-      - name: Run Cargo Test
+      
+      - name: Run Tests
         run: cargo test
+
+  frontend-tests:
+    name: Frontend Tests
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+      
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'pnpm'
+      
+      - name: Install Dependencies
+        run: pnpm install --frozen-lockfile
+      
+      - name: Run Next.js Tests
+        run: pnpm --filter @atlas/web-next test
+      
+      - name: Run UI Package Tests
+        run: pnpm --filter @atlas/ui test
+      
+      - name: Lint
+        run: pnpm --filter @atlas/web-next lint
+
+  format-check:
+    name: Code Formatting
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+      
+      - name: Install Black
+        run: pip install black
+      
+      - name: Check Python Formatting
+        run: black --check apps/api-django
