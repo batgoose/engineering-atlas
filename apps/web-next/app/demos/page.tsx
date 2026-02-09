@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { useArtifacts } from '@/lib/hooks';
+import { useArtifacts } from '@/app/lib/hooks';
 import { layout, typography, buttons, cards, badges, demos as demosStyles } from '@atlas/ui/styles';
 import type { ArtifactStatus, ArtifactDomain } from '@atlas/types';
 import { ProjectCard } from './ProjectCard';

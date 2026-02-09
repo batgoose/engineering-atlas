@@ -25,3 +25,11 @@ target/
 .terraform/
 *.tfstate
 *.tfstate.backup
+
+bin/
+main
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib

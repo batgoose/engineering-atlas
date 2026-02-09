@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useHighlightedCompetencies, useArtifacts } from '@/lib/hooks';
+import { useHighlightedCompetencies, useArtifacts } from '@/app/lib/hooks';
 import { buildHomePageProps } from '@atlas/ui/contracts';
 import { layout, typography, buttons, cards, badges, hero as heroStyles } from '@atlas/ui/styles';
 import { CompetencyIcon } from '@/components/CompetencyIcon';

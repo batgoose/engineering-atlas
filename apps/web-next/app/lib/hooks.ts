@@ -1,8 +1,8 @@
 /**
  * React Query Hooks
- * 
- * Data fetching hooks for the Next.js app.
- * Wraps @atlas/api with caching, deduplication, and background refresh.
+ *
+ * Data fetching hooks for the Next.js app
+ * Wraps @atlas/api with caching, deduplication, and background refresh
  */
 
 'use client';
@@ -29,8 +29,6 @@ import {
 
 import type { CompetencyNode, Artifact } from '@atlas/types';
 
-
-
 export const queryKeys = {
   categories: {
     all: ['categories'] as const,
@@ -49,15 +47,11 @@ export const queryKeys = {
   },
 };
 
-
-
-export function useCategories(
-  options?: Omit<UseQueryOptions<Category[]>, 'queryKey' | 'queryFn'>
-) {
+export function useCategories(options?: Omit<UseQueryOptions<Category[]>, 'queryKey' | 'queryFn'>) {
   return useQuery({
     queryKey: queryKeys.categories.all,
     queryFn: getCategories,
-    staleTime: 1000 * 60 * 10, 
+    staleTime: 1000 * 60 * 10,
     ...options,
   });
 }
@@ -73,8 +67,6 @@ export function useCategory(
     ...options,
   });
 }
-
-
 
 export function useCompetencies(
   filters?: CompetencyFilters,
@@ -110,8 +102,6 @@ export function useHighlightedCompetencies(
     ...options,
   });
 }
-
-
 
 export function useArtifacts(
   filters?: ArtifactFilters,

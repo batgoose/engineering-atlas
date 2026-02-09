@@ -26,6 +26,9 @@ importers:
       '@atlas/api':
         specifier: workspace:*
         version: link:../../packages/api
+      '@atlas/sdk':
+        specifier: workspace:*
+        version: link:../../packages/sdk
       '@atlas/types':
         specifier: workspace:*
         version: link:../../packages/types
@@ -118,6 +121,8 @@ importers:
       '@types/node':
         specifier: ^22.19.7
         version: 22.19.7
+
+  packages/sdk: {}
 
   packages/types: {}
 

@@ -297,46 +297,49 @@ services:
   # APPLICATION LAYER - MICROSERVICES (Placeholder - Uncomment when ready)
 
   service-rust:
-     build:
-       context: ./apps/service-rust
-       dockerfile: Dockerfile.dev
-     container_name: atlas-service-rust
-     restart: unless-stopped
-     volumes:
-       - ./apps/service-rust:/app
-       - /app/target
-     ports:
+    build:
+      context: ./apps/service-rust
+      dockerfile: Dockerfile.dev
+    container_name: atlas-service-rust
+    restart: unless-stopped
+    volumes:
+      - ./apps/service-rust:/app
+      - /app/target
+    ports:
       - '8001:8001'
-     networks:
-       - atlas-network
-     depends_on:
-       - redis
-     labels:
-       - "traefik.enable=true"
-       - "traefik.http.routers.service-rust.rule=Host(`rust-service.localhost`)"
-       - "traefik.http.routers.service-rust.entrypoints=web"
-       - "traefik.http.services.service-rust.loadbalancer.server.port=8001"
+    networks:
+      - atlas-network
+    depends_on:
+      - redis
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.service-rust.rule=Host(`rust-service.localhost`)"
+      - "traefik.http.routers.service-rust.entrypoints=web"
+      - "traefik.http.services.service-rust.loadbalancer.server.port=8001"
 
-  # service-go:
-  #   build:
-  #     context: ./apps/service-go
-  #     dockerfile: Dockerfile.dev
-  #   container_name: atlas-service-go
-  #   restart: unless-stopped
-  #   volumes:
-  #     - ./apps/service-go:/app
-  #   ports:
-  #     - '8002:8002'
-  #   networks:
-  #     - atlas-network
-  #   depends_on:
-  #     - redis
-  #   labels:
-  #     - "traefik.enable=true"
-  #     - "traefik.http.routers.service-go.rule=Host(`go-service.localhost`)"
-  #     - "traefik.http.routers.service-go.entrypoints=web"
-  #     - "traefik.http.services.service-go.loadbalancer.server.port=8002"
-
+  service-go:
+    build:
+      context: ./apps/service-go
+      dockerfile: Dockerfile.dev
+    container_name: atlas-service-go
+    restart: unless-stopped
+    ports:
+      - '8002:8002'
+    volumes:
+      - ./apps/service-go:/app
+    environment:
+      - PORT=8002
+      - NODE_ENV=development
+    networks:
+      - atlas-network
+    depends_on:
+      - redis
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.service-go.rule=Host(`go-service.localhost`)"
+      - "traefik.http.routers.service-go.entrypoints=web"
+      - "traefik.http.services.service-go.loadbalancer.server.port=8002"
+      
   # service-cpp:
   #   build:
   #     context: ./apps/service-cpp

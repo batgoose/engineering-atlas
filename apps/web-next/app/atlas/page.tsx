@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useCallback, useMemo, Suspense, lazy } from 'react';
-import { useCompetencies, useCategories, useArtifacts } from '@/lib/hooks';
+import { useCompetencies, useCategories, useArtifacts } from '@/app/lib/hooks';
 import { layout, buttons, typography, badges } from '@atlas/ui/styles';
 import { CompetencyIcon } from '@/components/CompetencyIcon';
 import type { CompetencyNode, Artifact } from '@atlas/types';

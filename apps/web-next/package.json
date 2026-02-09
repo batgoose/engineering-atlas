@@ -14,6 +14,7 @@
   },
   "dependencies": {
     "@atlas/api": "workspace:*",
+    "@atlas/sdk": "workspace:*",
     "@atlas/types": "workspace:*",
     "@atlas/ui": "workspace:*",
     "@react-three/drei": "^10.7.7",

@@ -3,9 +3,9 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderHook, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type { ReactNode } from 'react';
-import { 
-  useCompetencies, 
-  useArtifacts, 
+import {
+  useCompetencies,
+  useArtifacts,
   useHighlightedCompetencies,
   useCategories,
   queryKeys,
@@ -13,20 +13,24 @@ import {
 
 // Mock the API layer
 vi.mock('@atlas/api', () => ({
-  getCompetencies: vi.fn(() => Promise.resolve([
-    { id: 'python', name: 'Python', category: { name: 'Backend' } },
-    { id: 'rust', name: 'Rust', category: { name: 'Systems' } },
-  ])),
-  getArtifacts: vi.fn(() => Promise.resolve([
-    { id: 'engineering-atlas', title: 'Engineering Atlas' },
-  ])),
-  getHighlightedCompetencies: vi.fn(() => Promise.resolve([
-    { id: 'python', name: 'Python', category: { name: 'Backend' } },
-  ])),
-  getCategories: vi.fn(() => Promise.resolve([
-    { id: 1, name: 'Backend', display_order: 1 },
-    { id: 2, name: 'Frontend', display_order: 2 },
-  ])),
+  getCompetencies: vi.fn(() =>
+    Promise.resolve([
+      { id: 'python', name: 'Python', category: { name: 'Backend' } },
+      { id: 'rust', name: 'Rust', category: { name: 'Systems' } },
+    ])
+  ),
+  getArtifacts: vi.fn(() =>
+    Promise.resolve([{ id: 'engineering-atlas', title: 'Engineering Atlas' }])
+  ),
+  getHighlightedCompetencies: vi.fn(() =>
+    Promise.resolve([{ id: 'python', name: 'Python', category: { name: 'Backend' } }])
+  ),
+  getCategories: vi.fn(() =>
+    Promise.resolve([
+      { id: 1, name: 'Backend', display_order: 1 },
+      { id: 2, name: 'Frontend', display_order: 2 },
+    ])
+  ),
   getCategory: vi.fn((id) => Promise.resolve({ id, name: 'Backend', display_order: 1 })),
   getCompetency: vi.fn((id) => Promise.resolve({ id, name: 'Python' })),
   getArtifact: vi.fn((id) => Promise.resolve({ id, title: 'Engineering Atlas' })),
@@ -43,11 +47,7 @@ function createWrapper() {
   });
 
   return function Wrapper({ children }: { children: ReactNode }) {
-    return (
-      <QueryClientProvider client={queryClient}>
-        {children}
-      </QueryClientProvider>
-    );
+    return <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>;
   };
 }
 

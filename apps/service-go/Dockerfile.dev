@@ -1,0 +1,18 @@
+FROM golang:1.25-rc-alpine
+
+RUN go install github.com/air-verse/air@latest
+
+WORKDIR /app/gridstream
+
+COPY gridstream/go.mod ./
+
+RUN go mod download
+
+COPY gridstream/ .
+
+EXPOSE 8002
+
+CMD ["air", \
+    "--build.cmd", "go build -o bin/main .", \
+    "--build.entrypoint", "./bin/main", \
+    "--build.exclude_dir", "bin"]
