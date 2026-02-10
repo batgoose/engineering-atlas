@@ -47,11 +47,8 @@ ROOT_URLCONF = "config.urls"
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:3000",
     "http://app.localhost",
-    "http://angular.localhost",
-    "http://vue.localhost",
-    "http://svelte.localhost",
+    "https://app.localhost",
     "https://lxjshlcs-3000.use2.devtunnels.ms",
-    "https://lxjshlcs-8000.use2.devtunnels.ms",
 ]
 
 CORS_ALLOW_ALL_ORIGINS = False
@@ -84,8 +81,6 @@ CSRF_TRUSTED_ORIGINS = [
     "http://localhost:3000",
     "http://app.localhost",
     "https://lxjshlcs-3000.use2.devtunnels.ms",
-    "https://lxjshlcs-80.use2.devtunnels.ms",
-    "https://lxjshlcs-8000.use2.devtunnels.ms",
 ]
 
 TEMPLATES = [

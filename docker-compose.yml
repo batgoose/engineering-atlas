@@ -192,7 +192,7 @@ services:
     container_name: atlas-web-next
     restart: unless-stopped
     environment:
-      - NEXT_PUBLIC_API_URL=https://lxjshlcs-8000.use2.devtunnels.ms/api
+      - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
       - NODE_ENV=development
     volumes:
       - ./apps/web-next/src:/app/apps/web-next/src
