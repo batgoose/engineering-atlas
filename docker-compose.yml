@@ -151,6 +151,7 @@ services:
     environment:
       - DEBUG=True
       - DATABASE_URL=postgresql://atlas_user:atlas_password@pgbouncer-atlas:5432/atlas_db
+      - NFL_DATABASE_URL=postgresql://admin:password@pgbouncer-nfl:5432/nfl_data
       - REDIS_URL=redis://redis:6379/0
       - MINIO_ENDPOINT=minio:9000
       - MINIO_ACCESS_KEY=atlas_admin
@@ -192,7 +193,7 @@ services:
     container_name: atlas-web-next
     restart: unless-stopped
     environment:
-      - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
+      - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-http://api.localhost/api}
       - NODE_ENV=development
     volumes:
       - ./apps/web-next/src:/app/apps/web-next/src
@@ -200,6 +201,7 @@ services:
       - ./apps/web-next/app:/app/apps/web-next/app
       - ./apps/web-next/pages:/app/apps/web-next/pages
       - ./apps/web-next/.env.local:/app/apps/web-next/.env.local
+      - ./packages:/app/packages
       - /app/node_modules
       - /app/apps/web-next/node_modules
       - /app/apps/web-next/.next
@@ -301,7 +303,10 @@ services:
       context: ./apps/service-rust
       dockerfile: Dockerfile.dev
     container_name: atlas-service-rust
-    restart: unless-stopped
+    restart: no
+    environment:
+      - DATABASE_URL=postgresql://admin:password@pgbouncer-nfl:5432/nfl_data      
+      - REDIS_URL=redis://redis:6379/0
     volumes:
       - ./apps/service-rust:/app
       - /app/target
@@ -310,7 +315,12 @@ services:
     networks:
       - atlas-network
     depends_on:
-      - redis
+      redis:
+        condition: service_started
+      pgbouncer-nfl:
+        condition: service_started
+      postgres-nfl:
+        condition: service_healthy
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.service-rust.rule=Host(`rust-service.localhost`)"

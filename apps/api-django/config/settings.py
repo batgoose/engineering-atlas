@@ -29,6 +29,7 @@ INSTALLED_APPS = [
     "django_filters",
     "drf_spectacular",
     "core",
+    "redzone",
 ]
 
 MIDDLEWARE = [
@@ -101,10 +102,19 @@ TEMPLATES = [
 
 WSGI_APPLICATION = "config.wsgi.application"
 
+# =============================================================================
+# DATABASES
+# Two databases: 'default' (atlas) for core app, 'nfl' for redzone platform.
+# The nfl database also contains the raw nflverse `plays` table from the Rust
+# parser. Redzone Django models coexist alongside it.
+# =============================================================================
+
 DATABASES = {
     "default": env.db(),
+    "nfl": env.db("NFL_DATABASE_URL"),
 }
-# DATABASES["nfl"] = env.db("NFL_DATABASE_URL", default="")
+
+DATABASE_ROUTERS = ["redzone.db_router.RedzoneRouter"]
 
 AUTH_PASSWORD_VALIDATORS = [
     {
@@ -142,6 +152,7 @@ MINIO_USE_SSL = env.bool("MINIO_USE_SSL", default=False)
 
 if "test" in sys.argv:
     db_host = "localhost" if os.getenv("CI") else "postgres-atlas"
+    nfl_db_host = "localhost" if os.getenv("CI") else "postgres-nfl"
 
     DATABASES = {
         "default": {
@@ -154,5 +165,16 @@ if "test" in sys.argv:
             "TEST": {
                 "NAME": "test_atlas_db",
             },
-        }
+        },
+        "nfl": {
+            "ENGINE": "django.db.backends.postgresql",
+            "NAME": "nfl_data",
+            "USER": "admin",
+            "PASSWORD": "password",
+            "HOST": nfl_db_host,
+            "PORT": "5432",
+            "TEST": {
+                "NAME": "test_nfl_data",
+            },
+        },
     }
