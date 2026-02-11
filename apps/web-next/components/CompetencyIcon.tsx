@@ -5,8 +5,8 @@
  * Uses data URLs for simplicity - works without dangerouslySetInnerHTML.
  */
 
-import { getIconDataUrl, hasIcon } from '@atlas/ui/atlas';
-import { cards } from '@atlas/ui/styles'
+import Image from 'next/image';
+import { getIconDataUrl, getIconWithSize, hasIcon } from '@atlas/ui/atlas';
 
 interface CompetencyIconProps {
   /** Competency ID (e.g., 'lang-python', 'framework-nextjs') */
@@ -19,13 +19,6 @@ interface CompetencyIconProps {
   alt?: string;
 }
 
-
-const GLOW_COLORS: Record<string, string> = {
-  'lang-rust': 'bg-[#ff4d00]',      
-  'framework-django': 'bg-[#00ff41]', 
-  'framework-astro': 'bg-[#ff00ea]',  
-  'db-postgres': 'bg-[#00a2ff]',     
-};
 
 export function CompetencyIcon({ id, size = 32 }: { id: string; size?: number }) {
   
@@ -47,15 +40,20 @@ export function CompetencyIcon({ id, size = 32 }: { id: string; size?: number })
         />
       )}
       
-      <img
+      <Image
         src={getIconDataUrl(id)}
         width={size}
         height={size}
         alt={id}
+        unoptimized
         className="relative z-10 transition-transform duration-500 group-hover:scale-110"
-        style={needsBoost ? { 
-          filter: `brightness(${config.brightness})`,
-        } : undefined}
+        style={
+          needsBoost
+            ? {
+                filter: `brightness(${config.brightness})`,
+              }
+            : undefined
+        }
       />
     </div>
   );
@@ -65,8 +63,6 @@ export function CompetencyIcon({ id, size = 32 }: { id: string; size?: number })
  * Inline SVG version for when you need more control (hover states, etc.)
  * Uses dangerouslySetInnerHTML - only use with trusted SVG content
  */
-import { getIconWithSize } from '@atlas/ui/atlas';
-
 interface InlineIconProps extends CompetencyIconProps {
   /** Custom color (only works with single-color icons) */
   color?: string;

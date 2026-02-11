@@ -2,8 +2,8 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { buildNavigation } from '@atlas/ui/contracts';
-import { layout, nav, typography } from '@atlas/ui/styles';
+import { buildNavigation } from '@atlas/sdk/contracts';
+import { layout, nav } from '@atlas/ui/styles';
 
 export function Navigation() {
   const pathname = usePathname();

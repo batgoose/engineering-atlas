@@ -123,6 +123,30 @@ jobs:
       - name: Run Tests
         run: cargo test
 
+  go-lint:
+    name: Go Lint
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./apps/service-go/gridstream
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: apps/service-go/gridstream/go.mod
+          cache: true
+
+      - name: Run golangci-lint
+        uses: golangci/golangci-lint-action@v6
+        with:
+          version: v1.63.4
+          working-directory: apps/service-go/gridstream
+          args: --timeout=5m
+
   frontend-tests:
     name: Frontend Tests
     runs-on: ubuntu-latest
@@ -143,6 +167,9 @@ jobs:
       - name: Install Dependencies
         run: pnpm install --frozen-lockfile
       
+      - name: Run JS/TS Lint
+        run: pnpm lint
+      
       - name: Run Next.js Tests
         run: pnpm --filter @atlas/web-next test
       
@@ -162,8 +189,23 @@ jobs:
         with:
           python-version: '3.10'
       
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'pnpm'
+      
       - name: Install Black
         run: pip install black
       
       - name: Check Python Formatting
         run: black --check apps/api-django
+
+      - name: Install JS Dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Check JS/TS Formatting
+        run: pnpm exec prettier --check "**/*.{js,jsx,ts,tsx,json,css,md}" --ignore-path .gitignore

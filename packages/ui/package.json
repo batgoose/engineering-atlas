@@ -3,6 +3,7 @@
   "version": "0.0.1",
   "private": true,
   "scripts": {
+    "lint": "../../node_modules/.bin/eslint .",
     "test": "vitest run",
     "test:watch": "vitest"
   },
@@ -12,8 +13,6 @@
     "./styles": "./src/styles/index.ts",
     "./brand-colors": "./src/brand-colors.ts",
     "./atlas": "./src/atlas/index.ts",
-    "./config": "./src/config/index.ts",
-    "./contracts": "./src/contracts/index.ts",
     "./package.json": "./package.json",
     "./tailwind.config": "./tailwind.config.js",
     "./tailwind.config.js": "./tailwind.config.js"

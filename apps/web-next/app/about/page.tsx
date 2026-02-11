@@ -1,4 +1,4 @@
-import { buildAboutPageProps } from '@atlas/ui/contracts';
+import { buildAboutPageProps } from '@atlas/sdk/contracts';
 import { layout, typography, about as aboutStyles } from '@atlas/ui/styles';
 
 export const metadata = {

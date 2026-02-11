@@ -1,9 +1,9 @@
 
-FROM node:20-alpine as base
+FROM node:20-alpine AS base
 
 RUN corepack enable && corepack prepare pnpm@latest --activate
 
-FROM base as deps
+FROM base AS deps
 
 WORKDIR /app
 
@@ -12,7 +12,7 @@ COPY apps/web-next/package.json ./apps/web-next/
 
 RUN pnpm install --frozen-lockfile
 
-FROM base as development
+FROM base AS development
 
 WORKDIR /app
 

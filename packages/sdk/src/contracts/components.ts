@@ -11,8 +11,6 @@ export interface BadgeProps {
   variant: 'success' | 'warning' | 'neutral';
 }
 
-
-
 export interface NavItemProps {
   label: string;
   href: string;
@@ -39,8 +37,6 @@ export interface FrameworkSwitcherProps {
   isOpen: boolean;
   onToggle: () => void;
 }
-
-
 
 export interface HeroProps {
   greeting: string;

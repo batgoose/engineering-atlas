@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useMemo, Suspense, lazy } from 'react';
 import { useCompetencies, useCategories, useArtifacts } from '@/app/lib/hooks';
-import { layout, buttons, typography, badges } from '@atlas/ui/styles';
+import { buttons } from '@atlas/ui/styles';
 import { CompetencyIcon } from '@/components/CompetencyIcon';
 import type { CompetencyNode, Artifact } from '@atlas/types';
 
@@ -20,8 +20,8 @@ export default function AtlasPage() {
   const { data: artifacts } = useArtifacts();
 
   const isLoading = categoriesLoading || competenciesLoading;
-  const allSkills = competencies ?? [];
-  const allArtifacts = artifacts ?? [];
+  const allSkills = useMemo(() => competencies ?? [], [competencies]);
+  const allArtifacts = useMemo(() => artifacts ?? [], [artifacts]);
 
   const relatedArtifacts = useMemo(() => {
     if (!selectedCompetency) return [];

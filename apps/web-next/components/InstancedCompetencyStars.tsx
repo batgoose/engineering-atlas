@@ -3,23 +3,36 @@
 import { useRef } from 'react';
 import * as THREE from 'three';
 import { useFrame } from '@react-three/fiber';
+import type { CompetencyNode } from '@atlas/types';
 
 const TEMP_OBJ = new THREE.Object3D();
 const TEMP_COLOR = new THREE.Color();
 
-export function InstancedCompetencyStars({ 
-  starPositions, 
-  hoveredId, 
-  activeCategory, 
-  selectedId 
-}: any) {
+type StarPosition = {
+  competency: CompetencyNode;
+  position: THREE.Vector3;
+};
+
+interface InstancedCompetencyStarsProps {
+  starPositions: StarPosition[];
+  hoveredId: string | null;
+  activeCategory: string | null;
+  selectedId: string | null;
+}
+
+export function InstancedCompetencyStars({
+  starPositions,
+  hoveredId,
+  activeCategory,
+  selectedId,
+}: InstancedCompetencyStarsProps) {
   const meshRef = useRef<THREE.InstancedMesh>(null);
   const count = starPositions.length;
 
-  useFrame(({ clock }) => {
+  useFrame(() => {
     if (!meshRef.current) return;
 
-    starPositions.forEach((data: any, i: number) => {
+    starPositions.forEach((data, i) => {
       const { competency, position } = data;
       const isHero = hoveredId === competency.id || selectedId === competency.id;
       const isActiveCategory = activeCategory === competency.category.name;

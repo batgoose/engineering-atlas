@@ -1,4 +1,4 @@
-// packages/ui/src/__tests__/builders.test.ts
+// packages/sdk/src/__tests__/builders.test.ts
 import { describe, it, expect } from 'vitest';
 import { buildNavigation, getFrameworkOptions } from '../contracts/builders';
 

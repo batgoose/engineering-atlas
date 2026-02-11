@@ -5,7 +5,7 @@ import userEvent from '@testing-library/user-event';
 import { FrameworkSwitcher } from '../framework-switcher';
 
 // Mock the UI contracts
-vi.mock('@atlas/ui/contracts', () => ({
+vi.mock('@atlas/sdk/contracts', () => ({
   getFrameworkOptions: () => [
     { id: 'next', name: 'Next.js', icon: '▲', active: true },
     { id: 'angular', name: 'Angular', icon: 'A', active: false },

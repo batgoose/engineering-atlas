@@ -5,12 +5,13 @@ import { Canvas, useFrame, extend, type Node } from '@react-three/fiber';
 import { OrbitControls, Html } from '@react-three/drei';
 import { EffectComposer, Bloom } from '@react-three/postprocessing';
 import { UnrealBloomPass } from 'three-stdlib';
-import { SVGLoader } from 'three-stdlib';
 import * as THREE from 'three';
 import { getIconDataUrl } from '@atlas/ui/atlas';
 import type { CompetencyNode } from '@atlas/types';
-import { CONSTELLATIONS, type ConstellationDefinition } from './constellations';
-import { PROCESSED_CONSTELLATIONS } from './constellations';
+import {
+  PROCESSED_CONSTELLATIONS,
+  type ProcessedConstellationDefinition,
+} from '@atlas/sdk/atlas';
 
 const TEXTURE_CACHE: Record<string, THREE.Texture> = {};
 const loader = new THREE.TextureLoader();
@@ -73,15 +74,8 @@ export function StarMap({
 }: StarMapProps) {
   const [hoveredCategory, setHoveredCategory] = useState<string | null>(null);
   const [isInteracting, setIsInteracting] = useState(false);
-  const bloomRef = useRef<any>(null);
   const bloomIntensity = isInteracting ? 0.1 : 0.6;
-
-  useEffect(() => {
-    if (!bloomRef.current) return;
-
-    bloomRef.current.strength = isInteracting ? 0.05 : 0.4;
-    bloomRef.current.radius = isInteracting ? 0.0 : 0.3;
-  }, [isInteracting]);
+  const bloomRadius = isInteracting ? 0.0 : 0.3;
 
   return (
     <div className="w-full h-full bg-slate-950">
@@ -124,7 +118,12 @@ export function StarMap({
           />
 
           <EffectComposer>
-            <Bloom luminanceThreshold={0.0} intensity={bloomIntensity} mipmapBlur />
+            <Bloom
+              luminanceThreshold={0.0}
+              intensity={bloomIntensity}
+              radius={bloomRadius}
+              mipmapBlur
+            />
           </EffectComposer>
         </Suspense>
       </Canvas>
@@ -195,7 +194,7 @@ function ConstellationField({
 
 interface ConstellationProps {
   name: string;
-  definition: ConstellationDefinition;
+  definition: ProcessedConstellationDefinition;
   competencies: CompetencyNode[];
   isActive: boolean;
   isHovered: boolean;
@@ -220,7 +219,7 @@ function Constellation({
   onStarHover,
   onCategoryHover,
 }: ConstellationProps) {
-  const { center, scale, starPoints, color, geometries } = definition as any;
+  const { center, scale, starPoints, color, geometries } = definition;
 
   const starPositions = useMemo(() => {
     if (!starPoints.length || !competencies.length) return [];
@@ -450,7 +449,7 @@ function Star({
   onClick,
   onHover,
 }: StarProps) {
-  const meshRef = useRef<THREE.Mesh>(null);
+  const meshRef = useRef<THREE.Sprite>(null);
   const glowRef = useRef<THREE.Sprite>(null);
   const iconRef = useRef<THREE.Sprite>(null);
 
@@ -515,7 +514,7 @@ function Star({
   return (
     <group position={position}>
       <sprite
-        ref={meshRef as any}
+        ref={meshRef}
         onPointerOver={(e) => {
           e.stopPropagation();
           onHover(competency);

@@ -1,6 +1,6 @@
-// packages/ui/src/__tests__/config.test.ts
+// packages/sdk/src/__tests__/config.test.ts
 import { describe, it, expect } from 'vitest';
-import { siteConfig, frameworks, type FrameworkId } from '../config/site';
+import { siteConfig, frameworks, type FrameworkId } from '../site/site';
 
 describe('siteConfig', () => {
   it('has required top-level properties', () => {

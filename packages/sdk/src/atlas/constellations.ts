@@ -17,6 +17,10 @@ export interface ConstellationDefinition {
   radius: number;
 }
 
+export interface ProcessedConstellationDefinition extends ConstellationDefinition {
+  geometries: THREE.BufferGeometry[];
+}
+
 
 
 const SVGS = {
@@ -191,7 +195,9 @@ function preProcessSVG(svgString: string) {
 
 
 
-export const PROCESSED_CONSTELLATIONS = Object.entries(CONSTELLATIONS).map(([name, def]) => ({
+export const PROCESSED_CONSTELLATIONS: ProcessedConstellationDefinition[] = Object.entries(
+  CONSTELLATIONS
+).map(([name, def]) => ({
   name,
   ...def,
   geometries: preProcessSVG(def.svgString),

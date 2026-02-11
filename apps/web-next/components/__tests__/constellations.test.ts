@@ -1,6 +1,6 @@
 // apps/web-next/components/__tests__/constellations.test.ts
 import { describe, it, expect } from 'vitest';
-import * as constellations from '../constellations';
+import * as constellations from '@atlas/sdk/atlas';
 
 describe('Constellations', () => {
   it('exports constellation data', () => {

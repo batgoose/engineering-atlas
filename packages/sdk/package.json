@@ -3,7 +3,17 @@
   "version": "0.0.1",
   "main": "./src/index.ts",
   "types": "./src/index.ts",
+  "scripts": {
+    "lint": "../../node_modules/.bin/eslint ."
+  },
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./contracts": "./src/contracts/index.ts",
+    "./site": "./src/site/index.ts",
+    "./atlas": "./src/atlas/index.ts"
+  },
+  "peerDependencies": {
+    "three": "^0.182.0",
+    "three-stdlib": "^2.36.1"
   }
 }

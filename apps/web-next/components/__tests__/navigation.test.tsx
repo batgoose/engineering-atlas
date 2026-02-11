@@ -9,7 +9,7 @@ vi.mock('next/navigation', () => ({
 }));
 
 // Mock the UI contracts
-vi.mock('@atlas/ui/contracts', () => ({
+vi.mock('@atlas/sdk/contracts', () => ({
   buildNavigation: (pathname: string) => ({
     logoText: 'Engineering Atlas',
     items: [

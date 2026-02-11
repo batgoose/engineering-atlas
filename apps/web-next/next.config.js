@@ -2,7 +2,7 @@
 const nextConfig = {
   
   
-  transpilePackages: ['@atlas/types', '@atlas/ui', '@atlas/sdk'],
+  transpilePackages: ['@atlas/types', '@atlas/ui', '@atlas/sdk', '@atlas/api'],
   reactStrictMode: true,
 };
 

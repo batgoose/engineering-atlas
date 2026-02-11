@@ -9,7 +9,6 @@ import {
   badges,
   cards,
   demos as demosStyles,
-  buttons,
   codeWindow,
   syntax,
 } from '@atlas/ui/styles';

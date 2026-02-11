@@ -2,10 +2,10 @@
 
 import Link from 'next/link';
 import { useHighlightedCompetencies, useArtifacts } from '@/app/lib/hooks';
-import { buildHomePageProps } from '@atlas/ui/contracts';
+import { buildHomePageProps } from '@atlas/sdk/contracts';
 import { layout, typography, buttons, cards, badges, hero as heroStyles } from '@atlas/ui/styles';
 import { CompetencyIcon } from '@/components/CompetencyIcon';
-import type { HeroProps, ApiMethodCardProps } from '@atlas/ui/contracts';
+import type { HeroProps, ApiMethodCardProps } from '@atlas/sdk/contracts';
 import type { CompetencyNode, Artifact } from '@atlas/types';
 
 export default function HomePage() {

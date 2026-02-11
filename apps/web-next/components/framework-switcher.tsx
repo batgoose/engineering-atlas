@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { getFrameworkOptions } from '@atlas/ui/contracts';
+import { getFrameworkOptions } from '@atlas/sdk/contracts';
 import { nav, cards, typography } from '@atlas/ui/styles';
 
 export function FrameworkSwitcher() {
