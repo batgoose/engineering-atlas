@@ -11,7 +11,8 @@ export const cards = {
 
   footer: 'flex items-center justify-between pt-4 mt-auto border-t border-slate-800/60',
 
-  iconBox: 'w-14 h-14 flex items-center justify-center bg-atlas-dark border-2 border-frontend/40 rounded-xl shadow-[inset_0_0_10px_rgba(217,119,54,0.1)]',
+  iconBox:
+    'w-14 h-14 flex items-center justify-center bg-atlas-dark border-2 border-frontend/40 rounded-xl shadow-[inset_0_0_10px_rgba(217,119,54,0.1)]',
   iconBoxSmall: 'w-5 h-5 flex items-center justify-center text-xs font-bold bg-slate-700 rounded',
 };
 
@@ -29,10 +30,14 @@ export const card_buttons = {
 };
 
 export const badges = {
-  success: 'text-[11px] px-2.5 py-1 rounded-md bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 font-bold uppercase tracking-wide',
-  warning: 'text-[11px] px-2.5 py-1 rounded-md bg-amber-500/10 border border-amber-500/30 text-amber-400 font-bold uppercase tracking-wide',
-  neutral: 'text-[11px] px-2.5 py-1 rounded-md bg-slate-500/10 border border-slate-500/30 text-slate-400 font-bold uppercase tracking-wide',
+  success:
+    'text-[11px] px-2.5 py-1 rounded-md bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 font-bold uppercase tracking-wide',
+  warning:
+    'text-[11px] px-2.5 py-1 rounded-md bg-amber-500/10 border border-amber-500/30 text-amber-400 font-bold uppercase tracking-wide',
+  neutral:
+    'text-[11px] px-2.5 py-1 rounded-md bg-slate-500/10 border border-slate-500/30 text-slate-400 font-bold uppercase tracking-wide',
 
-  techPrimary: 'text-[10px] px-2.5 py-1 bg-frontend/10 border border-frontend/30 rounded-md font-mono font-semibold text-frontend-light shadow-[0_0_12px_rgba(217,119,54,0.15)]',
+  techPrimary:
+    'text-[10px] px-2.5 py-1 bg-frontend/10 border border-frontend/30 rounded-md font-mono font-semibold text-frontend-light shadow-[0_0_12px_rgba(217,119,54,0.15)]',
   tech: 'text-[10px] px-2 py-0.5 bg-slate-800/60 border border-slate-700/60 rounded font-mono text-slate-400',
 };

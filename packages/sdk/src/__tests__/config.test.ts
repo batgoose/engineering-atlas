@@ -29,7 +29,7 @@ describe('siteConfig', () => {
   });
 
   it('navigation items have required properties', () => {
-    siteConfig.navigation.forEach(item => {
+    siteConfig.navigation.forEach((item) => {
       expect(item.label).toBeDefined();
       expect(item.href).toBeDefined();
       expect(item.href).toMatch(/^\//); // Should start with /
@@ -37,7 +37,7 @@ describe('siteConfig', () => {
   });
 
   it('includes key navigation pages', () => {
-    const navLabels = siteConfig.navigation.map(item => item.label);
+    const navLabels = siteConfig.navigation.map((item) => item.label);
     expect(navLabels).toContain('Home');
     expect(navLabels).toContain('Atlas');
     expect(navLabels).toContain('Demos');
@@ -53,7 +53,7 @@ describe('frameworks', () => {
   });
 
   it('includes all expected frameworks', () => {
-    const frameworkIds = frameworks.map(f => f.id);
+    const frameworkIds = frameworks.map((f) => f.id);
     expect(frameworkIds).toContain('next');
     expect(frameworkIds).toContain('angular');
     expect(frameworkIds).toContain('vue');
@@ -61,13 +61,13 @@ describe('frameworks', () => {
   });
 
   it('has Next.js as the active framework', () => {
-    const activeFrameworks = frameworks.filter(f => f.active);
+    const activeFrameworks = frameworks.filter((f) => f.active);
     expect(activeFrameworks.length).toBe(1);
     expect(activeFrameworks[0].id).toBe('next');
   });
 
   it('each framework has required properties', () => {
-    frameworks.forEach(framework => {
+    frameworks.forEach((framework) => {
       expect(framework.id).toBeDefined();
       expect(framework.name).toBeDefined();
       expect(framework.path).toBeDefined();
@@ -76,7 +76,7 @@ describe('frameworks', () => {
   });
 
   it('framework paths are valid', () => {
-    frameworks.forEach(framework => {
+    frameworks.forEach((framework) => {
       expect(framework.path).toMatch(/^\//); // Should start with /
     });
   });

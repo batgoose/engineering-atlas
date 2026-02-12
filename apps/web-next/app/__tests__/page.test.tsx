@@ -10,7 +10,7 @@ vi.mock('next/navigation', () => ({
   usePathname: () => '/',
 }));
 
-vi.mock('@/lib/hooks', () => ({
+vi.mock('@/app/lib/hooks', () => ({
   useCompetencies: () => ({
     data: [],
     isLoading: false,

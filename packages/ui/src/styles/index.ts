@@ -1,5 +1,3 @@
-
-
 export { layout } from './layout';
 export { typography } from './typography';
 export { buttons, inputs } from './interactive';
@@ -7,7 +5,6 @@ export { cards, badges, card_buttons } from './cards';
 export { nav } from './navigation';
 export { hero, atlas, about, contact, demos } from './pages';
 export { codeWindow, syntax } from './code-window';
-
 
 import { layout } from './layout';
 import { typography } from './typography';

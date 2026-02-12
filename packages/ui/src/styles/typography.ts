@@ -21,7 +21,8 @@ export const typography = {
   /* labels - jetbrains mono */
   label: 'block font-mono text-[10px] uppercase tracking-widest text-slate-500 mb-1',
   caption: 'font-mono text-xs text-slate-500',
-  designation: 'font-mono text-[11px] font-semibold text-frontend-light tracking-[0.25em] uppercase',
+  designation:
+    'font-mono text-[11px] font-semibold text-frontend-light tracking-[0.25em] uppercase',
 
   /* links */
   link: 'text-frontend hover:text-frontend-light transition-colors',

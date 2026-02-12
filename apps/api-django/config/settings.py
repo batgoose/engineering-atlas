@@ -149,6 +149,7 @@ MINIO_USE_SSL = env.bool("MINIO_USE_SSL", default=False)
 if "test" in sys.argv:
     db_host = "localhost" if os.getenv("CI") else "postgres-atlas"
     nfl_db_host = "localhost" if os.getenv("CI") else "postgres-nfl"
+    nfl_db_port = "5433" if os.getenv("CI") else "5432"
 
     DATABASES = {
         "default": {
@@ -168,7 +169,7 @@ if "test" in sys.argv:
             "USER": "admin",
             "PASSWORD": "password",
             "HOST": nfl_db_host,
-            "PORT": "5432",
+            "PORT": nfl_db_port,
             "TEST": {
                 "NAME": "test_nfl_data",
                 "DEPENDENCIES": [],

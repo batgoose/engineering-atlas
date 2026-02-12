@@ -6,7 +6,7 @@ format-python:
 	docker compose exec api-django black /app
 
 format-js:
-	docker compose exec web-next npx prettier --write '**/*.{js,jsx,ts,tsx,json,css,md}'
+	pnpm exec prettier --write "**/*.{js,jsx,ts,tsx,json,css,md}" --ignore-path .gitignore
 
 format-rust:
 	docker compose exec service-rust cargo fmt
@@ -16,7 +16,7 @@ format-go:
 
 format-check:
 	docker compose exec api-django black --check /app
-	docker compose exec web-next npx prettier --check "**/*.{js,jsx,ts,tsx,json,css,md}" --ignore-path .gitignore
+	pnpm exec prettier --check "**/*.{js,jsx,ts,tsx,json,css,md}" --ignore-path .gitignore
 	docker compose exec service-rust cargo fmt -- --check
 	docker compose exec service-go sh -c 'if [ -n "$$(gofmt -l .)" ]; then echo "Go code needs formatting"; exit 1; fi'
 

@@ -1,16 +1,13 @@
 /** @type {import('tailwindcss').Config} */
 module.exports = {
-  
-  presets: [
-    require('@atlas/ui/tailwind.config')
-  ],
-  
+  presets: [require('@atlas/ui/tailwind.config')],
+
   content: [
     './app/**/*.{js,ts,jsx,tsx,mdx}',
     './components/**/*.{js,ts,jsx,tsx,mdx}',
-    
-    require.resolve('@atlas/ui/package.json').replace('package.json', 'src/**/*.{js,ts,jsx,tsx}')
+
+    require.resolve('@atlas/ui/package.json').replace('package.json', 'src/**/*.{js,ts,jsx,tsx}'),
   ],
-  
-  darkMode: 'class', 
+
+  darkMode: 'class',
 };

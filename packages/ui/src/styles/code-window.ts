@@ -11,9 +11,9 @@ export const codeWindow = {
 };
 
 export const syntax = {
-  keyword: 'text-magenta-400', 
-  type: 'text-cyan-400', 
+  keyword: 'text-magenta-400',
+  type: 'text-cyan-400',
   comment: 'text-slate-500 italic',
-  attribute: 'text-amber-400', 
+  attribute: 'text-amber-400',
   string: 'text-emerald-400',
 };

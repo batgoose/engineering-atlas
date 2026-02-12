@@ -87,14 +87,14 @@ jobs:
 
       - name: Run Migrations
         env:
-          CI: "true"
+          CI: 'true'
         run: |
           python manage.py migrate --noinput
           python manage.py migrate --database=nfl --noinput
 
       - name: Run Tests
         env:
-          CI: "true"
+          CI: 'true'
         run: python manage.py test --verbosity=2
 
   rust-ingestor-tests:
@@ -168,7 +168,7 @@ jobs:
       - name: Run golangci-lint
         uses: golangci/golangci-lint-action@v6
         with:
-          version: v1.63.4
+          version: latest
           working-directory: apps/service-go/gridstream
           args: --timeout=5m
 

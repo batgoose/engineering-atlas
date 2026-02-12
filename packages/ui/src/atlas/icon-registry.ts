@@ -1,15 +1,10 @@
-
-
 import { ICONS, getIconString } from './icon_strings';
 
-
 export { ICONS, getIconString };
-
 
 export function hasIcon(id: string): boolean {
   return id in ICONS;
 }
-
 
 export function getIconIds(): string[] {
   return Object.keys(ICONS);

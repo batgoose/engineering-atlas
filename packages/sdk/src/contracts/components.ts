@@ -1,5 +1,3 @@
-
-
 export interface LinkProps {
   href: string;
   label: string;
@@ -69,8 +67,6 @@ export interface HomePageProps {
   apiSectionTitle: string;
 }
 
-
-
 export interface FilterOption {
   id: string;
   label: string;
@@ -84,8 +80,6 @@ export interface AtlasPageProps {
   activeFilter: string | null;
   onFilterChange: (filterId: string | null) => void;
 }
-
-
 
 export interface ProjectCardProps {
   id: string;
@@ -109,8 +103,6 @@ export interface DemosPageProps {
   activeComplexityFilter: string;
 }
 
-
-
 export interface TimelineEntryProps {
   role: string;
   company: string;
@@ -129,8 +121,6 @@ export interface AboutPageProps {
   timeline: TimelineEntryProps[];
   highlights: string[];
 }
-
-
 
 export interface ContactMethodProps {
   type: 'email' | 'github' | 'linkedin';

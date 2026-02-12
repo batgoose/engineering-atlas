@@ -47,11 +47,11 @@ class GridStreamStore {
     this.socket.onclose = () => {
       this.socket = null;
       this.setStatus('closed');
-      
+
       // Exponential backoff for reconnection
       const delay = Math.min(1000 * Math.pow(2, this.reconnectAttempts), this.maxReconnectDelay);
       this.reconnectAttempts++;
-      
+
       console.log(`🔄 GridStream: Reconnecting in ${delay}ms...`);
       setTimeout(() => this.connect(url), delay);
     };

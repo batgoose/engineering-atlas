@@ -1,7 +1,4 @@
-
-
 // --- ENUMS & UNIONS ---
-
 
 export type Proficiency =
   | 'Learning'
@@ -10,7 +7,6 @@ export type Proficiency =
   | 'Expert'
   | 'Veteran'
   | 'Professional';
-
 
 export type CompetencyType =
   | 'language'
@@ -21,12 +17,9 @@ export type CompetencyType =
   | 'concept'
   | 'methodology';
 
-
 export type ArtifactStatus = 'planned' | 'in-progress' | 'complete';
 
-
 export type ArtifactDomain = 'football' | 'atlas' | 'infrastructure';
-
 
 export type DemoType =
   | 'code-snippet'
@@ -38,10 +31,8 @@ export type DemoType =
   | 'config'
   | 'schema-def';
 
-
-
 export interface CodeReference {
-  id: number; 
+  id: number;
   repository: string;
   file_path: string;
   start_line: number;
@@ -51,7 +42,6 @@ export interface CodeReference {
   raw_url: string;
   cached_snippet: string;
 }
-
 
 export interface SubCompetency {
   id: string;
@@ -67,13 +57,11 @@ export interface CompetencyLink {
   competency_type: CompetencyType;
 }
 
-
 export interface CompetencyHistory {
   role: string;
   company: string;
   year: string;
 }
-
 
 export interface CompetencyNode {
   id: string;

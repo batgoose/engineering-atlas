@@ -1,4 +1,3 @@
-
 import type {
   HomePageProps,
   HeroProps,
@@ -16,8 +15,6 @@ import type {
   NavItemProps,
   FrameworkOption,
 } from './components';
-
-
 
 const NAV_ITEMS = [
   { label: 'Home', href: '/' },
@@ -48,8 +45,6 @@ export function getFrameworkOptions(): FrameworkOption[] {
     { id: 'svelte', name: 'Svelte', icon: 'S', path: '/svelte', active: false },
   ];
 }
-
-
 
 export function buildHomePageProps(): HomePageProps {
   const hero: HeroProps = {
@@ -116,8 +111,6 @@ export function buildHomePageProps(): HomePageProps {
   };
 }
 
-
-
 const ATLAS_CATEGORIES = ['All', 'Frontend', 'Backend', 'Systems', 'DevOps', 'Data', 'Security'];
 
 export function buildAtlasPageProps(activeFilter: string | null): AtlasPageProps {
@@ -133,11 +126,9 @@ export function buildAtlasPageProps(activeFilter: string | null): AtlasPageProps
       'Interactive 3D sphere visualization. Click and drag to rotate. Click an icon to explore.',
     filters,
     activeFilter,
-    onFilterChange: () => {}, 
+    onFilterChange: () => {},
   };
 }
-
-
 
 const STATUS_OPTIONS = ['All', 'Complete', 'In Progress', 'Planned'];
 const COMPLEXITY_OPTIONS = ['All', 'Beginner', 'Intermediate', 'Advanced'];
@@ -201,7 +192,6 @@ export function buildDemosPageProps(
     isActive: activeComplexity === c.toLowerCase(),
   }));
 
-  
   let filteredProjects = PLACEHOLDER_PROJECTS;
   if (activeStatus !== 'all') {
     filteredProjects = filteredProjects.filter((p) => p.status === activeStatus);
@@ -220,8 +210,6 @@ export function buildDemosPageProps(
     activeComplexityFilter: activeComplexity,
   };
 }
-
-
 
 export function buildAboutPageProps(): AboutPageProps {
   const timeline: TimelineEntryProps[] = [
@@ -261,8 +249,6 @@ export function buildAboutPageProps(): AboutPageProps {
   };
 }
 
-
-
 export function buildContactPageProps(): ContactPageProps {
   const methods: ContactMethodProps[] = [
     {
@@ -292,6 +278,6 @@ export function buildContactPageProps(): ContactPageProps {
     title: 'Contact',
     description: "Interested in working together? Let's talk.",
     methods,
-    formEnabled: false, 
+    formEnabled: false,
   };
 }

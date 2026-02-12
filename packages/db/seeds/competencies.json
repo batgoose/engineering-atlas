@@ -11,9 +11,7 @@
     "related_ids": ["biz-seo"],
     "showcasePriority": "low",
     "portfolioHighlight": false,
-    "history": [
-      { "role": "Web Marketing Specialist", "year": "2012-2013", "company": "Meridium" }
-    ]
+    "history": [{ "role": "Web Marketing Specialist", "year": "2012-2013", "company": "Meridium" }]
   },
   {
     "id": "concept-agile",
@@ -27,9 +25,7 @@
     "related_ids": ["tool-jira"],
     "showcasePriority": "medium",
     "portfolioHighlight": false,
-    "history": [
-      { "role": "Software Engineer", "year": "2021-2023", "company": "Mechdyne" }
-    ]
+    "history": [{ "role": "Software Engineer", "year": "2021-2023", "company": "Mechdyne" }]
   },
   {
     "id": "ai-integration",
@@ -85,9 +81,7 @@
     "related_ids": ["lang-cpp"],
     "showcasePriority": "medium",
     "portfolioHighlight": false,
-    "history": [
-      { "role": "Software Engineer", "year": "2021-2023", "company": "Mechdyne" }
-    ]
+    "history": [{ "role": "Software Engineer", "year": "2021-2023", "company": "Mechdyne" }]
   },
   {
     "id": "lang-c",
@@ -126,11 +120,22 @@
     "summary": "Implementing continuous integration, deployment workflows, and creating production-ready packages.",
     "tags": ["Automation", "Testing", "Deployment", "Installers"],
     "sub_competencies": [],
-    "related_ids": ["framework-django", "tool-docker", "tool-git", "lib-react", "lang-rust", "os-windows"],
+    "related_ids": [
+      "framework-django",
+      "tool-docker",
+      "tool-git",
+      "lib-react",
+      "lang-rust",
+      "os-windows"
+    ],
     "showcasePriority": "high",
     "portfolioHighlight": true,
     "history": [
-      { "role": "Lead Software Engineer", "year": "2023-Present", "company": "Black Lantern Security" }
+      {
+        "role": "Lead Software Engineer",
+        "year": "2023-Present",
+        "company": "Black Lantern Security"
+      }
     ]
   },
   {
@@ -142,11 +147,24 @@
     "summary": "Full infrastructure ownership from containerization to cloud deployment.",
     "tags": ["AWS", "Docker", "CI/CD"],
     "sub_competencies": [],
-    "related_ids": ["tool-ansible", "lang-cpp", "framework-django", "tool-git", "lang-go", "runtime-node", "lang-rust", "tool-terraform"],
+    "related_ids": [
+      "tool-ansible",
+      "lang-cpp",
+      "framework-django",
+      "tool-git",
+      "lang-go",
+      "runtime-node",
+      "lang-rust",
+      "tool-terraform"
+    ],
     "showcasePriority": "high",
     "portfolioHighlight": true,
     "history": [
-      { "role": "Lead Software Engineer", "year": "2023-Present", "company": "Black Lantern Security" }
+      {
+        "role": "Lead Software Engineer",
+        "year": "2023-Present",
+        "company": "Black Lantern Security"
+      }
     ]
   },
   {
@@ -161,9 +179,7 @@
     "related_ids": ["lang-sql"],
     "showcasePriority": "low",
     "portfolioHighlight": false,
-    "history": [
-      { "role": "Software Engineer", "year": "2018-2021", "company": "CaseTrackLaw" }
-    ]
+    "history": [{ "role": "Software Engineer", "year": "2018-2021", "company": "CaseTrackLaw" }]
   },
   {
     "id": "build-cross-platform",
@@ -177,9 +193,7 @@
     "related_ids": ["lang-cpp", "os-linux", "lang-rust", "os-windows"],
     "showcasePriority": "medium",
     "portfolioHighlight": true,
-    "history": [
-      { "role": "Software Engineer", "year": "2021-2023", "company": "Mechdyne" }
-    ]
+    "history": [{ "role": "Software Engineer", "year": "2021-2023", "company": "Mechdyne" }]
   },
   {
     "id": "lang-cpp",
@@ -190,7 +204,13 @@
     "summary": "14+ years of experience. Focus on modern C++ paradigms (RAII, Move Semantics) to replace legacy 'C with Classes' patterns.",
     "tags": ["Systems", "Memory", "Performance"],
     "sub_competencies": [],
-    "related_ids": ["lib-boost", "cloud-devops", "build-cross-platform", "concept-embedded", "lib-qt"],
+    "related_ids": [
+      "lib-boost",
+      "cloud-devops",
+      "build-cross-platform",
+      "concept-embedded",
+      "lib-qt"
+    ],
     "showcasePriority": "high",
     "portfolioHighlight": true,
     "history": [
@@ -210,9 +230,7 @@
     "related_ids": ["biz-ecommerce"],
     "showcasePriority": "high",
     "portfolioHighlight": false,
-    "history": [
-      { "role": "Owner", "year": "2020-Present", "company": "Honey Whisker" }
-    ]
+    "history": [{ "role": "Owner", "year": "2020-Present", "company": "Honey Whisker" }]
   },
   {
     "id": "framework-django",
@@ -223,11 +241,23 @@
     "summary": "Architecting secure web applications and designing scalable technology stacks.",
     "tags": ["MVC", "ORM", "Web"],
     "sub_competencies": [],
-    "related_ids": ["concept-ci-cd", "cloud-devops", "spec-graphql", "framework-nextjs", "server-nginx", "db-postgres", "lang-python"],
+    "related_ids": [
+      "concept-ci-cd",
+      "cloud-devops",
+      "spec-graphql",
+      "framework-nextjs",
+      "server-nginx",
+      "db-postgres",
+      "lang-python"
+    ],
     "showcasePriority": "high",
     "portfolioHighlight": true,
     "history": [
-      { "role": "Lead Software Engineer", "year": "2023-Present", "company": "Black Lantern Security" }
+      {
+        "role": "Lead Software Engineer",
+        "year": "2023-Present",
+        "company": "Black Lantern Security"
+      }
     ]
   },
   {
@@ -257,7 +287,11 @@
     "showcasePriority": "medium",
     "portfolioHighlight": true,
     "history": [
-      { "role": "Lead Software Engineer", "year": "2023-Present", "company": "Black Lantern Security" }
+      {
+        "role": "Lead Software Engineer",
+        "year": "2023-Present",
+        "company": "Black Lantern Security"
+      }
     ]
   },
   {
@@ -272,9 +306,7 @@
     "related_ids": ["biz-seo"],
     "showcasePriority": "medium",
     "portfolioHighlight": false,
-    "history": [
-      { "role": "Owner", "year": "2020-Present", "company": "Honey Whisker" }
-    ]
+    "history": [{ "role": "Owner", "year": "2020-Present", "company": "Honey Whisker" }]
   },
   {
     "id": "concept-embedded",
@@ -288,9 +320,7 @@
     "related_ids": ["lang-c", "lang-cpp", "os-linux"],
     "showcasePriority": "medium",
     "portfolioHighlight": false,
-    "history": [
-      { "role": "Embedded Engineer", "year": "2013-2016", "company": "Gridpoint" }
-    ]
+    "history": [{ "role": "Embedded Engineer", "year": "2013-2016", "company": "Gridpoint" }]
   },
   {
     "id": "tool-git",
@@ -304,9 +334,7 @@
     "related_ids": ["concept-ci-cd", "tool-github"],
     "showcasePriority": "medium",
     "portfolioHighlight": false,
-    "history": [
-      { "role": "Software Engineer", "year": "2021-2023", "company": "Mechdyne" }
-    ]
+    "history": [{ "role": "Software Engineer", "year": "2021-2023", "company": "Mechdyne" }]
   },
   {
     "id": "tool-github",
@@ -407,7 +435,11 @@
     "showcasePriority": "medium",
     "portfolioHighlight": false,
     "history": [
-      { "role": "Lead Software Engineer", "year": "2023-Present", "company": "Black Lantern Security" }
+      {
+        "role": "Lead Software Engineer",
+        "year": "2023-Present",
+        "company": "Black Lantern Security"
+      }
     ]
   },
   {
@@ -437,7 +469,11 @@
     "showcasePriority": "medium",
     "portfolioHighlight": false,
     "history": [
-      { "role": "Lead Software Engineer", "year": "2023-Present", "company": "Black Lantern Security" },
+      {
+        "role": "Lead Software Engineer",
+        "year": "2023-Present",
+        "company": "Black Lantern Security"
+      },
       { "role": "Embedded Engineer", "year": "2013-2016", "company": "Gridpoint" }
     ]
   },
@@ -482,7 +518,11 @@
     "showcasePriority": "medium",
     "portfolioHighlight": false,
     "history": [
-      { "role": "Lead Software Engineer", "year": "2023-Present", "company": "Black Lantern Security" }
+      {
+        "role": "Lead Software Engineer",
+        "year": "2023-Present",
+        "company": "Black Lantern Security"
+      }
     ]
   },
   {
@@ -554,7 +594,11 @@
     "showcasePriority": "high",
     "portfolioHighlight": false,
     "history": [
-      { "role": "Lead Software Engineer", "year": "2023-Present", "company": "Black Lantern Security" }
+      {
+        "role": "Lead Software Engineer",
+        "year": "2023-Present",
+        "company": "Black Lantern Security"
+      }
     ]
   },
   {
@@ -570,7 +614,11 @@
     "showcasePriority": "high",
     "portfolioHighlight": true,
     "history": [
-      { "role": "Lead Software Engineer", "year": "2023-Present", "company": "Black Lantern Security" }
+      {
+        "role": "Lead Software Engineer",
+        "year": "2023-Present",
+        "company": "Black Lantern Security"
+      }
     ]
   },
   {
@@ -585,9 +633,7 @@
     "related_ids": ["lang-cpp", "tool-visual-studio"],
     "showcasePriority": "medium",
     "portfolioHighlight": false,
-    "history": [
-      { "role": "Software Engineer", "year": "2021-2023", "company": "Mechdyne" }
-    ]
+    "history": [{ "role": "Software Engineer", "year": "2021-2023", "company": "Mechdyne" }]
   },
   {
     "id": "lib-react",
@@ -602,7 +648,11 @@
     "showcasePriority": "high",
     "portfolioHighlight": true,
     "history": [
-      { "role": "Lead Software Engineer", "year": "2023-Present", "company": "Black Lantern Security" }
+      {
+        "role": "Lead Software Engineer",
+        "year": "2023-Present",
+        "company": "Black Lantern Security"
+      }
     ]
   },
   {
@@ -631,9 +681,7 @@
     "related_ids": ["db-mysql", "db-postgres"],
     "showcasePriority": "medium",
     "portfolioHighlight": false,
-    "history": [
-      { "role": "Software Engineer", "year": "2018-2021", "company": "CaseTrackLaw" }
-    ]
+    "history": [{ "role": "Software Engineer", "year": "2018-2021", "company": "CaseTrackLaw" }]
   },
   {
     "id": "tool-terraform",
@@ -648,7 +696,11 @@
     "showcasePriority": "high",
     "portfolioHighlight": true,
     "history": [
-      { "role": "Lead Software Engineer", "year": "2023-Present", "company": "Black Lantern Security" }
+      {
+        "role": "Lead Software Engineer",
+        "year": "2023-Present",
+        "company": "Black Lantern Security"
+      }
     ]
   },
   {
@@ -705,8 +757,6 @@
     "related_ids": ["lang-csharp", "concept-ci-cd", "lang-cpp"],
     "showcasePriority": "low",
     "portfolioHighlight": false,
-    "history": [
-      { "role": "Software Engineer", "year": "2021-2023", "company": "Mechdyne" }
-    ]
+    "history": [{ "role": "Software Engineer", "year": "2021-2023", "company": "Mechdyne" }]
   }
 ]

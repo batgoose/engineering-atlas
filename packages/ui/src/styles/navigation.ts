@@ -4,8 +4,10 @@ export const nav = {
 
   navList: 'hidden md:flex items-center gap-1',
 
-  navItem: 'px-4 py-2 rounded-md font-display text-[13px] font-medium text-slate-400 uppercase tracking-wide hover:text-white hover:bg-white/5 transition-colors',
-  navItemActive: 'px-4 py-2 rounded-md font-display text-[13px] font-medium bg-white/8 text-white border border-white/8 uppercase tracking-wide',
+  navItem:
+    'px-4 py-2 rounded-md font-display text-[13px] font-medium text-slate-400 uppercase tracking-wide hover:text-white hover:bg-white/5 transition-colors',
+  navItemActive:
+    'px-4 py-2 rounded-md font-display text-[13px] font-medium bg-white/8 text-white border border-white/8 uppercase tracking-wide',
 
   mobileMenuBtn: 'md:hidden p-2 text-slate-400 hover:text-white',
 

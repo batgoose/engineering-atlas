@@ -24,12 +24,12 @@ export class LeagueClient {
   private baseUrl: string;
 
   constructor(baseUrl: string) {
-    this.baseUrl = baseUrl.replace(/\/$/, "");
+    this.baseUrl = baseUrl.replace(/\/$/, '');
   }
 
   private async request<T>(endpoint: string, options?: RequestInit): Promise<T> {
     const url = `${this.baseUrl}${endpoint}`;
-    
+
     try {
       const res = await fetch(url, {
         headers: { 'Content-Type': 'application/json' },
@@ -62,5 +62,5 @@ export class LeagueClient {
   }
 }
 
-// Export a factory or default instance if preferred, 
+// Export a factory or default instance if preferred,
 // but exporting the class is usually safer for SSR/Env handling

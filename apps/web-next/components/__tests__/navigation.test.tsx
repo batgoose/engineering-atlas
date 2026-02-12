@@ -54,7 +54,7 @@ describe('Navigation', () => {
     expect(homeLink?.className).not.toEqual(atlasLink?.className);
 
     // Active link should have solid background color
-    expect(homeLink?.className).toContain('bg-slate-800');
+    expect(homeLink?.className).toContain('bg-white/8');
   });
 
   it('renders mobile menu button', () => {
