@@ -63,3 +63,6 @@ shell-rust:
 
 shell-go:
 	docker compose exec service-go sh
+
+check-nfl:
+	docker compose exec api-django python manage.py check_data_health --verbose
