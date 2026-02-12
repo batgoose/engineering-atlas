@@ -102,12 +102,8 @@ TEMPLATES = [
 
 WSGI_APPLICATION = "config.wsgi.application"
 
-# =============================================================================
-# DATABASES
-# Two databases: 'default' (atlas) for core app, 'nfl' for redzone platform.
-# The nfl database also contains the raw nflverse `plays` table from the Rust
-# parser. Redzone Django models coexist alongside it.
-# =============================================================================
+# databases
+# default is atlas core app, nfl is the redzone app plus raw nflverse plays
 
 DATABASES = {
     "default": env.db(),
@@ -175,6 +171,7 @@ if "test" in sys.argv:
             "PORT": "5432",
             "TEST": {
                 "NAME": "test_nfl_data",
+                "DEPENDENCIES": [],
             },
         },
     }

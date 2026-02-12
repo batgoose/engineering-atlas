@@ -1,5 +1,4 @@
 services:
-  
   postgres-atlas:
     image: pgvector/pgvector:pg16
     container_name: atlas-postgres
@@ -40,7 +39,6 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
-
 
   pgbouncer-atlas:
     image: edoburu/pgbouncer
@@ -84,7 +82,6 @@ services:
       postgres-nfl:
         condition: service_healthy
 
-
   redis:
     image: redis:7-alpine
     container_name: atlas-redis
@@ -113,7 +110,7 @@ services:
     networks:
       - atlas-network
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      test: ['CMD', 'curl', '-f', 'http://localhost:9000/minio/health/live']
       interval: 30s
       timeout: 20s
       retries: 3
@@ -135,12 +132,12 @@ services:
     networks:
       - atlas-network
     labels:
-      - "traefik.http.middlewares.cors.headers.accesscontrolalloworiginlist=http://localhost:3000,http://app.localhost,http://angular.localhost,http://vue.localhost,http://svelte.localhost"
-      - "traefik.http.middlewares.cors.headers.accesscontrolallowmethods=GET,POST,PUT,DELETE,OPTIONS,PATCH,HEAD"
-      - "traefik.http.middlewares.cors.headers.accesscontrolallowheaders=*"
-      - "traefik.http.middlewares.cors.headers.accesscontrolallowcredentials=true"
-      - "traefik.http.middlewares.cors.headers.accesscontrolmaxage=100"
-
+      - 'traefik.enable=true'
+      - 'traefik.http.middlewares.cors.headers.accesscontrolalloworiginlist=http://localhost:3000,http://app.localhost,http://angular.localhost,http://vue.localhost,http://svelte.localhost'
+      - 'traefik.http.middlewares.cors.headers.accesscontrolallowmethods=GET,POST,PUT,DELETE,OPTIONS,PATCH,HEAD'
+      - 'traefik.http.middlewares.cors.headers.accesscontrolallowheaders=*'
+      - 'traefik.http.middlewares.cors.headers.accesscontrolallowcredentials=true'
+      - 'traefik.http.middlewares.cors.headers.accesscontrolmaxage=100'
 
   api-django:
     build:
@@ -173,18 +170,17 @@ services:
       minio:
         condition: service_healthy
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:8000/admin/ || exit 1"]
+      test: ['CMD-SHELL', 'curl -f http://localhost:8000/admin/ || exit 1']
       interval: 10s
       timeout: 5s
       retries: 3
       start_period: 30s
     labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.api.rule=Host(`api.localhost`)"
-      - "traefik.http.routers.api.entrypoints=web"
-      - "traefik.http.services.api.loadbalancer.server.port=8000"
-      - "traefik.http.routers.api.middlewares=cors@docker"
-
+      - 'traefik.enable=true'
+      - 'traefik.http.routers.api.rule=Host(`api.localhost`)'
+      - 'traefik.http.routers.api.entrypoints=web'
+      - 'traefik.http.services.api.loadbalancer.server.port=8000'
+      - 'traefik.http.routers.api.middlewares=cors@docker'
 
   web-next:
     build:
@@ -199,6 +195,7 @@ services:
       - ./apps/web-next/src:/app/apps/web-next/src
       - ./apps/web-next/public:/app/apps/web-next/public
       - ./apps/web-next/app:/app/apps/web-next/app
+      - ./apps/web-next/components:/app/apps/web-next/components
       - ./apps/web-next/pages:/app/apps/web-next/pages
       - ./apps/web-next/.env.local:/app/apps/web-next/.env.local
       - ./packages:/app/packages
@@ -213,10 +210,10 @@ services:
       api-django:
         condition: service_healthy
     labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.web-next.rule=Host(`app.localhost`)"
-      - "traefik.http.routers.web-next.entrypoints=web"
-      - "traefik.http.services.web-next.loadbalancer.server.port=3000"
+      - 'traefik.enable=true'
+      - 'traefik.http.routers.web-next.rule=Host(`app.localhost`)'
+      - 'traefik.http.routers.web-next.entrypoints=web'
+      - 'traefik.http.services.web-next.loadbalancer.server.port=3000'
 
   # Angular Frontend (Placeholder - Uncomment when ready)
   # web-angular:
@@ -305,7 +302,7 @@ services:
     container_name: atlas-service-rust
     restart: no
     environment:
-      - DATABASE_URL=postgresql://admin:password@pgbouncer-nfl:5432/nfl_data      
+      - DATABASE_URL=postgresql://admin:password@pgbouncer-nfl:5432/nfl_data
       - REDIS_URL=redis://redis:6379/0
     volumes:
       - ./apps/service-rust:/app
@@ -322,10 +319,10 @@ services:
       postgres-nfl:
         condition: service_healthy
     labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.service-rust.rule=Host(`rust-service.localhost`)"
-      - "traefik.http.routers.service-rust.entrypoints=web"
-      - "traefik.http.services.service-rust.loadbalancer.server.port=8001"
+      - 'traefik.enable=true'
+      - 'traefik.http.routers.service-rust.rule=Host(`rust-service.localhost`)'
+      - 'traefik.http.routers.service-rust.entrypoints=web'
+      - 'traefik.http.services.service-rust.loadbalancer.server.port=8001'
 
   service-go:
     build:
@@ -337,19 +334,31 @@ services:
       - '8002:8002'
     volumes:
       - ./apps/service-go:/app
+      - /app/gridstream/tmp
     environment:
       - PORT=8002
-      - NODE_ENV=development
+      - REDIS_URL=redis://redis:6379/0
+      - POLL_IN_GAME_SECONDS=8
+      - POLL_PRE_GAME_SECONDS=60
+      - POLL_POST_GAME_SECONDS=300
+      - SIM_DEFAULT_SPEED=5
     networks:
       - atlas-network
     depends_on:
       - redis
+    healthcheck:
+      test: ['CMD-SHELL', 'curl -f http://localhost:8002/status || exit 1']
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
     labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.service-go.rule=Host(`go-service.localhost`)"
-      - "traefik.http.routers.service-go.entrypoints=web"
-      - "traefik.http.services.service-go.loadbalancer.server.port=8002"
-      
+      - 'traefik.enable=true'
+      - 'traefik.http.routers.service-go.rule=Host(`go-service.localhost`)'
+      - 'traefik.http.routers.service-go.entrypoints=web'
+      - 'traefik.http.services.service-go.loadbalancer.server.port=8002'
+      - 'traefik.http.routers.service-go.middlewares=cors@docker'
+
   # service-cpp:
   #   build:
   #     context: ./apps/service-cpp
