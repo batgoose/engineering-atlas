@@ -16,22 +16,24 @@ const (
 	pingPeriod = (pongWait * 9) / 10
 )
 
-// client
+// =============================================================================
+// CLIENT
+// =============================================================================
 
-// Client is one connected websocket client
+// Client represents a connected WebSocket client.
 type Client struct {
 	hub    *Hub
 	conn   *websocket.Conn
 	send   chan []byte
 	logger *slog.Logger
 
-	// subscriptions this client cares about
-	// empty means "all games" (scoreboard mode)
+	// Subscriptions — which game IDs this client cares about.
+	// Empty means "all games" (scoreboard mode).
 	mu              sync.RWMutex
 	subscribedGames map[string]bool
 }
 
-// NewClient builds a client attached to the hub
+// NewClient creates a client attached to the hub.
 func NewClient(hub *Hub, conn *websocket.Conn, logger *slog.Logger) *Client {
 	return &Client{
 		hub:             hub,
@@ -42,33 +44,33 @@ func NewClient(hub *Hub, conn *websocket.Conn, logger *slog.Logger) *Client {
 	}
 }
 
-// Subscribe adds a game to this client's subscriptions
+// Subscribe adds a game to this client's subscription list.
 func (c *Client) Subscribe(gameID string) {
 	c.mu.Lock()
 	c.subscribedGames[gameID] = true
 	c.mu.Unlock()
 }
 
-// Unsubscribe removes a game from this client's subscriptions
+// Unsubscribe removes a game from this client's subscription list.
 func (c *Client) Unsubscribe(gameID string) {
 	c.mu.Lock()
 	delete(c.subscribedGames, gameID)
 	c.mu.Unlock()
 }
 
-// WantsEvent returns true if this client should get the event
+// WantsEvent returns true if this client should receive the given event.
 func (c *Client) WantsEvent(gameID string) bool {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 
-	// no subscriptions means broadcast mode
+	// No subscriptions = broadcast mode (gets everything)
 	if len(c.subscribedGames) == 0 {
 		return true
 	}
 	return c.subscribedGames[gameID]
 }
 
-// WritePump writes outbound websocket messages
+// WritePump pumps messages from the send channel to the WebSocket connection.
 func (c *Client) WritePump() {
 	ticker := time.NewTicker(pingPeriod)
 	defer func() {
@@ -79,9 +81,11 @@ func (c *Client) WritePump() {
 	for {
 		select {
 		case message, ok := <-c.send:
-			c.conn.SetWriteDeadline(time.Now().Add(writeWait))
+			if err := c.conn.SetWriteDeadline(time.Now().Add(writeWait)); err != nil {
+				return
+			}
 			if !ok {
-				c.conn.WriteMessage(websocket.CloseMessage, []byte{})
+				_ = c.conn.WriteMessage(websocket.CloseMessage, []byte{})
 				return
 			}
 			if err := c.conn.WriteMessage(websocket.TextMessage, message); err != nil {
@@ -90,7 +94,9 @@ func (c *Client) WritePump() {
 			}
 
 		case <-ticker.C:
-			c.conn.SetWriteDeadline(time.Now().Add(writeWait))
+			if err := c.conn.SetWriteDeadline(time.Now().Add(writeWait)); err != nil {
+				return
+			}
 			if err := c.conn.WriteMessage(websocket.PingMessage, nil); err != nil {
 				return
 			}
@@ -98,8 +104,8 @@ func (c *Client) WritePump() {
 	}
 }
 
-// ReadPump reads websocket messages
-// handles subscribe/unsubscribe commands from the client
+// ReadPump reads messages from the WebSocket connection.
+// Handles subscribe/unsubscribe commands from the client.
 func (c *Client) ReadPump() {
 	defer func() {
 		c.hub.unregister <- c
@@ -107,10 +113,11 @@ func (c *Client) ReadPump() {
 	}()
 
 	c.conn.SetReadLimit(4096)
-	c.conn.SetReadDeadline(time.Now().Add(pongWait))
+	if err := c.conn.SetReadDeadline(time.Now().Add(pongWait)); err != nil {
+		return
+	}
 	c.conn.SetPongHandler(func(string) error {
-		c.conn.SetReadDeadline(time.Now().Add(pongWait))
-		return nil
+		return c.conn.SetReadDeadline(time.Now().Add(pongWait))
 	})
 
 	for {
@@ -125,7 +132,7 @@ func (c *Client) ReadPump() {
 	}
 }
 
-// ClientCommand is the shape of frontend websocket commands
+// ClientCommand is the shape of commands sent by the frontend.
 type ClientCommand struct {
 	Action string `json:"action"` // "subscribe", "unsubscribe", "subscribe_all"
 	GameID string `json:"gameId,omitempty"`
@@ -157,9 +164,11 @@ func (c *Client) handleMessage(msg []byte) {
 	}
 }
 
-// hub
+// =============================================================================
+// HUB
+// =============================================================================
 
-// Hub tracks connected clients and routes events
+// Hub maintains connected clients and routes events to them.
 type Hub struct {
 	clients    map[*Client]bool
 	broadcast  chan events.Envelope
@@ -168,12 +177,12 @@ type Hub struct {
 	logger     *slog.Logger
 	mu         sync.RWMutex
 
-	// latest game contexts sent to newly connecting clients
-	contextCache   map[string][]byte // gameID -> serialized GameContext envelope
+	// Latest game contexts — sent to newly connecting clients
+	contextCache   map[string][]byte // gameID → serialized GameContext envelope
 	contextCacheMu sync.RWMutex
 }
 
-// NewHub creates a hub
+// NewHub creates a new Hub.
 func NewHub(logger *slog.Logger) *Hub {
 	return &Hub{
 		clients:      make(map[*Client]bool),
@@ -185,7 +194,7 @@ func NewHub(logger *slog.Logger) *Hub {
 	}
 }
 
-// Run starts the hub event loop
+// Run starts the hub's event loop.
 func (h *Hub) Run() {
 	for {
 		select {
@@ -196,7 +205,7 @@ func (h *Hub) Run() {
 
 			h.logger.Info("client connected", "total", h.ClientCount())
 
-			// send cached game contexts to the new client
+			// Send cached game contexts to the new client
 			h.sendCachedContexts(client)
 
 		case client := <-h.unregister:
@@ -209,7 +218,7 @@ func (h *Hub) Run() {
 			h.logger.Info("client disconnected", "total", h.ClientCount())
 
 		case envelope := <-h.broadcast:
-			// cache game context events for new connections
+			// Cache game context events for new connections
 			if envelope.Type == events.TypeGameContext || envelope.Type == events.TypeGameStart {
 				data, _ := json.Marshal(envelope)
 				h.contextCacheMu.Lock()
@@ -231,7 +240,7 @@ func (h *Hub) Run() {
 				select {
 				case client.send <- data:
 				default:
-					// client buffer full, disconnect
+					// Client buffer full — disconnect
 					close(client.send)
 					delete(h.clients, client)
 				}
@@ -241,29 +250,29 @@ func (h *Hub) Run() {
 	}
 }
 
-// Broadcast sends an event envelope to interested clients
+// Broadcast sends an event envelope to all interested clients.
 func (h *Hub) Broadcast(e events.Envelope) {
 	h.broadcast <- e
 }
 
-// Register adds a client to the hub
+// Register adds a client to the hub.
 func (h *Hub) Register(c *Client) {
 	h.register <- c
 }
 
-// Unregister removes a client from the hub
+// Unregister removes a client from the hub.
 func (h *Hub) Unregister(c *Client) {
 	h.unregister <- c
 }
 
-// ClientCount returns number of connected clients
+// ClientCount returns the number of connected clients.
 func (h *Hub) ClientCount() int {
 	h.mu.RLock()
 	defer h.mu.RUnlock()
 	return len(h.clients)
 }
 
-// sendCachedContexts sends cached game contexts to a new client
+// sendCachedContexts sends all cached game contexts to a newly connected client.
 func (h *Hub) sendCachedContexts(c *Client) {
 	h.contextCacheMu.RLock()
 	defer h.contextCacheMu.RUnlock()

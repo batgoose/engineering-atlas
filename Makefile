@@ -1,4 +1,4 @@
-.PHONY: format format-python format-js format-rust format-go format-check lint lint-js lint-go lint-fix lint-fix-js test
+.PHONY: format format-python format-js format-rust format-go format-check check lint lint-python lint-js lint-go lint-fix lint-fix-js test
 
 format: format-python format-js format-rust format-go
 
@@ -20,7 +20,12 @@ format-check:
 	docker compose exec service-rust cargo fmt -- --check
 	docker compose exec service-go sh -c 'if [ -n "$$(gofmt -l .)" ]; then echo "Go code needs formatting"; exit 1; fi'
 
-lint: lint-js lint-go
+check: format-check lint-js lint-go
+
+lint: lint-python lint-js lint-go
+
+lint-python:
+	docker compose exec api-django black --check /app
 
 lint-js:
 	docker compose exec web-next pnpm lint

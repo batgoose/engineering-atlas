@@ -3,7 +3,6 @@ package espn
 import (
 	"context"
 	"log/slog"
-	"strconv"
 	"sync"
 	"time"
 
@@ -11,18 +10,18 @@ import (
 	"github.com/jbooth/engineering-atlas/apps/service-go/gridstream/internal/events"
 )
 
-// gameState tracks the last known state of a game for diffing
+// gameState tracks the last known state of a game for diffing.
 type gameState struct {
 	Status    string
 	Quarter   int
 	Clock     string
 	HomeScore int
 	AwayScore int
-	PlayCount int // total plays seen- used to detect new plays
+	PlayCount int // total plays seen — used to detect new plays
 	DriveID   string
 }
 
-// Poller periodically fetches espn data and emits state changes
+// Poller periodically fetches ESPN data and emits events on state changes.
 type Poller struct {
 	client  *Client
 	cfg     *config.Config
@@ -30,14 +29,14 @@ type Poller struct {
 	eventCh chan<- events.Envelope
 
 	mu     sync.Mutex
-	states map[string]*gameState // gameID -> last known state
+	states map[string]*gameState // gameID → last known state
 
-	// team espn id -> abbreviation mapping from scoreboard
+	// Team ESPN ID → abbreviation mapping (populated from scoreboard)
 	teamMap   map[string]string
 	teamMapMu sync.RWMutex
 }
 
-// NewPoller builds a poller that sends events to the given channel
+// NewPoller creates a new ESPN poller that sends events to the given channel.
 func NewPoller(client *Client, cfg *config.Config, logger *slog.Logger, eventCh chan<- events.Envelope) *Poller {
 	return &Poller{
 		client:  client,
@@ -49,11 +48,12 @@ func NewPoller(client *Client, cfg *config.Config, logger *slog.Logger, eventCh 
 	}
 }
 
-// Run starts the polling loop with interval changes based on game state
+// Run starts the polling loop. It adapts its interval based on whether
+// any games are currently in progress.
 func (p *Poller) Run(ctx context.Context) {
 	p.logger.Info("ESPN poller starting")
 
-	// initial fetch
+	// Initial fetch
 	p.poll(ctx)
 
 	for {
@@ -69,7 +69,7 @@ func (p *Poller) Run(ctx context.Context) {
 	}
 }
 
-// poll does a single scoreboard fetch and diff cycle
+// poll does a single scoreboard fetch and diff cycle.
 func (p *Poller) poll(ctx context.Context) {
 	sb, err := p.client.FetchScoreboard(ctx)
 	if err != nil {
@@ -83,7 +83,7 @@ func (p *Poller) poll(ctx context.Context) {
 	for _, ev := range sb.Events {
 		gameID := ev.ID
 
-		// build team map from this event
+		// Build team map from this event
 		if len(ev.Competitions) > 0 {
 			for _, c := range ev.Competitions[0].Competitors {
 				p.teamMapMu.Lock()
@@ -97,7 +97,7 @@ func (p *Poller) poll(ctx context.Context) {
 		curr := extractState(ev)
 
 		if !exists {
-			// first time seeing this game, send full context
+			// First time seeing this game — send full context
 			p.states[gameID] = curr
 			p.mu.Unlock()
 
@@ -105,39 +105,39 @@ func (p *Poller) poll(ctx context.Context) {
 			envelope := events.MustEnvelope(events.TypeGameContext, gameID, now, gc)
 			p.emit(envelope)
 
-			// if game is already in progress, also fetch detailed plays
+			// If game is already in progress, also fetch detailed plays
 			if curr.Status == "in_progress" || curr.Status == "halftime" {
 				go p.fetchAndEmitPlays(ctx, gameID, now)
 			}
 			continue
 		}
 
-		// diff against previous state
+		// Diff against previous state
 		changed := false
 
-		// score change
+		// Score change
 		if curr.HomeScore != prev.HomeScore || curr.AwayScore != prev.AwayScore {
 			changed = true
 		}
 
-		// status change (started, halftime, ended, etc)
+		// Status change (started, halftime, ended, etc.)
 		if curr.Status != prev.Status {
 			changed = true
 
 			switch {
 			case prev.Status == "scheduled" && curr.Status == "in_progress":
-				// game just started
+				// Game just started
 				gc := EventToGameContext(ev, sb.Season.Year, sb.Week.Number, seasonType)
 				p.emit(events.MustEnvelope(events.TypeGameStart, gameID, now, gc))
 
 			case curr.Status == "final" || curr.Status == "final_ot":
-				// game just ended
+				// Game just ended
 				gu := EventToGameUpdate(ev)
 				p.emit(events.MustEnvelope(events.TypeGameEnd, gameID, now, gu))
 			}
 		}
 
-		// quarter/clock change
+		// Quarter/clock change
 		if curr.Quarter != prev.Quarter || curr.Clock != prev.Clock {
 			changed = true
 		}
@@ -146,7 +146,7 @@ func (p *Poller) poll(ctx context.Context) {
 			gu := EventToGameUpdate(ev)
 			p.emit(events.MustEnvelope(events.TypeGameUpdate, gameID, now, gu))
 
-			// emit stats updates on score changes
+			// Emit stats updates on score changes
 			if curr.HomeScore != prev.HomeScore || curr.AwayScore != prev.AwayScore {
 				for _, su := range EventToStatsUpdate(ev) {
 					p.emit(events.MustEnvelope(events.TypeStatsUpdate, gameID, now, su))
@@ -157,14 +157,14 @@ func (p *Poller) poll(ctx context.Context) {
 		p.states[gameID] = curr
 		p.mu.Unlock()
 
-		// for active games, fetch detailed play-by-play periodically
+		// For active games, fetch detailed play-by-play periodically
 		if curr.Status == "in_progress" && changed {
 			go p.fetchAndEmitPlays(ctx, gameID, now)
 		}
 	}
 }
 
-// fetchAndEmitPlays fetches the game summary and emits new plays/drives
+// fetchAndEmitPlays fetches the game summary and emits new plays/drives.
 func (p *Poller) fetchAndEmitPlays(ctx context.Context, gameID string, ts int64) {
 	summary, err := p.client.FetchSummary(ctx, gameID)
 	if err != nil {
@@ -183,7 +183,7 @@ func (p *Poller) fetchAndEmitPlays(ctx context.Context, gameID string, ts int64)
 	}
 	p.teamMapMu.RUnlock()
 
-	// process completed drives
+	// Process completed drives
 	for i, drive := range summary.Drives.Previous {
 		driveNum := i + 1
 		for _, play := range drive.Plays {
@@ -192,7 +192,7 @@ func (p *Poller) fetchAndEmitPlays(ctx context.Context, gameID string, ts int64)
 		}
 	}
 
-	// process current drive
+	// Process current drive
 	if summary.Drives.Current != nil {
 		driveNum := len(summary.Drives.Previous) + 1
 		cd := summary.Drives.Current
@@ -202,14 +202,14 @@ func (p *Poller) fetchAndEmitPlays(ctx context.Context, gameID string, ts int64)
 		}
 	}
 
-	// scoring plays
+	// Scoring plays
 	for _, sp := range summary.ScoringPlays {
 		se := ScoringPlayToEvent(sp)
 		p.emit(events.MustEnvelope(events.TypeScoringPlay, gameID, ts, se))
 	}
 }
 
-// emit sends an event to the event channel (non-blocking, drops if full)
+// emit sends an event to the event channel (non-blocking, drops if full).
 func (p *Poller) emit(e events.Envelope) {
 	select {
 	case p.eventCh <- e:
@@ -219,7 +219,7 @@ func (p *Poller) emit(e events.Envelope) {
 	}
 }
 
-// currentInterval returns the poll interval based on active game states
+// currentInterval returns the poll interval based on active game states.
 func (p *Poller) currentInterval() time.Duration {
 	p.mu.Lock()
 	defer p.mu.Unlock()
@@ -230,7 +230,7 @@ func (p *Poller) currentInterval() time.Duration {
 		}
 	}
 
-	// check if any games are scheduled but not started
+	// Check if any games are scheduled (not yet started)
 	hasScheduled := false
 	for _, s := range p.states {
 		if s.Status == "scheduled" {
@@ -245,7 +245,7 @@ func (p *Poller) currentInterval() time.Duration {
 	return p.cfg.PollPostGame
 }
 
-// HasActiveGames returns true when any tracked games are in progress
+// HasActiveGames returns true if any tracked games are in progress.
 func (p *Poller) HasActiveGames() bool {
 	p.mu.Lock()
 	defer p.mu.Unlock()
@@ -257,14 +257,14 @@ func (p *Poller) HasActiveGames() bool {
 	return false
 }
 
-// TrackedGames returns the number of tracked games
+// TrackedGames returns the count of tracked games.
 func (p *Poller) TrackedGames() int {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	return len(p.states)
 }
 
-// extractState pulls the diffable state from an ESPN event
+// extractState pulls the diffable state from an ESPN event.
 func extractState(ev Event) *gameState {
 	comp := ev.Competitions[0]
 	home, away := splitCompetitors(comp.Competitors)
@@ -292,10 +292,4 @@ func mapSeasonType(t int) string {
 	default:
 		return "REG"
 	}
-}
-
-// intFromStr is a safe string-to-int converter for ESPN data
-func intFromStr(s string) int {
-	n, _ := strconv.Atoi(s)
-	return n
 }
