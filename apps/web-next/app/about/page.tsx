@@ -37,7 +37,7 @@ export default function AboutPage() {
 
           <section>
             <h2 className={`${typography.h3} mb-4`}>Experience Timeline</h2>
-            <div className="space-y-6">
+            <div className="space-y-2">
               {props.timeline.map((job) => (
                 <div key={job.company} className={aboutStyles.timelineEntry}>
                   <div className={aboutStyles.timelineYear}>{job.years}</div>

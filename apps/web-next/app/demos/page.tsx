@@ -9,6 +9,7 @@ import { ProjectCard } from './ProjectCard';
 export default function DemosPage() {
   const [statusFilter, setStatusFilter] = useState<ArtifactStatus | 'all'>('all');
   const [domainFilter, setDomainFilter] = useState<ArtifactDomain | 'all'>('all');
+  const [categoryFilter, setCategoryFilter] = useState<string>('all');
 
   const {
     data: artifacts,
@@ -18,8 +19,6 @@ export default function DemosPage() {
     status: statusFilter === 'all' ? undefined : statusFilter,
     domain: domainFilter === 'all' ? undefined : domainFilter,
   });
-
-  const [categoryFilter, setCategoryFilter] = useState<string>('all');
 
   const filteredArtifacts = (artifacts ?? []).filter((artifact) => {
     if (statusFilter !== 'all' && artifact.status !== statusFilter) return false;
@@ -46,79 +45,44 @@ export default function DemosPage() {
         </div>
       </section>
 
-      <section className="py-6 border-b border-slate-800/50">
+      <section className="py-6 border-b border-slate-700/50">
         <div className={layout.container}>
           <div className="flex flex-wrap gap-6">
-            <div className="flex items-center gap-3">
-              <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
-                Status
-              </span>
-              <div className="flex gap-1 bg-slate-900/50 rounded-lg p-1 border border-slate-800">
-                {(['all', 'complete', 'in-progress', 'planned'] as const).map((status) => (
-                  <button
-                    key={status}
-                    onClick={() => setStatusFilter(status)}
-                    className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all ${
-                      statusFilter === status
-                        ? 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/30'
-                        : 'text-slate-400 hover:text-slate-200'
-                    }`}
-                  >
-                    {status === 'all'
-                      ? 'All'
-                      : status === 'in-progress'
-                        ? 'In Progress'
-                        : capitalize(status)}
-                  </button>
-                ))}
-              </div>
-            </div>
+            <FilterGroup label="Status">
+              {(['all', 'complete', 'in-progress', 'planned'] as const).map((status) => (
+                <FilterButton
+                  key={status}
+                  active={statusFilter === status}
+                  onClick={() => setStatusFilter(status)}
+                >
+                  {status === 'all' ? 'All' : status === 'in-progress' ? 'In Progress' : capitalize(status)}
+                </FilterButton>
+              ))}
+            </FilterGroup>
 
-            <div className="flex items-center gap-3">
-              <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
-                Project
-              </span>
-              <div className="flex gap-1 bg-slate-900/50 rounded-lg p-1 border border-slate-800">
-                {(['all', 'football', 'infrastructure', 'atlas'] as const).map((project) => (
-                  <button
-                    key={project}
-                    onClick={() => setDomainFilter(project)}
-                    className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all ${
-                      domainFilter === project
-                        ? 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/30'
-                        : 'text-slate-400 hover:text-slate-200'
-                    }`}
-                  >
-                    {project === 'all'
-                      ? 'All'
-                      : project === 'football'
-                        ? 'Redzone'
-                        : capitalize(project)}
-                  </button>
-                ))}
-              </div>
-            </div>
+            <FilterGroup label="Project">
+              {(['all', 'football', 'infrastructure', 'atlas'] as const).map((project) => (
+                <FilterButton
+                  key={project}
+                  active={domainFilter === project}
+                  onClick={() => setDomainFilter(project)}
+                >
+                  {project === 'all' ? 'All' : project === 'football' ? 'Redzone' : capitalize(project)}
+                </FilterButton>
+              ))}
+            </FilterGroup>
 
-            <div className="flex items-center gap-3">
-              <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
-                Category
-              </span>
-              <div className="flex gap-1 bg-slate-900/50 rounded-lg p-1 border border-slate-800">
-                {(['all', 'systems', 'frontend', 'backend', 'devops'] as const).map((category) => (
-                  <button
-                    key={category}
-                    onClick={() => setCategoryFilter(category)}
-                    className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all ${
-                      categoryFilter === category
-                        ? 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/30'
-                        : 'text-slate-400 hover:text-slate-200'
-                    }`}
-                  >
-                    {capitalize(category)}
-                  </button>
-                ))}
-              </div>
-            </div>
+            <FilterGroup label="Category">
+              {(['all', 'systems', 'frontend', 'backend', 'devops'] as const).map((category) => (
+                <FilterButton
+                  key={category}
+                  active={categoryFilter === category}
+                  onClick={() => setCategoryFilter(category)}
+                >
+                  {capitalize(category)}
+                </FilterButton>
+              ))}
+            </FilterGroup>
           </div>
         </div>
       </section>
@@ -141,6 +105,34 @@ export default function DemosPage() {
         </div>
       </section>
     </div>
+  );
+}
+
+function FilterGroup({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="flex items-center gap-3">
+      <span className="font-mono text-[10px] font-bold text-slate-500 uppercase tracking-[0.15em]">
+        {label}
+      </span>
+      <div className="flex gap-1 bg-atlas-darker/50 rounded-lg p-1 border border-slate-800/50">
+        {children}
+      </div>
+    </div>
+  );
+}
+
+function FilterButton({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
+  return (
+    <button
+      onClick={onClick}
+      className={`px-3 py-1.5 text-xs font-display font-medium rounded-md transition-all uppercase tracking-wide ${
+        active
+          ? 'bg-frontend/15 text-frontend border border-frontend/30'
+          : 'text-slate-400 hover:text-slate-200'
+      }`}
+    >
+      {children}
+    </button>
   );
 }
 
