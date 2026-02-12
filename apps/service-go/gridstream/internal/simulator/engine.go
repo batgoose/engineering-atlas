@@ -33,7 +33,7 @@ type SimPlay struct {
 	HomeScore   int
 	AwayScore   int
 	EndDown     int
-	EndDistance  int
+	EndDistance int
 	EndYardLine int
 	DriveNumber int
 	DrivePlays  int
@@ -117,7 +117,7 @@ func (e *Engine) ReplayGame(gameID string, plays []SimPlay) {
 				HomeScore:     play.HomeScore,
 				AwayScore:     play.AwayScore,
 				EndDown:       play.EndDown,
-				EndDistance:    play.EndDistance,
+				EndDistance:   play.EndDistance,
 				EndYardLine:   play.EndYardLine,
 				DriveNumber:   play.DriveNumber,
 				DrivePlays:    play.DrivePlays,

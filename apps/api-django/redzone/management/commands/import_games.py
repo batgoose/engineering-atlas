@@ -23,7 +23,9 @@ from ._base import ImportBaseCommand
 
 # Historical team abbreviations that changed
 TEAM_ABBR_MAP = {
-    "STL": "LA", "SD": "LAC", "OAK": "LV",
+    "STL": "LA",
+    "SD": "LAC",
+    "OAK": "LV",
 }
 
 
@@ -51,7 +53,9 @@ class Command(ImportBaseCommand):
         seasons = self.resolve_seasons(requested)
         sw = self.season_where()
 
-        self.stdout.write(f"Importing games for {len(seasons)} seasons: {seasons[0]}–{seasons[-1]}")
+        self.stdout.write(
+            f"Importing games for {len(seasons)} seasons: {seasons[0]}–{seasons[-1]}"
+        )
 
         total_created = 0
         total_updated = 0
@@ -64,7 +68,8 @@ class Command(ImportBaseCommand):
 
             with self.timed_operation(f"Querying games for {year}"):
                 with self.get_nfl_cursor() as cursor:
-                    cursor.execute(f"""
+                    cursor.execute(
+                        f"""
                         SELECT
                             game_id,
                             home_team,
@@ -80,7 +85,9 @@ class Command(ImportBaseCommand):
                         WHERE {sw}
                         GROUP BY game_id, home_team, away_team
                         ORDER BY MAX(week), game_id
-                    """, [year])
+                    """,
+                        [year],
+                    )
                     col_names = [d[0] for d in cursor.description]
                     rows = [dict(zip(col_names, r)) for r in cursor.fetchall()]
 
@@ -105,7 +112,9 @@ class Command(ImportBaseCommand):
             total_updated += updated
 
         self.stdout.write(
-            self.style.SUCCESS(f"\nDone! {total_created} created, {total_updated} updated.")
+            self.style.SUCCESS(
+                f"\nDone! {total_created} created, {total_updated} updated."
+            )
         )
 
     def _process_game(self, row, season_year):
@@ -122,7 +131,9 @@ class Command(ImportBaseCommand):
 
         if not home_team or not away_team:
             self.stderr.write(
-                self.style.WARNING(f"  Unknown team in {game_id}: {home_abbr} / {away_abbr}")
+                self.style.WARNING(
+                    f"  Unknown team in {game_id}: {home_abbr} / {away_abbr}"
+                )
             )
             return 0, 0
 
@@ -165,6 +176,7 @@ class Command(ImportBaseCommand):
         game_date = row.get("game_date")
         if not game_date:
             from datetime import date
+
             game_date = date(season_year, 9, 1)  # approximate start of season
 
         # espn_event_id is unique+required — use nflverse game_id as placeholder
@@ -190,7 +202,9 @@ class Command(ImportBaseCommand):
             if "Temp:" in weather_str:
                 try:
                     temp_part = weather_str.split("Temp:")[1].split(",")[0].strip()
-                    temp_val = int("".join(c for c in temp_part if c.isdigit() or c == "-"))
+                    temp_val = int(
+                        "".join(c for c in temp_part if c.isdigit() or c == "-")
+                    )
                     defaults["weather_temp"] = temp_val
                 except (ValueError, IndexError):
                     pass

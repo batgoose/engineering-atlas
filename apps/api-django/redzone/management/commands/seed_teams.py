@@ -14,7 +14,6 @@ import requests
 from django.core.management.base import BaseCommand
 from redzone.models import Team, TeamLogo
 
-
 ESPN_TEAMS_URL = (
     "https://site.api.espn.com/apis/site/v2/sports/football/nfl/teams"
     "?limit=40"  # 32 active + any historical entries
@@ -24,7 +23,7 @@ ESPN_TEAMS_URL = (
 ESPN_TO_NFLVERSE_ABBR = {
     "WSH": "WAS",
     "JAX": "JAX",  # nflverse uses JAX
-    "LAR": "LA",   # nflverse uses LA for Rams
+    "LAR": "LA",  # nflverse uses LA for Rams
 }
 
 # ESPN conference/division extraction from groups
@@ -58,7 +57,9 @@ class Command(BaseCommand):
         response.raise_for_status()
         data = response.json()
 
-        teams_data = data.get("sports", [{}])[0].get("leagues", [{}])[0].get("teams", [])
+        teams_data = (
+            data.get("sports", [{}])[0].get("leagues", [{}])[0].get("teams", [])
+        )
 
         if not teams_data:
             self.stderr.write(self.style.ERROR("No teams found in ESPN response"))
@@ -171,7 +172,9 @@ class Command(BaseCommand):
                     logo_count += 1
 
         if dry_run:
-            self.stdout.write(self.style.WARNING("\nDry run complete — no changes made"))
+            self.stdout.write(
+                self.style.WARNING("\nDry run complete — no changes made")
+            )
         else:
             self.stdout.write(
                 self.style.SUCCESS(

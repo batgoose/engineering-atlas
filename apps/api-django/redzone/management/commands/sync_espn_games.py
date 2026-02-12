@@ -190,12 +190,10 @@ class Command(BaseCommand):
 
         # quarter scores from linescores
         home_q_scores = [
-            int(ls.get("value", 0))
-            for ls in home_data.get("linescores", [])
+            int(ls.get("value", 0)) for ls in home_data.get("linescores", [])
         ]
         away_q_scores = [
-            int(ls.get("value", 0))
-            for ls in away_data.get("linescores", [])
+            int(ls.get("value", 0)) for ls in away_data.get("linescores", [])
         ]
 
         # odds
@@ -340,9 +338,7 @@ class Command(BaseCommand):
         self.stdout.write(f"  Fetching summary for {event_id}...")
 
         try:
-            resp = requests.get(
-                ESPN_SUMMARY_URL.format(event_id=event_id), timeout=15
-            )
+            resp = requests.get(ESPN_SUMMARY_URL.format(event_id=event_id), timeout=15)
             resp.raise_for_status()
             data = resp.json()
         except requests.RequestException as e:
@@ -357,9 +353,11 @@ class Command(BaseCommand):
         play_sequence = 0
 
         for i, drive_data in enumerate(all_drives, 1):
-            team = Team.objects.using("nfl").filter(
-                abbreviation=drive_data.get("team", {}).get("abbreviation", "")
-            ).first()
+            team = (
+                Team.objects.using("nfl")
+                .filter(abbreviation=drive_data.get("team", {}).get("abbreviation", ""))
+                .first()
+            )
 
             if not team:
                 continue
@@ -371,9 +369,7 @@ class Command(BaseCommand):
                     "team": team,
                     "description": drive_data.get("description", ""),
                     "start_quarter": (
-                        drive_data.get("start", {})
-                        .get("period", {})
-                        .get("number")
+                        drive_data.get("start", {}).get("period", {}).get("number")
                     ),
                     "start_clock": (
                         drive_data.get("start", {})
@@ -382,9 +378,7 @@ class Command(BaseCommand):
                     ),
                     "start_yardline": drive_data.get("start", {}).get("yardLine"),
                     "end_quarter": (
-                        drive_data.get("end", {})
-                        .get("period", {})
-                        .get("number")
+                        drive_data.get("end", {}).get("period", {}).get("number")
                     ),
                     "end_clock": (
                         drive_data.get("end", {})
@@ -397,9 +391,7 @@ class Command(BaseCommand):
                     "time_elapsed": (
                         drive_data.get("timeElapsed", {}).get("displayValue", "")
                     ),
-                    "result": (
-                        drive_data.get("result", "").lower().replace(" ", "_")
-                    ),
+                    "result": (drive_data.get("result", "").lower().replace(" ", "_")),
                     "is_score": drive_data.get("isScore", False),
                 },
             )
@@ -411,9 +403,11 @@ class Command(BaseCommand):
 
         # sync scoring plays
         for seq, sp_data in enumerate(data.get("scoringPlays", []), 1):
-            sp_team = Team.objects.using("nfl").filter(
-                abbreviation=sp_data.get("team", {}).get("abbreviation", "")
-            ).first()
+            sp_team = (
+                Team.objects.using("nfl")
+                .filter(abbreviation=sp_data.get("team", {}).get("abbreviation", ""))
+                .first()
+            )
             if sp_team:
                 ScoringPlay.objects.using("nfl").update_or_create(
                     game=game,
@@ -421,9 +415,7 @@ class Command(BaseCommand):
                     defaults={
                         "team": sp_team,
                         "quarter": sp_data.get("period", {}).get("number", 0),
-                        "clock": (
-                            sp_data.get("clock", {}).get("displayValue", "")
-                        ),
+                        "clock": (sp_data.get("clock", {}).get("displayValue", "")),
                         "score_type": self._map_score_type(
                             sp_data.get("scoringType", {}).get("abbreviation", "")
                         ),
@@ -433,17 +425,13 @@ class Command(BaseCommand):
                     },
                 )
 
-        self.stdout.write(
-            f"    Synced {len(all_drives)} drives, {play_sequence} plays"
-        )
+        self.stdout.write(f"    Synced {len(all_drives)} drives, {play_sequence} plays")
 
     def _sync_play(
         self, game: Game, drive: Drive, team: Team, play_data: dict, sequence: int
     ):
         """sync one play record"""
-        play_type = self._map_play_type(
-            play_data.get("type", {}).get("text", "")
-        )
+        play_type = self._map_play_type(play_data.get("type", {}).get("text", ""))
         start = play_data.get("start", {})
         end = play_data.get("end", {})
 

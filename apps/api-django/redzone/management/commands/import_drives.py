@@ -65,7 +65,8 @@ class Command(ImportBaseCommand):
 
             with self.timed_operation(f"Aggregating drives for {year}"):
                 with self.get_nfl_cursor() as cursor:
-                    cursor.execute(f"""
+                    cursor.execute(
+                        f"""
                         SELECT
                             game_id,
                             drive,
@@ -102,7 +103,9 @@ class Command(ImportBaseCommand):
                             AND posteam != ''
                         GROUP BY game_id, drive
                         ORDER BY game_id, drive
-                    """, [year])
+                    """,
+                        [year],
+                    )
                     col_names = [d[0] for d in cursor.description]
                     rows = [dict(zip(col_names, r)) for r in cursor.fetchall()]
 
@@ -143,7 +146,9 @@ class Command(ImportBaseCommand):
             total_updated += updated
 
         self.stdout.write(
-            self.style.SUCCESS(f"\nDone! {total_created} created, {total_updated} updated.")
+            self.style.SUCCESS(
+                f"\nDone! {total_created} created, {total_updated} updated."
+            )
         )
 
     def _build_drive(self, row):
@@ -205,9 +210,7 @@ class Command(ImportBaseCommand):
                 "total_yards": total_yards,
                 "result": result,
                 "time_elapsed": elapsed_str,
-                "inside_20": bool(
-                    self.safe_int(row.get("min_yardline"), 100) <= 20
-                ),
+                "inside_20": bool(self.safe_int(row.get("min_yardline"), 100) <= 20),
                 "is_score": result in ("touchdown", "field_goal"),
                 "drive_epa": self.safe_float(row.get("drive_epa")),
                 "description": f"{play_count} plays, {total_yards} yards, {elapsed_str}",

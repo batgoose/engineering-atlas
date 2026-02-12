@@ -12,7 +12,6 @@ Usage:
 from django.core.management.base import BaseCommand
 from redzone.models import Team, SocialAccount, NewsSource
 
-
 # Official team handles — Twitter/X and Instagram
 # Format: abbreviation → {platform: handle}
 TEAM_SOCIALS = {
@@ -73,7 +72,9 @@ class Command(BaseCommand):
         for abbr, handles in TEAM_SOCIALS.items():
             team = teams.get(abbr)
             if not team:
-                self.stdout.write(self.style.WARNING(f"  Team {abbr} not found, skipping"))
+                self.stdout.write(
+                    self.style.WARNING(f"  Team {abbr} not found, skipping")
+                )
                 continue
 
             for platform, handle in handles.items():
@@ -92,9 +93,9 @@ class Command(BaseCommand):
                 if created:
                     social_created += 1
 
-        self.stdout.write(self.style.SUCCESS(
-            f"  {social_created} social accounts created"
-        ))
+        self.stdout.write(
+            self.style.SUCCESS(f"  {social_created} social accounts created")
+        )
 
         # ── News Sources ─────────────────────────────────
         self.stdout.write("Seeding news source configs...")
@@ -169,8 +170,6 @@ class Command(BaseCommand):
         if created:
             news_created += 1
 
-        self.stdout.write(self.style.SUCCESS(
-            f"  {news_created} news sources created"
-        ))
+        self.stdout.write(self.style.SUCCESS(f"  {news_created} news sources created"))
 
         self.stdout.write(self.style.SUCCESS("\nDone!"))

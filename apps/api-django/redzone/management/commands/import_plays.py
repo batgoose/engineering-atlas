@@ -67,9 +67,7 @@ class Command(ImportBaseCommand):
 
             # Count
             with self.get_nfl_cursor() as cursor:
-                cursor.execute(
-                    f"SELECT COUNT(*) FROM plays WHERE {sw}", [year]
-                )
+                cursor.execute(f"SELECT COUNT(*) FROM plays WHERE {sw}", [year])
                 row_count = cursor.fetchone()[0]
 
             self.stdout.write(f"  {row_count:,} plays in raw table")
@@ -80,7 +78,8 @@ class Command(ImportBaseCommand):
 
             # Delete existing plays for this season's games
             game_ids = [
-                gid for gid, g in self.game_cache.items()
+                gid
+                for gid, g in self.game_cache.items()
                 if g.season and g.season.year == year
             ]
             if game_ids:
@@ -120,7 +119,9 @@ class Command(ImportBaseCommand):
 
                             progress += 1
                             if progress % 50000 == 0:
-                                self.stdout.write(f"    ... {progress:,} / {row_count:,}")
+                                self.stdout.write(
+                                    f"    ... {progress:,} / {row_count:,}"
+                                )
 
                     if batch:
                         with transaction.atomic(using="nfl"):

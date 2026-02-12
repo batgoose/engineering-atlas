@@ -120,8 +120,12 @@ class Command(ImportBaseCommand):
                         "penalties": self.safe_int(row.get("penalties"), 0),
                         "penalty_yards": self.safe_int(row.get("penalty_yds"), 0),
                         # Conversions
-                        "third_down_attempts": self.safe_int(row.get("third_down_att"), 0),
-                        "fourth_down_attempts": self.safe_int(row.get("fourth_down_att"), 0),
+                        "third_down_attempts": self.safe_int(
+                            row.get("third_down_att"), 0
+                        ),
+                        "fourth_down_attempts": self.safe_int(
+                            row.get("fourth_down_att"), 0
+                        ),
                         # Redzone
                         "redzone_attempts": self.safe_int(row.get("redzone_att"), 0),
                         # Defense
@@ -154,7 +158,9 @@ class Command(ImportBaseCommand):
             total_updated += updated
 
         self.stdout.write(
-            self.style.SUCCESS(f"\nDone! {total_created} created, {total_updated} updated.")
+            self.style.SUCCESS(
+                f"\nDone! {total_created} created, {total_updated} updated."
+            )
         )
 
     def _flush_batch(self, batch):

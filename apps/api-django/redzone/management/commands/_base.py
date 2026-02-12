@@ -38,15 +38,20 @@ class ImportBaseCommand(BaseCommand):
 
     def add_arguments(self, parser):
         parser.add_argument(
-            "--season", type=int, nargs="*",
+            "--season",
+            type=int,
+            nargs="*",
             help="Specific season(s) to import. Omit for all available.",
         )
         parser.add_argument(
-            "--batch-size", type=int, default=5000,
+            "--batch-size",
+            type=int,
+            default=5000,
             help="Bulk create/update batch size (default: 5000).",
         )
         parser.add_argument(
-            "--dry-run", action="store_true",
+            "--dry-run",
+            action="store_true",
             help="Preview without writing to the database.",
         )
 
@@ -102,7 +107,9 @@ class ImportBaseCommand(BaseCommand):
         if requested:
             missing = set(requested) - set(available)
             if missing:
-                self.stderr.write(self.style.WARNING(f"Not in {table}: {sorted(missing)}"))
+                self.stderr.write(
+                    self.style.WARNING(f"Not in {table}: {sorted(missing)}")
+                )
             return sorted(set(requested) & set(available))
         return available
 
@@ -152,6 +159,7 @@ class ImportBaseCommand(BaseCommand):
             return default
         try:
             import math
+
             v = float(value)
             return default if math.isnan(v) else v
         except (ValueError, TypeError):

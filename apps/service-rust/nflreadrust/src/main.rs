@@ -2,8 +2,8 @@ use anyhow::{Context, Result};
 use chrono::Datelike;
 use nflreadrust::{download_season, process_and_insert_season};
 use sqlx::postgres::PgPoolOptions;
-use std::time::Duration;
 use std::env;
+use std::time::Duration;
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -18,7 +18,7 @@ async fn main() -> Result<()> {
         .connect(&database_url)
         .await
         .context("Failed to connect to Postgres. Verify DATABASE_URL and network path.")?;
-    
+
     println!("✅ Database connected successfully.");
 
     let start_year = 1999;

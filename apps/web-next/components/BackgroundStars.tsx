@@ -17,22 +17,21 @@ export function BackgroundStars({ count = 400 }) {
         (Math.random() - 0.5) * 80
       ),
       phase: Math.random() * Math.PI * 2,
-      speed: 0.5 + Math.random()
+      speed: 0.5 + Math.random(),
     }));
   }, [count]);
 
   useFrame(({ clock }) => {
     if (!meshRef.current) return;
-    
+
     starData.forEach((star, i) => {
-      
       const twinkle = 0.8 + Math.sin(clock.elapsedTime * star.speed + star.phase) * 0.2;
       TEMP_OBJ.position.copy(star.pos);
       TEMP_OBJ.scale.setScalar(twinkle);
       TEMP_OBJ.updateMatrix();
       meshRef.current!.setMatrixAt(i, TEMP_OBJ.matrix);
     });
-    
+
     meshRef.current.instanceMatrix.needsUpdate = true;
   });
 

@@ -20,7 +20,6 @@ from redzone.models import (
     Venue,
 )
 
-
 # fixtures
 
 MOCK_SCOREBOARD = {
@@ -64,9 +63,7 @@ MOCK_SCOREBOARD = {
                                                 "fullName": "Drake Maye",
                                                 "headshot": "https://a.espncdn.com/maye.png",
                                                 "jersey": "10",
-                                                "position": {
-                                                    "abbreviation": "QB"
-                                                },
+                                                "position": {"abbreviation": "QB"},
                                             },
                                         }
                                     ],
@@ -106,9 +103,7 @@ MOCK_SCOREBOARD = {
                                                 "fullName": "Sam Darnold",
                                                 "headshot": "https://a.espncdn.com/darnold.png",
                                                 "jersey": "14",
-                                                "position": {
-                                                    "abbreviation": "QB"
-                                                },
+                                                "position": {"abbreviation": "QB"},
                                             },
                                         }
                                     ],

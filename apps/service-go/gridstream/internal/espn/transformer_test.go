@@ -359,7 +359,9 @@ func TestEventToGameContext(t *testing.T) {
 			Odds: []Odds{{
 				Spread:    spread,
 				OverUnder: total,
-				Provider:  struct{ Name string `json:"name"` }{Name: "DraftKings"},
+				Provider: struct {
+					Name string `json:"name"`
+				}{Name: "DraftKings"},
 			}},
 			Broadcasts: []Broadcast{{
 				Names: []string{"NBC", "Peacock"},

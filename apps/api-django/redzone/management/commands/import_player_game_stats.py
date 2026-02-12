@@ -108,7 +108,9 @@ class Command(ImportBaseCommand):
                         skipped += 1
                         continue
 
-                    opponent = game.away_team if game.home_team == team else game.home_team
+                    opponent = (
+                        game.away_team if game.home_team == team else game.home_team
+                    )
 
                     defaults = {
                         "team": team,
@@ -124,8 +126,12 @@ class Command(ImportBaseCommand):
                         "interceptions_thrown": self.safe_int(row.get("ints"), 0),
                         "sacks_taken": self.safe_int(row.get("sacks_taken"), 0),
                         "passing_epa": self.safe_float(row.get("passing_epa")),
-                        "passing_air_yards": self.safe_int(row.get("passing_air_yards"), 0),
-                        "passing_yards_after_catch": self.safe_int(row.get("passing_yac"), 0),
+                        "passing_air_yards": self.safe_int(
+                            row.get("passing_air_yards"), 0
+                        ),
+                        "passing_yards_after_catch": self.safe_int(
+                            row.get("passing_yac"), 0
+                        ),
                         # Rushing
                         "carries": self.safe_int(row.get("carries"), 0),
                         "rushing_yards": self.safe_int(row.get("rushing_yards"), 0),
@@ -137,9 +143,15 @@ class Command(ImportBaseCommand):
                         "receptions": self.safe_int(row.get("receptions"), 0),
                         "receiving_yards": self.safe_int(row.get("receiving_yards"), 0),
                         "receiving_tds": self.safe_int(row.get("receiving_tds"), 0),
-                        "receiving_fumbles": self.safe_int(row.get("receiving_fumbles"), 0),
-                        "receiving_air_yards": self.safe_int(row.get("receiving_air_yards"), 0),
-                        "receiving_yards_after_catch": self.safe_int(row.get("receiving_yac"), 0),
+                        "receiving_fumbles": self.safe_int(
+                            row.get("receiving_fumbles"), 0
+                        ),
+                        "receiving_air_yards": self.safe_int(
+                            row.get("receiving_air_yards"), 0
+                        ),
+                        "receiving_yards_after_catch": self.safe_int(
+                            row.get("receiving_yac"), 0
+                        ),
                         "receiving_epa": self.safe_float(row.get("receiving_epa")),
                     }
                     batch.append((player, game, defaults))
@@ -156,13 +168,17 @@ class Command(ImportBaseCommand):
                     updated += u
 
             if skipped:
-                self.stdout.write(self.style.WARNING(f"  Skipped {skipped} (no player/game match)"))
+                self.stdout.write(
+                    self.style.WARNING(f"  Skipped {skipped} (no player/game match)")
+                )
             self.stdout.write(f"  Stats: {created} created, {updated} updated")
             total_created += created
             total_updated += updated
 
         self.stdout.write(
-            self.style.SUCCESS(f"\nDone! {total_created} created, {total_updated} updated.")
+            self.style.SUCCESS(
+                f"\nDone! {total_created} created, {total_updated} updated."
+            )
         )
 
     def _aggregation_sql(self, season_where):

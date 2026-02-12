@@ -23,14 +23,22 @@ export function OrbitalLogo({ size = 42, className = '' }: OrbitalLogoProps) {
 
     const orbits = [
       {
-        rx: 18, ry: 7.5, tiltDeg: -20,
-        durationMs: 10000, startAngleDeg: 0,
-        satId: 'sat1', glowId: 'glow1',
+        rx: 18,
+        ry: 7.5,
+        tiltDeg: -20,
+        durationMs: 10000,
+        startAngleDeg: 0,
+        satId: 'sat1',
+        glowId: 'glow1',
       },
       {
-        rx: 18, ry: 7.5, tiltDeg: 55,
-        durationMs: 16000, startAngleDeg: 140,
-        satId: 'sat2', glowId: 'glow2',
+        rx: 18,
+        ry: 7.5,
+        tiltDeg: 55,
+        durationMs: 16000,
+        startAngleDeg: 140,
+        satId: 'sat2',
+        glowId: 'glow2',
       },
     ];
 
@@ -49,7 +57,8 @@ export function OrbitalLogo({ size = 42, className = '' }: OrbitalLogoProps) {
       const elapsed = timestamp - startTime;
 
       for (const orbit of elements) {
-        const t = orbit.startAngle + ((elapsed % orbit.durationMs) / orbit.durationMs) * Math.PI * 2;
+        const t =
+          orbit.startAngle + ((elapsed % orbit.durationMs) / orbit.durationMs) * Math.PI * 2;
         const cosT = Math.cos(t);
         const sinT = Math.sin(t);
         const cosTheta = Math.cos(orbit.tiltRad);
@@ -91,18 +100,56 @@ export function OrbitalLogo({ size = 42, className = '' }: OrbitalLogoProps) {
         <circle cx="21" cy="21" r="6.5" fill="rgb(var(--frontend))" opacity="0.15" />
 
         {/* core */}
-        <circle cx="21" cy="21" r="5.5" fill="rgb(var(--frontend))" className="animate-[corePulse_4s_ease-in-out_infinite]" />
-        <circle cx="21" cy="21" r="5.5" stroke="rgb(var(--frontend-bright))" strokeWidth="0.5" opacity="0.3" />
+        <circle
+          cx="21"
+          cy="21"
+          r="5.5"
+          fill="rgb(var(--frontend))"
+          className="animate-[corePulse_4s_ease-in-out_infinite]"
+        />
+        <circle
+          cx="21"
+          cy="21"
+          r="5.5"
+          stroke="rgb(var(--frontend-bright))"
+          strokeWidth="0.5"
+          opacity="0.3"
+        />
 
         {/* orbit ring 1 tilted -20° */}
-        <ellipse cx="21" cy="21" rx="18" ry="7.5" stroke="rgb(var(--frontend))" strokeWidth="0.9" opacity="0.4" transform="rotate(-20 21 21)" />
+        <ellipse
+          cx="21"
+          cy="21"
+          rx="18"
+          ry="7.5"
+          stroke="rgb(var(--frontend))"
+          strokeWidth="0.9"
+          opacity="0.4"
+          transform="rotate(-20 21 21)"
+        />
 
         {/* satellite 1 glow + body */}
-        <circle id="glow1" r="3" fill="rgb(var(--frontend-bright))" opacity="0.15" cx="21" cy="21" />
+        <circle
+          id="glow1"
+          r="3"
+          fill="rgb(var(--frontend-bright))"
+          opacity="0.15"
+          cx="21"
+          cy="21"
+        />
         <circle id="sat1" r="2" fill="rgb(var(--frontend-bright))" opacity="0.9" cx="21" cy="21" />
 
         {/* orbit ring 2 tilted 55° */}
-        <ellipse cx="21" cy="21" rx="18" ry="7.5" stroke="rgb(var(--frontend))" strokeWidth="0.6" opacity="0.2" transform="rotate(55 21 21)" />
+        <ellipse
+          cx="21"
+          cy="21"
+          rx="18"
+          ry="7.5"
+          stroke="rgb(var(--frontend))"
+          strokeWidth="0.6"
+          opacity="0.2"
+          transform="rotate(55 21 21)"
+        />
 
         {/* satellite 2 glow + body */}
         <circle id="glow2" r="2.5" fill="rgb(var(--frontend))" opacity="0.1" cx="21" cy="21" />

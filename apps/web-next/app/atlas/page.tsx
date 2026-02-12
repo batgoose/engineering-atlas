@@ -154,7 +154,9 @@ function CompetencyDetail({
         </div>
         <div className="flex-1 min-w-0">
           <div className="flex items-start justify-between gap-2">
-            <h2 className="font-display text-xl font-bold text-white uppercase tracking-tight">{competency.name}</h2>
+            <h2 className="font-display text-xl font-bold text-white uppercase tracking-tight">
+              {competency.name}
+            </h2>
             <button
               onClick={onClose}
               className="text-slate-500 hover:text-white text-lg p-1 -mr-1 -mt-1"
@@ -177,13 +179,17 @@ function CompetencyDetail({
       </div>
 
       <div className="mb-6">
-        <h3 className="font-display text-slate-300 text-sm font-medium uppercase tracking-wide mb-2">Summary</h3>
+        <h3 className="font-display text-slate-300 text-sm font-medium uppercase tracking-wide mb-2">
+          Summary
+        </h3>
         <p className="text-slate-400 text-sm leading-relaxed">{competency.summary}</p>
       </div>
 
       {competency.tags.length > 0 && (
         <div className="mb-6">
-          <h3 className="font-display text-slate-300 text-sm font-medium uppercase tracking-wide mb-2">Tags</h3>
+          <h3 className="font-display text-slate-300 text-sm font-medium uppercase tracking-wide mb-2">
+            Tags
+          </h3>
           <div className="flex flex-wrap gap-2">
             {competency.tags.map((tag) => (
               <span
@@ -221,7 +227,9 @@ function CompetencyDetail({
 
       {relatedCompetencies.length > 0 && (
         <div className="mb-6">
-          <h3 className="font-display text-slate-300 text-sm font-medium uppercase tracking-wide mb-3">Related Skills</h3>
+          <h3 className="font-display text-slate-300 text-sm font-medium uppercase tracking-wide mb-3">
+            Related Skills
+          </h3>
           <div className="flex flex-wrap gap-2">
             {relatedCompetencies.map((comp) => (
               <button

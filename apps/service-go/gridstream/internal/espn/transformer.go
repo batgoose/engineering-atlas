@@ -184,7 +184,7 @@ func PlayToEvent(p Play, teamMap map[string]string, driveNum, drivePlays, driveY
 		HomeScore:     p.HomeScore,
 		AwayScore:     p.AwayScore,
 		EndDown:       p.End.Down,
-		EndDistance:    p.End.Distance,
+		EndDistance:   p.End.Distance,
 		EndYardLine:   p.End.YardsToEndzone,
 		DriveNumber:   driveNum,
 		DrivePlays:    drivePlays,

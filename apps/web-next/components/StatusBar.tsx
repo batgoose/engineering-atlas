@@ -8,7 +8,8 @@ interface StatusItemProps {
 const dotStyles = {
   ok: 'bg-green-700 shadow-[0_0_6px_rgba(22,163,74,0.7),inset_0_0_2px_rgba(255,255,255,0.3)] animate-[healthPulse_3s_ease-in-out_infinite]',
   warn: 'bg-amber-700 shadow-[0_0_6px_rgba(245,158,11,0.6),inset_0_0_2px_rgba(255,255,255,0.3)] animate-[healthPulse_2s_ease-in-out_infinite]',
-  error: 'bg-red-700 shadow-[0_0_6px_rgba(239,68,68,0.6),inset_0_0_2px_rgba(255,255,255,0.3)] animate-[healthPulse_1.5s_ease-in-out_infinite]',
+  error:
+    'bg-red-700 shadow-[0_0_6px_rgba(239,68,68,0.6),inset_0_0_2px_rgba(255,255,255,0.3)] animate-[healthPulse_1.5s_ease-in-out_infinite]',
 };
 
 function StatusItem({ label, status }: StatusItemProps) {

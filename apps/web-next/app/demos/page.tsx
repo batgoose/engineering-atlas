@@ -55,7 +55,11 @@ export default function DemosPage() {
                   active={statusFilter === status}
                   onClick={() => setStatusFilter(status)}
                 >
-                  {status === 'all' ? 'All' : status === 'in-progress' ? 'In Progress' : capitalize(status)}
+                  {status === 'all'
+                    ? 'All'
+                    : status === 'in-progress'
+                      ? 'In Progress'
+                      : capitalize(status)}
                 </FilterButton>
               ))}
             </FilterGroup>
@@ -67,7 +71,11 @@ export default function DemosPage() {
                   active={domainFilter === project}
                   onClick={() => setDomainFilter(project)}
                 >
-                  {project === 'all' ? 'All' : project === 'football' ? 'Redzone' : capitalize(project)}
+                  {project === 'all'
+                    ? 'All'
+                    : project === 'football'
+                      ? 'Redzone'
+                      : capitalize(project)}
                 </FilterButton>
               ))}
             </FilterGroup>
@@ -121,7 +129,15 @@ function FilterGroup({ label, children }: { label: string; children: React.React
   );
 }
 
-function FilterButton({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
+function FilterButton({
+  active,
+  onClick,
+  children,
+}: {
+  active: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
   return (
     <button
       onClick={onClick}

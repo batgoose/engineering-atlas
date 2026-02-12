@@ -8,14 +8,10 @@ import { UnrealBloomPass } from 'three-stdlib';
 import * as THREE from 'three';
 import { getIconDataUrl } from '@atlas/ui/atlas';
 import type { CompetencyNode } from '@atlas/types';
-import {
-  PROCESSED_CONSTELLATIONS,
-  type ProcessedConstellationDefinition,
-} from '@atlas/sdk/atlas';
+import { PROCESSED_CONSTELLATIONS, type ProcessedConstellationDefinition } from '@atlas/sdk/atlas';
 
 const TEXTURE_CACHE: Record<string, THREE.Texture> = {};
 const loader = new THREE.TextureLoader();
-
 
 extend({ UnrealBloomPass });
 declare module '@react-three/fiber' {
@@ -23,8 +19,6 @@ declare module '@react-three/fiber' {
     unrealBloomPass: Node<UnrealBloomPass, typeof UnrealBloomPass>;
   }
 }
-
-
 
 interface StarMapProps {
   competencies: CompetencyNode[];
@@ -34,8 +28,6 @@ interface StarMapProps {
   onStarClick: (competency: CompetencyNode) => void;
   onStarHover: (competency: CompetencyNode | null) => void;
 }
-
-
 
 const STAR_BASE_SIZE = 0.15;
 const STAR_HOVER_SIZE = 0.28;
@@ -62,8 +54,6 @@ function useGlowTexture() {
   }, []);
 }
 
-
-
 export function StarMap({
   competencies,
   activeCategory,
@@ -81,11 +71,10 @@ export function StarMap({
     <div className="w-full h-full bg-slate-950">
       <Canvas
         camera={{ position: [0, 0, 18], fov: 60 }}
-        
         gl={{
           antialias: false,
           powerPreference: 'high-performance',
-          precision: 'lowp', 
+          precision: 'lowp',
         }}
         dpr={[1]}
       >
@@ -131,8 +120,6 @@ export function StarMap({
   );
 }
 
-
-
 function ConstellationField({
   competencies,
   activeCategory,
@@ -173,7 +160,7 @@ function ConstellationField({
           <Constellation
             key={categoryName}
             name={categoryName}
-            definition={constellation} 
+            definition={constellation}
             competencies={categoryCompetencies}
             isActive={isActive}
             isHovered={isHovered}
@@ -189,8 +176,6 @@ function ConstellationField({
     </group>
   );
 }
-
-
 
 interface ConstellationProps {
   name: string;
@@ -346,9 +331,8 @@ function Constellation({
   );
 }
 
-
 function ConstellationBackdrop({
-  geometries = [], 
+  geometries = [],
   center,
   scale,
   color,
@@ -356,7 +340,7 @@ function ConstellationBackdrop({
   isHovered,
   onHover,
 }: {
-  geometries?: THREE.BufferGeometry[]; 
+  geometries?: THREE.BufferGeometry[];
   center: THREE.Vector3;
   scale: number;
   color: string;
@@ -404,12 +388,12 @@ function ConstellationBackdrop({
             <lineBasicMaterial
               color={color}
               transparent
-              opacity={isActive || isHovered ? 0.4 : 0.05} 
+              opacity={isActive || isHovered ? 0.4 : 0.05}
               depthWrite={false}
               blending={THREE.AdditiveBlending}
             />
           </line>
-          
+
           {(isActive || isHovered) && (
             <points geometry={geo}>
               <pointsMaterial
@@ -458,13 +442,12 @@ function Star({
 
   useEffect(() => {
     const id = competency.id;
-    
+
     if (TEXTURE_CACHE[id]) {
       setTexture(TEXTURE_CACHE[id]);
       return;
     }
 
-    
     const dataUrl = getIconDataUrl(id);
     loader.load(dataUrl, (tex) => {
       tex.minFilter = THREE.LinearFilter;

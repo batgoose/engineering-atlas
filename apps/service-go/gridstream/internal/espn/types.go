@@ -129,8 +129,8 @@ type Venue struct {
 		State   string `json:"state"`
 		Country string `json:"country"`
 	} `json:"address"`
-	Indoor  bool `json:"indoor"`
-	Grass   bool `json:"grass"`
+	Indoor bool `json:"indoor"`
+	Grass  bool `json:"grass"`
 }
 
 type Status struct {
@@ -139,10 +139,10 @@ type Status struct {
 	Period       int     `json:"period"`
 	Type         struct {
 		ID        string `json:"id"`
-		Name      string `json:"name"`      // STATUS_SCHEDULED, STATUS_IN_PROGRESS, STATUS_FINAL, etc
-		State     string `json:"state"`     // pre, in, post
+		Name      string `json:"name"`  // STATUS_SCHEDULED, STATUS_IN_PROGRESS, STATUS_FINAL, etc
+		State     string `json:"state"` // pre, in, post
 		Completed bool   `json:"completed"`
-		Detail    string `json:"detail"`    // human-readable status text
+		Detail    string `json:"detail"` // human-readable status text
 	} `json:"type"`
 }
 
@@ -179,7 +179,7 @@ type Boxscore struct {
 }
 
 type BoxscoreTeam struct {
-	Team       Team              `json:"team"`
+	Team       Team               `json:"team"`
 	Statistics []TeamBoxscoreStat `json:"statistics"`
 }
 
@@ -189,13 +189,13 @@ type TeamBoxscoreStat struct {
 }
 
 type BoxscorePlayer struct {
-	Team       Team                   `json:"team"`
-	Statistics []PlayerStatCategory   `json:"statistics"`
+	Team       Team                 `json:"team"`
+	Statistics []PlayerStatCategory `json:"statistics"`
 }
 
 type PlayerStatCategory struct {
-	Name    string   `json:"name"` // "passing", "rushing", "receiving", "fumbles", "defensive", etc
-	Labels  []string `json:"labels"`
+	Name     string           `json:"name"` // "passing", "rushing", "receiving", "fumbles", "defensive", etc
+	Labels   []string         `json:"labels"`
 	Athletes []PlayerStatLine `json:"athletes"`
 }
 
@@ -207,8 +207,8 @@ type PlayerStatLine struct {
 // drives and plays
 
 type DrivesWrapper struct {
-	Current  *DriveData   `json:"current,omitempty"`
-	Previous []DriveData  `json:"previous"`
+	Current  *DriveData  `json:"current,omitempty"`
+	Previous []DriveData `json:"previous"`
 }
 
 type DriveData struct {
@@ -247,17 +247,17 @@ type DriveData struct {
 }
 
 type Play struct {
-	ID       string `json:"id"`
-	Type     struct {
+	ID   string `json:"id"`
+	Type struct {
 		ID           string `json:"id"`
-		Text         string `json:"text"`         // "Rush", "Pass Reception", etc
+		Text         string `json:"text"` // "Rush", "Pass Reception", etc
 		Abbreviation string `json:"abbreviation"`
 	} `json:"type"`
-	Text                 string `json:"text"`      // full play description
-	ShortText            string `json:"shortText"`
-	HomeScore            int    `json:"homeScore"`
-	AwayScore            int    `json:"awayScore"`
-	Period               struct {
+	Text      string `json:"text"` // full play description
+	ShortText string `json:"shortText"`
+	HomeScore int    `json:"homeScore"`
+	AwayScore int    `json:"awayScore"`
+	Period    struct {
 		Number int `json:"number"`
 	} `json:"period"`
 	Clock struct {
@@ -294,8 +294,8 @@ type Play struct {
 }
 
 type ScoringPlay struct {
-	ID        string `json:"id"`
-	Type      struct {
+	ID   string `json:"id"`
+	Type struct {
 		Text         string `json:"text"`
 		Abbreviation string `json:"abbreviation"`
 	} `json:"type"`

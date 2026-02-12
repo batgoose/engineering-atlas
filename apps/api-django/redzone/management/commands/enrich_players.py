@@ -26,19 +26,20 @@ from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
 
 from redzone.models import (
-    Player, PlayerCombine, PlayerContract, Team,
+    Player,
+    PlayerCombine,
+    PlayerContract,
+    Team,
 )
 
 logger = logging.getLogger(__name__)
 
 # ─── nflverse data URLs ─────────────────────────────────────────────────────
 PLAYERS_URL = (
-    "https://github.com/nflverse/nflverse-data/releases/download/"
-    "players/players.csv"
+    "https://github.com/nflverse/nflverse-data/releases/download/" "players/players.csv"
 )
 COMBINE_URL = (
-    "https://github.com/nflverse/nflverse-data/releases/download/"
-    "combine/combine.csv"
+    "https://github.com/nflverse/nflverse-data/releases/download/" "combine/combine.csv"
 )
 CONTRACTS_URLS = [
     "https://github.com/nflverse/nflverse-data/releases/download/contracts/otc_contracts.csv.gz",
@@ -223,9 +224,7 @@ class Command(BaseCommand):
                 "weight": _safe_int(row.get("weight")),
                 "birth_date": _parse_date(row.get("birth_date")),
                 "college": _safe_str(row.get("college_name"), 60),
-                "college_conference": _safe_str(
-                    row.get("college_conference"), 30
-                ),
+                "college_conference": _safe_str(row.get("college_conference"), 30),
                 "draft_year": draft_year,
                 "draft_round": draft_round,
                 "draft_pick": draft_pick,
@@ -235,9 +234,7 @@ class Command(BaseCommand):
                 "rookie_season": _safe_int(row.get("rookie_season")),
                 "entry_year": _safe_int(row.get("entry_year")),
                 "years_experience": _safe_int(row.get("years_of_experience")),
-                "jersey_number": _safe_str(
-                    row.get("jersey_number"), 3
-                ),
+                "jersey_number": _safe_str(row.get("jersey_number"), 3),
                 "is_active": status in ("ACT", "PRA", "RES", "PUP", ""),
                 # Cross-platform IDs
                 "espn_id": _safe_str(row.get("espn_id"), 20),
@@ -301,9 +298,7 @@ class Command(BaseCommand):
             if not player:
                 name = _safe_str(row.get("player_name"))
                 if name:
-                    player = players_by_name_year.get(
-                        (name.lower(), season)
-                    )
+                    player = players_by_name_year.get((name.lower(), season))
 
             if not player:
                 skipped += 1
@@ -365,11 +360,13 @@ class Command(BaseCommand):
                 continue
 
         if not rows:
-            self.stdout.write(self.style.WARNING(
-                "  Could not find contracts data at any known URL. "
-                "Skipping contracts import. You can run with --skip-contracts "
-                "or check nflverse releases for the correct filename."
-            ))
+            self.stdout.write(
+                self.style.WARNING(
+                    "  Could not find contracts data at any known URL. "
+                    "Skipping contracts import. You can run with --skip-contracts "
+                    "or check nflverse releases for the correct filename."
+                )
+            )
             return
 
         # Build player lookup by otc_id and gsis_id
@@ -437,9 +434,7 @@ class Command(BaseCommand):
                     "apy_cap_pct": _safe_float(row.get("apy_cap_pct")),
                     "inflated_value": _safe_int(row.get("inflated_value")),
                     "inflated_apy": _safe_int(row.get("inflated_apy")),
-                    "inflated_guaranteed": _safe_int(
-                        row.get("inflated_guaranteed")
-                    ),
+                    "inflated_guaranteed": _safe_int(row.get("inflated_guaranteed")),
                     "otc_url": _safe_str(row.get("player_page"), 500),
                 },
             )

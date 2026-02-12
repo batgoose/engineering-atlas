@@ -13,7 +13,6 @@ from django.core.management.base import BaseCommand
 from django.db import connections
 from redzone.models import Venue
 
-
 # Known venue coordinates for weather API lookups
 # (major current NFL stadiums — extend as needed)
 VENUE_COORDS = {
@@ -116,14 +115,12 @@ class Command(BaseCommand):
 
             if was_created:
                 created += 1
-                self.stdout.write(self.style.SUCCESS(
-                    f"  Created: {stadium} ({roof_type}, {surface})"
-                ))
+                self.stdout.write(
+                    self.style.SUCCESS(f"  Created: {stadium} ({roof_type}, {surface})")
+                )
             else:
                 updated += 1
 
         self.stdout.write(
-            self.style.SUCCESS(
-                f"\nDone! Created {created}, updated {updated} venues."
-            )
+            self.style.SUCCESS(f"\nDone! Created {created}, updated {updated} venues.")
         )

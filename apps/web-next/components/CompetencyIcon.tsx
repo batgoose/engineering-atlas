@@ -1,6 +1,6 @@
 /**
  * Competency Icon Component
- * 
+ *
  * Renders SVG icons from the atlas icon registry.
  * Uses data URLs for simplicity - works without dangerouslySetInnerHTML.
  */
@@ -13,33 +13,31 @@ interface CompetencyIconProps {
   id: string;
   /** Size in pixels (default: 24) */
   size?: number;
-  
+
   className?: string;
-  
+
   alt?: string;
 }
 
-
 export function CompetencyIcon({ id, size = 32 }: { id: string; size?: number }) {
-  
   const darkIcons = {
     'lang-rust': { glow: '#ff4d00', brightness: 1.5 },
     'framework-django': { glow: '#00ff41', brightness: 1.4 },
     'framework-astro': { glow: '#ff00ea', brightness: 1.3 },
   };
-  
+
   const config = darkIcons[id as keyof typeof darkIcons];
   const needsBoost = !!config;
 
   return (
     <div className="relative flex items-center justify-center w-full h-full group/icon">
       {needsBoost && (
-        <div 
+        <div
           className="absolute inset-[-2px] rounded-full blur-[10px] opacity-30 group-hover:opacity-50 transition-opacity duration-500"
           style={{ backgroundColor: config.glow }}
         />
       )}
-      
+
       <Image
         src={getIconDataUrl(id)}
         width={size}
@@ -68,15 +66,10 @@ interface InlineIconProps extends CompetencyIconProps {
   color?: string;
 }
 
-export function CompetencyIconInline({
-  id,
-  size = 24,
-  className = '',
-  color,
-}: InlineIconProps) {
+export function CompetencyIconInline({ id, size = 24, className = '', color }: InlineIconProps) {
   if (!hasIcon(id)) {
     return (
-      <div 
+      <div
         className={`inline-flex items-center justify-center bg-slate-700 rounded ${className}`}
         style={{ width: size, height: size }}
       >

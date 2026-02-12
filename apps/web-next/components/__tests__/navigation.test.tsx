@@ -36,7 +36,7 @@ describe('Navigation', () => {
 
   it('renders all navigation items', () => {
     render(<Navigation />);
-    
+
     expect(screen.getByText('Home')).toBeInTheDocument();
     expect(screen.getByText('Atlas')).toBeInTheDocument();
     expect(screen.getByText('Demos')).toBeInTheDocument();
@@ -46,31 +46,31 @@ describe('Navigation', () => {
 
   it('highlights the active page', () => {
     render(<Navigation />);
-    
+
     const homeLink = screen.getByText('Home').closest('a');
     const atlasLink = screen.getByText('Atlas').closest('a');
-    
+
     // Home and Atlas should have different classes (one active, one not)
     expect(homeLink?.className).not.toEqual(atlasLink?.className);
-    
+
     // Active link should have solid background color
     expect(homeLink?.className).toContain('bg-slate-800');
   });
 
   it('renders mobile menu button', () => {
     render(<Navigation />);
-    
+
     const mobileBtn = screen.getByRole('button');
     expect(mobileBtn).toBeInTheDocument();
   });
 
   it('renders all links with correct hrefs', () => {
     render(<Navigation />);
-    
+
     const homeLink = screen.getByText('Home').closest('a');
     const atlasLink = screen.getByText('Atlas').closest('a');
     const demosLink = screen.getByText('Demos').closest('a');
-    
+
     expect(homeLink).toHaveAttribute('href', '/');
     expect(atlasLink).toHaveAttribute('href', '/atlas');
     expect(demosLink).toHaveAttribute('href', '/demos');

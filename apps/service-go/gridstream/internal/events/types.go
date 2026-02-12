@@ -6,18 +6,18 @@ import "encoding/json"
 
 // event type constants
 const (
-	TypeGameContext  = "game_context"  // sent once on connect or game start
-	TypeGameUpdate   = "game_update"   // status/score/possession changes
-	TypePlay         = "play"          // individual play result
-	TypeScoringPlay  = "scoring_play"  // scoring event (subset of plays)
-	TypeDriveStart   = "drive_start"   // new drive begins
-	TypeDriveEnd     = "drive_end"     // drive concludes
-	TypeStatsUpdate  = "stats_update"  // player stat line changed
-	TypeGameStart    = "game_start"    // game kicked off
-	TypeGameEnd      = "game_end"      // game final
-	TypeWeather      = "weather"       // weather update
-	TypeError        = "error"         // error message
-	TypePing         = "ping"          // keepalive
+	TypeGameContext = "game_context" // sent once on connect or game start
+	TypeGameUpdate  = "game_update"  // status/score/possession changes
+	TypePlay        = "play"         // individual play result
+	TypeScoringPlay = "scoring_play" // scoring event (subset of plays)
+	TypeDriveStart  = "drive_start"  // new drive begins
+	TypeDriveEnd    = "drive_end"    // drive concludes
+	TypeStatsUpdate = "stats_update" // player stat line changed
+	TypeGameStart   = "game_start"   // game kicked off
+	TypeGameEnd     = "game_end"     // game final
+	TypeWeather     = "weather"      // weather update
+	TypeError       = "error"        // error message
+	TypePing        = "ping"         // keepalive
 )
 
 // Envelope wraps websocket messages with routing metadata
@@ -86,10 +86,10 @@ type GameContext struct {
 	Surface   string `json:"surface,omitempty"`
 
 	// weather for outdoor games
-	Temperature  *int   `json:"temperature,omitempty"`
-	WeatherDesc  string `json:"weatherDesc,omitempty"`
-	WeatherWind  string `json:"weatherWind,omitempty"`
-	ConditionID  *int   `json:"conditionId,omitempty"`
+	Temperature *int   `json:"temperature,omitempty"`
+	WeatherDesc string `json:"weatherDesc,omitempty"`
+	WeatherWind string `json:"weatherWind,omitempty"`
+	ConditionID *int   `json:"conditionId,omitempty"`
 
 	// odds
 	Spread        *float64 `json:"spread,omitempty"`
@@ -148,7 +148,7 @@ type PlayEvent struct {
 
 	// end state
 	EndDown     int `json:"endDown,omitempty"`
-	EndDistance  int `json:"endDistance,omitempty"`
+	EndDistance int `json:"endDistance,omitempty"`
 	EndYardLine int `json:"endYardLine,omitempty"`
 
 	// drive context
@@ -171,18 +171,18 @@ type ScoringEvent struct {
 
 // DriveEvent is sent when a drive starts or ends
 type DriveEvent struct {
-	DriveNumber int    `json:"driveNumber"`
-	Team        string `json:"team"`
-	StartQuarter int   `json:"startQuarter,omitempty"`
-	StartClock   string `json:"startClock,omitempty"`
-	StartYardLine int  `json:"startYardLine,omitempty"`
+	DriveNumber   int    `json:"driveNumber"`
+	Team          string `json:"team"`
+	StartQuarter  int    `json:"startQuarter,omitempty"`
+	StartClock    string `json:"startClock,omitempty"`
+	StartYardLine int    `json:"startYardLine,omitempty"`
 
 	// end fields only used on drive_end
-	Result     string `json:"result,omitempty"` // touchdown, punt, turnover, field_goal, etc
-	TotalYards int    `json:"totalYards,omitempty"`
-	PlayCount  int    `json:"playCount,omitempty"`
+	Result      string `json:"result,omitempty"` // touchdown, punt, turnover, field_goal, etc
+	TotalYards  int    `json:"totalYards,omitempty"`
+	PlayCount   int    `json:"playCount,omitempty"`
 	TimeElapsed string `json:"timeElapsed,omitempty"`
-	IsScore    bool   `json:"isScore,omitempty"`
+	IsScore     bool   `json:"isScore,omitempty"`
 }
 
 // StatsUpdate is sent when player stat lines change

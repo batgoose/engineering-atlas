@@ -100,9 +100,7 @@ class Command(BaseCommand):
         # Load existing players
         players = {
             p.gsis_id: p
-            for p in Player.objects.using("nfl")
-            .select_related("current_team")
-            .all()
+            for p in Player.objects.using("nfl").select_related("current_team").all()
         }
 
         team_changes = 0

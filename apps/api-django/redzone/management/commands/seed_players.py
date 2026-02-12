@@ -37,9 +37,9 @@ class Command(BaseCommand):
         # Build the team abbreviation → Team FK lookup
         teams = {t.abbreviation: t for t in Team.objects.using("nfl").all()}
         if not teams:
-            self.stderr.write(self.style.WARNING(
-                "No teams found. Run seed_teams first."
-            ))
+            self.stderr.write(
+                self.style.WARNING("No teams found. Run seed_teams first.")
+            )
 
         where_clause = ""
         if season_filter:
@@ -55,10 +55,7 @@ class Command(BaseCommand):
                 {"AND" if where_clause else "WHERE"} passer_player_id IS NOT NULL
                     AND passer_player_id != ''
             """)
-            passers = [
-                (row[0], row[1], row[2], "QB")
-                for row in cursor.fetchall()
-            ]
+            passers = [(row[0], row[1], row[2], "QB") for row in cursor.fetchall()]
 
             # Extract rushers
             cursor.execute(f"""
@@ -68,10 +65,7 @@ class Command(BaseCommand):
                 {"AND" if where_clause else "WHERE"} rusher_player_id IS NOT NULL
                     AND rusher_player_id != ''
             """)
-            rushers = [
-                (row[0], row[1], row[2], "RB")
-                for row in cursor.fetchall()
-            ]
+            rushers = [(row[0], row[1], row[2], "RB") for row in cursor.fetchall()]
 
             # Extract receivers
             cursor.execute(f"""
@@ -81,10 +75,7 @@ class Command(BaseCommand):
                 {"AND" if where_clause else "WHERE"} receiver_player_id IS NOT NULL
                     AND receiver_player_id != ''
             """)
-            receivers = [
-                (row[0], row[1], row[2], "WR")
-                for row in cursor.fetchall()
-            ]
+            receivers = [(row[0], row[1], row[2], "WR") for row in cursor.fetchall()]
 
         # Merge all players — deduplicate by gsis_id, prefer role-based position
         player_map = {}  # gsis_id → (name, team_abbr, position)
@@ -99,7 +90,9 @@ class Command(BaseCommand):
                     # and most recent team
                     _, _, existing_pos = existing
                     pos_priority = {"QB": 3, "RB": 2, "WR": 1}
-                    if pos_priority.get(default_pos, 0) > pos_priority.get(existing_pos, 0):
+                    if pos_priority.get(default_pos, 0) > pos_priority.get(
+                        existing_pos, 0
+                    ):
                         player_map[player_id] = (name, team_abbr, default_pos)
                     elif team_abbr and not existing[1]:
                         player_map[player_id] = (name, team_abbr, existing_pos)

@@ -43,10 +43,7 @@ export default function HomePage() {
       <section className="py-16 border-t border-white/5 relative">
         <div className="absolute top-0 right-0 w-16 h-16 border-t border-r border-frontend/20 pointer-events-none" />
         <div className={layout.container}>
-          <SectionHeader
-            title="Recent Projects"
-            link={{ href: '/demos', label: 'View All →' }}
-          />
+          <SectionHeader title="Recent Projects" link={{ href: '/demos', label: 'View All →' }} />
           {artifactsLoading ? (
             <ProjectsGridSkeleton />
           ) : recentArtifacts.length > 0 ? (
@@ -63,9 +60,7 @@ export default function HomePage() {
 
       <section className="py-16 border-t border-white/5 bg-atlas-panel/30 backdrop-blur-md">
         <div className={layout.container}>
-          <h2 className={`${typography.h2} mb-8 text-frontend`}>
-            {props.apiSectionTitle}
-          </h2>
+          <h2 className={`${typography.h2} mb-8 text-frontend`}>{props.apiSectionTitle}</h2>
           <div className={layout.grid4}>
             {props.apiMethods.map((method) => (
               <ApiMethodCard key={method.title} {...method} />
@@ -122,7 +117,15 @@ function Hero({ greeting, headline, subhead, description, primaryCta, secondaryC
                 className="inline-flex items-center gap-2.5 px-7 py-3.5 bg-cosmic-metallic shadow-metallic-edge text-atlas-darker font-display font-bold text-[13px] uppercase tracking-wide hover:brightness-110 transition-all hover:-translate-y-0.5 rounded-[3px]"
               >
                 {primaryCta.label}
-                <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <svg
+                  className="w-3.5 h-3.5"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
                   <path d="M5 12h14M12 5l7 7-7 7" />
                 </svg>
               </Link>
@@ -186,12 +189,18 @@ function TelemetryPanel() {
         </div>
         <div className="flex flex-wrap gap-1">
           {['Django', 'Next.js', 'Go', 'Rust'].map((t) => (
-            <span key={t} className="font-mono text-[9px] px-2 py-0.5 border border-frontend/30 rounded-sm text-frontend-light bg-frontend/5 tracking-wider">
+            <span
+              key={t}
+              className="font-mono text-[9px] px-2 py-0.5 border border-frontend/30 rounded-sm text-frontend-light bg-frontend/5 tracking-wider"
+            >
               {t}
             </span>
           ))}
           {['PostgreSQL', 'Redis', 'Docker', 'C++'].map((t) => (
-            <span key={t} className="font-mono text-[9px] px-2 py-0.5 border border-white/6 rounded-sm text-slate-500 bg-white/2 tracking-wider">
+            <span
+              key={t}
+              className="font-mono text-[9px] px-2 py-0.5 border border-white/6 rounded-sm text-slate-500 bg-white/2 tracking-wider"
+            >
               {t}
             </span>
           ))}
@@ -212,24 +221,28 @@ function TelemetryGroup({ label, children }: { label: string; children: React.Re
   );
 }
 
-function TelemetryRow({ label, value, highlight, status }: {
+function TelemetryRow({
+  label,
+  value,
+  highlight,
+  status,
+}: {
   label: string;
   value: string;
   highlight?: boolean;
   status?: 'ok' | 'warn' | 'error';
 }) {
-  const valueColor = status === 'ok'
-    ? 'text-emerald-500'
-    : highlight
-      ? 'text-frontend-light'
-      : 'text-slate-400';
+  const valueColor =
+    status === 'ok' ? 'text-emerald-500' : highlight ? 'text-frontend-light' : 'text-slate-400';
 
   return (
     <div className="flex items-center justify-between px-4 py-1.5">
       <span className="font-mono text-[10px] text-slate-500 tracking-wider">{label}</span>
       <span className={`flex items-center gap-1.5 font-mono text-[11px] font-medium ${valueColor}`}>
         {status && (
-          <span className={`w-1 h-1 rounded-full ${status === 'ok' ? 'bg-emerald-500 shadow-[0_0_4px_rgba(16,185,129,0.6)]' : 'bg-red-500'}`} />
+          <span
+            className={`w-1 h-1 rounded-full ${status === 'ok' ? 'bg-emerald-500 shadow-[0_0_4px_rgba(16,185,129,0.6)]' : 'bg-red-500'}`}
+          />
         )}
         {value}
       </span>
@@ -345,7 +358,10 @@ function SkillsGridSkeleton() {
   return (
     <div className={layout.grid3}>
       {[...Array(6)].map((_, i) => (
-        <div key={i} className="p-6 bg-atlas-panel/40 border border-white/5 animate-pulse h-48 rounded" />
+        <div
+          key={i}
+          className="p-6 bg-atlas-panel/40 border border-white/5 animate-pulse h-48 rounded"
+        />
       ))}
     </div>
   );

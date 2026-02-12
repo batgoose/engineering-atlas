@@ -15,7 +15,6 @@ Model hierarchy:
 from django.db import models
 from django.contrib.postgres.fields import ArrayField
 
-
 # =============================================================================
 # TEAM & VENUE
 # =============================================================================
@@ -93,7 +92,9 @@ class Venue(models.Model):
         ("dome", "Dome"),
         ("retractable", "Retractable"),
     ]
-    roof_type = models.CharField(max_length=15, choices=ROOF_CHOICES, default="outdoors")
+    roof_type = models.CharField(
+        max_length=15, choices=ROOF_CHOICES, default="outdoors"
+    )
     surface = models.CharField(max_length=30, blank=True)  # "grass", "fieldturf"
     is_indoor = models.BooleanField(default=False)
 
@@ -124,20 +125,23 @@ class Player(models.Model):
     # ── Identifiers ──────────────────────────────────────
     # Store all platform IDs for cross-referencing
     gsis_id = models.CharField(
-        max_length=20, unique=True, db_index=True,
-        help_text="nflverse primary ID, e.g. '00-0033873'"
+        max_length=20,
+        unique=True,
+        db_index=True,
+        help_text="nflverse primary ID, e.g. '00-0033873'",
     )
     espn_id = models.CharField(max_length=20, blank=True, db_index=True)
     pfr_id = models.CharField(max_length=20, blank=True, db_index=True)
     pff_id = models.CharField(max_length=20, blank=True)
     otc_id = models.CharField(
-        max_length=20, blank=True,
-        help_text="OverTheCap ID, for contract joins"
+        max_length=20, blank=True, help_text="OverTheCap ID, for contract joins"
     )
     yahoo_id = models.CharField(max_length=20, blank=True)
     rotowire_id = models.CharField(max_length=20, blank=True)
     sportradar_id = models.CharField(max_length=50, blank=True)
-    esb_id = models.CharField(max_length=20, blank=True, help_text="Elias Sports Bureau ID")
+    esb_id = models.CharField(
+        max_length=20, blank=True, help_text="Elias Sports Bureau ID"
+    )
     smart_id = models.CharField(max_length=50, blank=True)
 
     # ── Bio ──────────────────────────────────────────────
@@ -211,8 +215,10 @@ class Player(models.Model):
         ("PRA", "Practice Squad"),
     ]
     roster_status = models.CharField(
-        max_length=5, choices=STATUS_CHOICES, blank=True,
-        help_text="Current roster status from nflverse"
+        max_length=5,
+        choices=STATUS_CHOICES,
+        blank=True,
+        help_text="Current roster status from nflverse",
     )
     depth_chart_position = models.CharField(max_length=10, blank=True)
 
@@ -222,16 +228,18 @@ class Player(models.Model):
     # ── Physical ─────────────────────────────────────────
     height = models.CharField(max_length=10, blank=True)  # "6-4"
     height_inches = models.IntegerField(
-        null=True, blank=True,
-        help_text="Height in inches for sorting/filtering (76 = 6'4\")"
+        null=True,
+        blank=True,
+        help_text="Height in inches for sorting/filtering (76 = 6'4\")",
     )
     weight = models.IntegerField(null=True, blank=True)  # pounds
     birth_date = models.DateField(null=True, blank=True)
 
     # ── College (primary — last school) ──────────────────
     college = models.CharField(
-        max_length=60, blank=True,
-        help_text="Last/primary college. Full history in PlayerCollegeHistory."
+        max_length=60,
+        blank=True,
+        help_text="Last/primary college. Full history in PlayerCollegeHistory.",
     )
     college_conference = models.CharField(max_length=30, blank=True)
 
@@ -239,25 +247,27 @@ class Player(models.Model):
     draft_year = models.IntegerField(null=True, blank=True)
     draft_round = models.IntegerField(null=True, blank=True)
     draft_pick = models.IntegerField(
-        null=True, blank=True,
-        help_text="Pick within the round"
+        null=True, blank=True, help_text="Pick within the round"
     )
     draft_overall = models.IntegerField(
-        null=True, blank=True,
-        help_text="Overall pick number (1-262)"
+        null=True, blank=True, help_text="Overall pick number (1-262)"
     )
     draft_team = models.ForeignKey(
-        Team, on_delete=models.SET_NULL, null=True, blank=True,
+        Team,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
         related_name="drafted_players",
-        help_text="Team that originally drafted this player"
+        help_text="Team that originally drafted this player",
     )
     is_undrafted = models.BooleanField(default=False)
 
     # ── Experience ───────────────────────────────────────
     rookie_season = models.IntegerField(null=True, blank=True)
     entry_year = models.IntegerField(
-        null=True, blank=True,
-        help_text="Year entered the league (may differ from draft year for UDFAs)"
+        null=True,
+        blank=True,
+        help_text="Year entered the league (may differ from draft year for UDFAs)",
     )
     years_experience = models.IntegerField(null=True, blank=True)
 
@@ -265,8 +275,7 @@ class Player(models.Model):
 
     # ── Timestamps ───────────────────────────────────────
     last_roster_check = models.DateTimeField(
-        null=True, blank=True,
-        help_text="Last time roster status / team was verified"
+        null=True, blank=True, help_text="Last time roster status / team was verified"
     )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -296,27 +305,24 @@ class PlayerContract(models.Model):
         Player, on_delete=models.CASCADE, related_name="contracts"
     )
     team = models.ForeignKey(
-        Team, on_delete=models.SET_NULL, null=True, blank=True,
-        help_text="Team the contract is with"
+        Team,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        help_text="Team the contract is with",
     )
 
     # Contract terms
     is_active = models.BooleanField(default=True)
     year_signed = models.IntegerField()
     years = models.IntegerField(help_text="Total contract length in years")
-    total_value = models.BigIntegerField(
-        help_text="Total contract value in dollars"
-    )
-    apy = models.BigIntegerField(
-        help_text="Average per year in dollars"
-    )
+    total_value = models.BigIntegerField(help_text="Total contract value in dollars")
+    apy = models.BigIntegerField(help_text="Average per year in dollars")
     guaranteed = models.BigIntegerField(
-        null=True, blank=True,
-        help_text="Total guaranteed money in dollars"
+        null=True, blank=True, help_text="Total guaranteed money in dollars"
     )
     apy_cap_pct = models.FloatField(
-        null=True, blank=True,
-        help_text="APY as percentage of salary cap at signing"
+        null=True, blank=True, help_text="APY as percentage of salary cap at signing"
     )
 
     # Inflation-adjusted values (from OTC)
@@ -327,8 +333,9 @@ class PlayerContract(models.Model):
     # Per-year cap details (stored as JSON for flexibility)
     # Each entry: {"year": 2025, "cap_hit": 28500000, "base_salary": 15000000, ...}
     year_details = models.JSONField(
-        default=list, blank=True,
-        help_text="Per-year breakdown: cap hit, base salary, bonuses, dead cap"
+        default=list,
+        blank=True,
+        help_text="Per-year breakdown: cap hit, base salary, bonuses, dead cap",
     )
 
     # Links
@@ -375,9 +382,7 @@ class PlayerCombine(models.Model):
     hand_size = models.FloatField(
         null=True, blank=True, help_text="Hand size in inches"
     )
-    wingspan = models.FloatField(
-        null=True, blank=True, help_text="Wingspan in inches"
-    )
+    wingspan = models.FloatField(null=True, blank=True, help_text="Wingspan in inches")
 
     # Drills
     forty_yard = models.FloatField(
@@ -445,20 +450,17 @@ class PlayerCollegeHistory(models.Model):
         null=True, blank=True, help_text="Last year at this school"
     )
     is_redshirt = models.BooleanField(
-        default=False,
-        help_text="Whether the player redshirted at this school"
+        default=False, help_text="Whether the player redshirted at this school"
     )
     redshirt_year = models.IntegerField(
-        null=True, blank=True,
-        help_text="Which year was the redshirt year, if known"
+        null=True, blank=True, help_text="Which year was the redshirt year, if known"
     )
     is_primary = models.BooleanField(
         default=False,
-        help_text="True for the school they were drafted from / last attended"
+        help_text="True for the school they were drafted from / last attended",
     )
     sequence = models.IntegerField(
-        default=1,
-        help_text="Order of schools: 1=first, 2=transfer, etc."
+        default=1, help_text="Order of schools: 1=first, 2=transfer, etc."
     )
 
     class Meta:
@@ -509,19 +511,28 @@ class PlayerTransaction(models.Model):
     transaction_type = models.CharField(max_length=20, choices=TRANSACTION_CHOICES)
     date = models.DateField()
     from_team = models.ForeignKey(
-        Team, on_delete=models.SET_NULL, null=True, blank=True,
-        related_name="outgoing_transactions"
+        Team,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="outgoing_transactions",
     )
     to_team = models.ForeignKey(
-        Team, on_delete=models.SET_NULL, null=True, blank=True,
-        related_name="incoming_transactions"
+        Team,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="incoming_transactions",
     )
     description = models.TextField(blank=True)
 
     # For trades — link related transactions
     related_transaction = models.ForeignKey(
-        "self", on_delete=models.SET_NULL, null=True, blank=True,
-        help_text="Links both sides of a trade"
+        "self",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        help_text="Links both sides of a trade",
     )
 
     season = models.IntegerField(null=True, blank=True)
@@ -584,12 +595,18 @@ class SocialAccount(models.Model):
 
     # Polymorphic link — exactly one should be set
     team = models.ForeignKey(
-        "Team", on_delete=models.CASCADE, null=True, blank=True,
-        related_name="social_accounts"
+        "Team",
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="social_accounts",
     )
     player = models.ForeignKey(
-        "Player", on_delete=models.CASCADE, null=True, blank=True,
-        related_name="social_accounts"
+        "Player",
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="social_accounts",
     )
 
     platform = models.CharField(max_length=15, choices=PLATFORM_CHOICES)
@@ -597,8 +614,7 @@ class SocialAccount(models.Model):
         max_length=15, choices=ACCOUNT_TYPE_CHOICES, default="official"
     )
     handle = models.CharField(
-        max_length=100,
-        help_text="Username/handle without @ (e.g. 'Seahawks')"
+        max_length=100, help_text="Username/handle without @ (e.g. 'Seahawks')"
     )
     url = models.URLField(max_length=500)
     display_name = models.CharField(max_length=100, blank=True)
@@ -625,9 +641,7 @@ class GameHashtag(models.Model):
     special event tags (#SuperBowl, #MNF, #SNF).
     """
 
-    game = models.ForeignKey(
-        "Game", on_delete=models.CASCADE, related_name="hashtags"
-    )
+    game = models.ForeignKey("Game", on_delete=models.CASCADE, related_name="hashtags")
     PLATFORM_CHOICES = [
         ("all", "All Platforms"),
         ("twitter", "Twitter / X"),
@@ -635,16 +649,12 @@ class GameHashtag(models.Model):
         ("bluesky", "Bluesky"),
         ("threads", "Threads"),
     ]
-    platform = models.CharField(
-        max_length=15, choices=PLATFORM_CHOICES, default="all"
-    )
+    platform = models.CharField(max_length=15, choices=PLATFORM_CHOICES, default="all")
     tag = models.CharField(
-        max_length=100,
-        help_text="Hashtag without # (e.g. 'SEAvsNE', 'SuperBowl')"
+        max_length=100, help_text="Hashtag without # (e.g. 'SEAvsNE', 'SuperBowl')"
     )
     is_primary = models.BooleanField(
-        default=False,
-        help_text="The main game hashtag (e.g. #SEAvsNE)"
+        default=False, help_text="The main game hashtag (e.g. #SEAvsNE)"
     )
 
     class Meta:
@@ -685,8 +695,11 @@ class NewsSource(models.Model):
 
     # For team-specific sources
     team = models.ForeignKey(
-        "Team", on_delete=models.CASCADE, null=True, blank=True,
-        related_name="news_sources"
+        "Team",
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="news_sources",
     )
 
     # Endpoint config
@@ -695,15 +708,14 @@ class NewsSource(models.Model):
         help_text=(
             "URL with placeholders: {team_id}, {player_id}, {espn_id}. "
             "e.g. 'https://site.api.espn.com/apis/site/v2/sports/football/nfl/news?team={espn_id}'"
-        )
+        ),
     )
     cache_ttl_seconds = models.IntegerField(
         default=300, help_text="How long to cache results in Redis (seconds)"
     )
     is_active = models.BooleanField(default=True)
     priority = models.IntegerField(
-        default=10,
-        help_text="Lower = higher priority. Controls display order."
+        default=10, help_text="Lower = higher priority. Controls display order."
     )
 
     class Meta:
@@ -748,12 +760,16 @@ class Game(models.Model):
 
     # ── Identifiers ──────────────────────────────────────
     espn_event_id = models.CharField(
-        max_length=20, unique=True, db_index=True,
-        help_text="ESPN event ID, e.g. '401772988'"
+        max_length=20,
+        unique=True,
+        db_index=True,
+        help_text="ESPN event ID, e.g. '401772988'",
     )
     nflverse_game_id = models.CharField(
-        max_length=30, blank=True, db_index=True,
-        help_text="nflverse game ID, e.g. '2025_22_SEA_NE'"
+        max_length=30,
+        blank=True,
+        db_index=True,
+        help_text="nflverse game ID, e.g. '2025_22_SEA_NE'",
     )
     pfr_game_id = models.CharField(max_length=20, blank=True)
 
@@ -768,7 +784,9 @@ class Game(models.Model):
         ("POST", "Postseason"),
         ("PRE", "Preseason"),
     ]
-    season_type = models.CharField(max_length=4, choices=SEASON_TYPE_CHOICES, default="REG")
+    season_type = models.CharField(
+        max_length=4, choices=SEASON_TYPE_CHOICES, default="REG"
+    )
 
     home_team = models.ForeignKey(
         Team, on_delete=models.CASCADE, related_name="home_games"
@@ -794,7 +812,9 @@ class Game(models.Model):
         ("postponed", "Postponed"),
         ("cancelled", "Cancelled"),
     ]
-    status = models.CharField(max_length=15, choices=STATUS_CHOICES, default="scheduled")
+    status = models.CharField(
+        max_length=15, choices=STATUS_CHOICES, default="scheduled"
+    )
     quarter = models.IntegerField(null=True, blank=True)
     clock = models.CharField(max_length=10, blank=True)  # "4:32"
 
@@ -885,9 +905,7 @@ class GameLeader(models.Model):
     team = models.ForeignKey(Team, on_delete=models.CASCADE)
     category = models.CharField(max_length=15, choices=CATEGORY_CHOICES)
 
-    player = models.ForeignKey(
-        Player, on_delete=models.SET_NULL, null=True, blank=True
-    )
+    player = models.ForeignKey(Player, on_delete=models.SET_NULL, null=True, blank=True)
     athlete_espn_id = models.CharField(max_length=20, blank=True)
     athlete_name = models.CharField(max_length=80)
     athlete_headshot_url = models.URLField(max_length=500, blank=True)
@@ -1000,9 +1018,7 @@ class Play(models.Model):
     # ESPN play ID + nflverse play ID (both float in nflverse)
     espn_play_id = models.CharField(max_length=20, blank=True)
     nflverse_play_id = models.FloatField(null=True, blank=True)
-    sequence = models.IntegerField(
-        help_text="Ordering within the game (0-indexed)"
-    )
+    sequence = models.IntegerField(help_text="Ordering within the game (0-indexed)")
 
     # ── Situation (pre-snap) ─────────────────────────────
     quarter = models.IntegerField(null=True, blank=True)
@@ -1018,12 +1034,18 @@ class Play(models.Model):
     down_distance_text = models.CharField(max_length=30, blank=True)  # "3rd & 7"
 
     possession_team = models.ForeignKey(
-        Team, on_delete=models.SET_NULL, null=True, blank=True,
-        related_name="offensive_plays"
+        Team,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="offensive_plays",
     )
     defensive_team = models.ForeignKey(
-        Team, on_delete=models.SET_NULL, null=True, blank=True,
-        related_name="defensive_plays"
+        Team,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="defensive_plays",
     )
 
     # ── Result ───────────────────────────────────────────
@@ -1147,7 +1169,9 @@ class ScoringPlay(models.Model):
         ("D-TD", "Defensive Touchdown"),
     ]
 
-    game = models.ForeignKey(Game, on_delete=models.CASCADE, related_name="scoring_plays")
+    game = models.ForeignKey(
+        Game, on_delete=models.CASCADE, related_name="scoring_plays"
+    )
     play = models.OneToOneField(Play, on_delete=models.CASCADE, null=True, blank=True)
     team = models.ForeignKey(Team, on_delete=models.CASCADE)
 
@@ -1165,7 +1189,9 @@ class ScoringPlay(models.Model):
         app_label = "redzone"
 
     def __str__(self):
-        return f"Q{self.quarter} {self.clock} {self.score_type} {self.team.abbreviation}"
+        return (
+            f"Q{self.quarter} {self.clock} {self.score_type} {self.team.abbreviation}"
+        )
 
 
 # =============================================================================
@@ -1182,8 +1208,12 @@ class PlayerGameStats(models.Model):
     """
 
     # ── Keys ─────────────────────────────────────────────
-    player = models.ForeignKey(Player, on_delete=models.CASCADE, related_name="game_stats")
-    game = models.ForeignKey(Game, on_delete=models.CASCADE, related_name="player_stats")
+    player = models.ForeignKey(
+        Player, on_delete=models.CASCADE, related_name="game_stats"
+    )
+    game = models.ForeignKey(
+        Game, on_delete=models.CASCADE, related_name="player_stats"
+    )
     team = models.ForeignKey(Team, on_delete=models.CASCADE, related_name="+")
     opponent = models.ForeignKey(Team, on_delete=models.CASCADE, related_name="+")
     season_year = models.IntegerField()
@@ -1454,12 +1484,15 @@ class Playbook(models.Model):
     name = models.CharField(max_length=100)
     description = models.TextField(blank=True)
     source_game = models.ForeignKey(
-        Game, on_delete=models.SET_NULL, null=True, blank=True,
-        help_text="If this playbook is a full game replay, the source game."
+        Game,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        help_text="If this playbook is a full game replay, the source game.",
     )
     is_full_game = models.BooleanField(
         default=False,
-        help_text="True if this contains every play from the source game."
+        help_text="True if this contains every play from the source game.",
     )
     play_count = models.IntegerField(default=0)
 
@@ -1483,8 +1516,7 @@ class PlaybookEntry(models.Model):
     play = models.ForeignKey(Play, on_delete=models.CASCADE)
     sequence = models.IntegerField()
     delay_seconds = models.FloatField(
-        default=5.0,
-        help_text="Seconds to wait before broadcasting this play."
+        default=5.0, help_text="Seconds to wait before broadcasting this play."
     )
 
     class Meta:

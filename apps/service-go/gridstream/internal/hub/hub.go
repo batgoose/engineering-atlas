@@ -27,7 +27,7 @@ type Client struct {
 
 	// subscriptions this client cares about
 	// empty means "all games" (scoreboard mode)
-	mu          sync.RWMutex
+	mu              sync.RWMutex
 	subscribedGames map[string]bool
 }
 
