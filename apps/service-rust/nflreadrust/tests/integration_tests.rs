@@ -1,12 +1,17 @@
 use nflreadrust::{insert_batch, models::PlayRecord};
 use sqlx::postgres::PgPoolOptions;
 
-const DB_URL: &str = "postgres://admin:password@localhost:5433/nfl_data";
+fn test_db_url() -> String {
+    std::env::var("TEST_DATABASE_URL")
+        .or_else(|_| std::env::var("DATABASE_URL"))
+        .unwrap_or_else(|_| "postgres://admin:password@localhost:5433/nfl_data".to_string())
+}
 
 #[tokio::test]
 async fn test_database_insert_read_flow() {
+    let db_url = test_db_url();
     let pool = PgPoolOptions::new()
-        .connect(DB_URL)
+        .connect(&db_url)
         .await
         .expect("Failed to connect to Docker DB - is it running?");
 
@@ -91,7 +96,8 @@ async fn test_database_insert_read_flow() {
 
 #[tokio::test]
 async fn test_insert_idempotency() {
-    let pool = PgPoolOptions::new().connect(DB_URL).await.unwrap();
+    let db_url = test_db_url();
+    let pool = PgPoolOptions::new().connect(&db_url).await.unwrap();
 
     let mock_play = PlayRecord {
         play_id: 88888.0,

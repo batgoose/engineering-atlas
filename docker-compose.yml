@@ -192,12 +192,7 @@ services:
       - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-http://api.localhost/api}
       - NODE_ENV=development
     volumes:
-      - ./apps/web-next/src:/app/apps/web-next/src
-      - ./apps/web-next/public:/app/apps/web-next/public
-      - ./apps/web-next/app:/app/apps/web-next/app
-      - ./apps/web-next/components:/app/apps/web-next/components
-      - ./apps/web-next/pages:/app/apps/web-next/pages
-      - ./apps/web-next/.env.local:/app/apps/web-next/.env.local
+      - ./apps/web-next:/app/apps/web-next
       - ./packages:/app/packages
       - /app/node_modules
       - /app/apps/web-next/node_modules

@@ -60,7 +60,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.10'
+          python-version: '3.14'
 
       - name: Install UV
         run: pip install uv
@@ -75,15 +75,19 @@ jobs:
       - name: Install Dependencies
         run: |
           uv pip install --system \
-            "django>=5.1,<6.0" \
+            "django>=5.2.11,<6.0" \
             "djangorestframework>=3.16.1,<4.0.0" \
             "django-environ>=0.12.0,<0.13.0" \
             "psycopg[binary]>=3.3.2,<4.0.0" \
             "drf-spectacular>=0.29.0,<0.30.0" \
-            "markdown>=3.10.1,<4.0.0" \
+            "markdown>=3.10.2,<4.0.0" \
             "django-filter>=25.2,<26.0" \
             "django-cors-headers>=4.9.0,<5.0.0" \
-            "requests>=2.31.0,<3.0.0"
+            "requests>=2.32.5,<3.0.0" \
+            "redis>=7.1.1,<8.0.0" \
+            "black>=26.1.0,<27.0.0" \
+            "pytest>=9.0.2,<10.0.0" \
+            "pytest-django>=4.11.1,<5.0.0"
 
       - name: Run Migrations
         env:
@@ -92,10 +96,10 @@ jobs:
           python manage.py migrate --noinput
           python manage.py migrate --database=nfl --noinput
 
-      - name: Run Tests
+      - name: Run Backend Tests
         env:
           CI: 'true'
-        run: python manage.py test --verbosity=2
+        run: pytest -v
 
   rust-ingestor-tests:
     name: Rust Ingestor Tests
@@ -201,6 +205,9 @@ jobs:
       - name: Run UI Package Tests
         run: pnpm --filter @atlas/ui test
 
+      - name: Run SDK Package Tests
+        run: pnpm --filter @atlas/web-next exec vitest --root ../.. run packages/sdk/src/__tests__
+
   format-check:
     name: Code Formatting
     runs-on: ubuntu-latest
@@ -212,7 +219,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.10'
+          python-version: '3.14'
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
@@ -224,7 +231,7 @@ jobs:
           cache: 'pnpm'
 
       - name: Install Black
-        run: pip install black
+        run: pip install "black>=26.1.0,<27.0.0"
 
       - name: Check Python Formatting
         run: black --check apps/api-django

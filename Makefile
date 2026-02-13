@@ -9,7 +9,7 @@ format-js:
 	pnpm exec prettier --write "**/*.{js,jsx,ts,tsx,json,css,md}" --ignore-path .gitignore
 
 format-rust:
-	docker compose exec service-rust cargo fmt
+	docker compose run --rm --no-deps service-rust cargo fmt
 
 format-go:
 	docker compose exec service-go go fmt ./...
@@ -17,7 +17,7 @@ format-go:
 format-check:
 	docker compose exec api-django black --check /app
 	pnpm exec prettier --check "**/*.{js,jsx,ts,tsx,json,css,md}" --ignore-path .gitignore
-	docker compose exec service-rust cargo fmt -- --check
+	docker compose run --rm --no-deps service-rust cargo fmt -- --check
 	docker compose exec service-go sh -c 'if [ -n "$$(gofmt -l .)" ]; then echo "Go code needs formatting"; exit 1; fi'
 
 check: format-check lint-js lint-go
@@ -39,11 +39,11 @@ lint-fix-js:
 	docker compose exec web-next pnpm lint -- --fix
 
 test:
-	docker compose exec api-django python manage.py test
-	docker compose exec service-rust cargo test
+	docker compose exec api-django pytest -v
+	docker compose run --rm -e TEST_DATABASE_URL=postgres://admin:password@postgres-nfl:5432/nfl_data service-rust cargo test
 	docker compose exec web-next pnpm test
 	cd packages/ui && pnpm test
-	# New: Go Tests
+	pnpm --filter @atlas/web-next exec vitest --root ../.. run packages/sdk/src/__tests__
 	docker compose exec service-go go test ./...
 
 restart:
@@ -59,7 +59,7 @@ shell-next:
 	docker compose exec web-next sh
 
 shell-rust:
-	docker compose exec service-rust sh
+	docker compose run --rm service-rust sh
 
 shell-go:
 	docker compose exec service-go sh

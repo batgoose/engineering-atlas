@@ -147,7 +147,7 @@ MINIO_ACCESS_KEY = env("MINIO_ACCESS_KEY", default="atlas_admin")
 MINIO_SECRET_KEY = env("MINIO_SECRET_KEY", default="atlas_password")
 MINIO_USE_SSL = env.bool("MINIO_USE_SSL", default=False)
 
-if "test" in sys.argv:
+if "test" in sys.argv or "pytest" in sys.modules:
     db_host = "localhost" if os.getenv("CI") else "postgres-atlas"
     nfl_db_host = "localhost" if os.getenv("CI") else "postgres-nfl"
     nfl_db_port = "5433" if os.getenv("CI") else "5432"

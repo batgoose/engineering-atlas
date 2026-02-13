@@ -4,6 +4,8 @@ dist/
 .next/
 
 __pycache__/
+.pytest_cache/
+**/.pytest_cache/
 *.py[cod]
 *$py.class
 .venv/
