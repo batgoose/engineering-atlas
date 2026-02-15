@@ -1,4 +1,4 @@
-export * from './redzone/gridstream-store';
+export * from './gridstream';
 export * from './api/client';
 export * from './contracts';
 export * from './site';

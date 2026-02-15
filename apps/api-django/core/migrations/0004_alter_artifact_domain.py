@@ -15,7 +15,7 @@ class Migration(migrations.Migration):
             name="domain",
             field=models.CharField(
                 choices=[
-                    ("football", "Project Redzone"),
+                    ("football", "Project Gridstream"),
                     ("atlas", "Engineering Atlas"),
                     ("infrastructure", "Infrastructure"),
                 ],

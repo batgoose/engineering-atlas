@@ -30,7 +30,7 @@ INSTALLED_APPS = [
     "django_filters",
     "drf_spectacular",
     "core",
-    "redzone",
+    "gridstream",
 ]
 
 MIDDLEWARE = [
@@ -104,14 +104,14 @@ TEMPLATES = [
 WSGI_APPLICATION = "config.wsgi.application"
 
 # databases
-# default is atlas core app, nfl is the redzone app plus raw nflverse plays
+# default is atlas core app, nfl is the gridstream app plus raw nflverse plays
 
 DATABASES = {
     "default": env.db(),
     "nfl": env.db("NFL_DATABASE_URL"),
 }
 
-DATABASE_ROUTERS = ["redzone.db_router.RedzoneRouter"]
+DATABASE_ROUTERS = ["gridstream.db_router.GridstreamRouter"]
 
 AUTH_PASSWORD_VALIDATORS = [
     {

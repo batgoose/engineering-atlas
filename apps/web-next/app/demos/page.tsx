@@ -74,7 +74,7 @@ export default function DemosPage() {
                   {project === 'all'
                     ? 'All'
                     : project === 'football'
-                      ? 'Redzone'
+                      ? 'Gridstream'
                       : capitalize(project)}
                 </FilterButton>
               ))}

@@ -16,7 +16,7 @@ Wait for health checks to pass before proceeding.
 
 ## Phase 0: Schema Creation
 
-Run Django migrations against both databases. The Atlas database holds core app models (auth, sessions, competencies, artifacts). The NFL database holds all Redzone models.
+Run Django migrations against both databases. The Atlas database holds core app models (auth, sessions, competencies, artifacts). The NFL database holds all Gridstream models.
 
 ```bash
 # Atlas (default) database

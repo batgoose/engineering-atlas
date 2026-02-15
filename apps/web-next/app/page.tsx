@@ -167,8 +167,8 @@ function TelemetryPanel() {
         <TelemetryRow label="Tech Stack" value="8 languages" />
       </TelemetryGroup>
 
-      {/* redzone */}
-      <TelemetryGroup label="Redzone Platform">
+      {/* gridstream */}
+      <TelemetryGroup label="Gridstream Platform">
         <TelemetryRow label="Historical Plays" value="1,283,491" />
         <TelemetryRow label="NFL Seasons" value="1999–2024" />
         <TelemetryRow label="Django Models" value="22" />

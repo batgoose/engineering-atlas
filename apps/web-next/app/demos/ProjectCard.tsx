@@ -17,7 +17,7 @@ const getStatusConfig = (status: Artifact['status']) => {
 
 const getDomainDisplay = (domain: Artifact['domain']) => {
   const mapping = {
-    football: 'Redzone',
+    football: 'Gridstream',
     infrastructure: 'Infrastructure',
     atlas: 'Atlas',
   };
