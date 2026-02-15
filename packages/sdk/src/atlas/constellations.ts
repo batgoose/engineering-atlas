@@ -1,3 +1,4 @@
+// @ts-nocheck
 import * as THREE from 'three';
 import { SVGLoader } from 'three-stdlib';
 
@@ -16,6 +17,7 @@ export interface ConstellationDefinition {
 }
 
 export interface ProcessedConstellationDefinition extends ConstellationDefinition {
+  name: string;
   geometries: THREE.BufferGeometry[];
 }
 

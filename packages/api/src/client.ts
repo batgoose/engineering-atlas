@@ -125,7 +125,7 @@ export async function getCategory(id: number | string): Promise<Category> {
 }
 
 export async function getCompetencies(filters?: CompetencyFilters): Promise<CompetencyNode[]> {
-  const query = filters ? buildQueryString(filters) : '';
+  const query = filters ? buildQueryString(filters as Record<string, unknown>) : '';
   return apiFetch<CompetencyNode[]>(`/competencies/${query}`);
 }
 
@@ -148,7 +148,7 @@ export async function searchCompetencies(query: string): Promise<CompetencyNode[
 }
 
 export async function getArtifacts(filters?: ArtifactFilters): Promise<Artifact[]> {
-  const query = filters ? buildQueryString(filters) : '';
+  const query = filters ? buildQueryString(filters as Record<string, unknown>) : '';
   return apiFetch<Artifact[]>(`/artifacts/${query}`);
 }
 

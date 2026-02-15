@@ -7,7 +7,7 @@ export function getIconAttrs(id: string, size: number = 16) {
     width: size,
     height: size,
     alt: `${id.replace('tool-', '')} icon`,
-    'aria-hidden': 'true',
+    'aria-hidden': true,
   };
 }
 
