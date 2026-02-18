@@ -1,140 +1,65 @@
 'use client';
 
-import type { HudTeam, ScoreByQuarter, GameTiming } from '@atlas/sdk/gridstream/types';
+/**
+ * Quarter-by-quarter scoreboard grid.
+ *
+ * Values come from the current replay frame, so this table reflects "state at
+ * play N" rather than final totals unless the user is at the end frame.
+ */
+
+import type { HudTeam, ScoreByQuarter } from '@atlas/sdk/gridstream/types';
 import { gridstreamColors as C, gridstreamFonts as F } from '@atlas/sdk/gridstream/theme';
+import { TeamBadge } from './ScoreBug';
 
 interface ScoreboardTableProps {
   away: HudTeam;
   home: HudTeam;
   awayScore: ScoreByQuarter;
   homeScore: ScoreByQuarter;
-  timing: GameTiming;
   possession: 'home' | 'away' | null;
 }
 
-export function ScoreboardTable({
-  away, home, awayScore, homeScore, timing, possession,
-}: ScoreboardTableProps) {
-  const hasOT = timing.isOT || awayScore.ot > 0 || homeScore.ot > 0;
-
-  const columns = ['Q1', 'Q2', 'Q3', 'Q4'];
-  if (hasOT) columns.push('OT');
+export function ScoreboardTable({ away, home, awayScore, homeScore, possession }: ScoreboardTableProps) {
+  const teams = [
+    { team: away, scores: awayScore, isP: possession === 'away', oppScore: homeScore.total },
+    { team: home, scores: homeScore, isP: possession === 'home', oppScore: awayScore.total },
+  ];
+  const qScores = (s: ScoreByQuarter) => [s.q1, s.q2, s.q3, s.q4];
 
   return (
-    <div style={{
-      border: `1px solid ${C.panelBorder}`,
-      background: C.bgPanel,
-    }}>
-      {/* Header */}
-      <div style={{
-        display: 'grid',
-        gridTemplateColumns: `1fr ${columns.map(() => '80px').join(' ')} 100px`,
-        padding: '10px 20px',
-        borderBottom: `1px solid ${C.panelBorder}`,
-      }}>
-        <span style={headerCellStyle}>TEAM</span>
-        {columns.map((q) => (
-          <span key={q} style={{ ...headerCellStyle, textAlign: 'center' }}>{q}</span>
-        ))}
-        <span style={{ ...headerCellStyle, textAlign: 'right' }}>TOTAL</span>
-      </div>
-
-      {/* Away row */}
-      <TeamScoreRow
-        team={away}
-        score={awayScore}
-        hasPossession={possession === 'away'}
-        hasOT={hasOT}
-        isHome={false}
-      />
-
-      {/* Home row */}
-      <TeamScoreRow
-        team={home}
-        score={homeScore}
-        hasPossession={possession === 'home'}
-        hasOT={hasOT}
-        isHome={true}
-      />
+    <div className="hud-panel" style={{ padding: '10px 20px' }}>
+      <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+        <thead>
+          <tr>
+            <th style={{ textAlign: 'left', padding: '4px 8px', width: '35%' }}><span className="hud-label">TEAM</span></th>
+            {['Q1', 'Q2', 'Q3', 'Q4'].map((q) => <th key={q} style={{ textAlign: 'center', padding: '4px 8px' }}><span className="hud-label">{q}</span></th>)}
+            <th style={{ textAlign: 'center', padding: '4px 8px', width: '12%' }}><span className="hud-label">TOTAL</span></th>
+          </tr>
+        </thead>
+        <tbody>
+          {teams.map(({ team, scores, isP, oppScore }) => (
+            <tr key={team.abbr} style={{ borderTop: `1px solid ${C.panelBorder}`, background: isP ? 'rgba(255,182,18,0.02)' : 'transparent' }}>
+              <td style={{ padding: '6px 8px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <TeamBadge team={team} size={24} hasPossession={isP} />
+                  <span style={{ fontFamily: F.body, fontWeight: 700, fontSize: 15, color: C.textBright, letterSpacing: '.03em' }}>{team.displayName}</span>
+                  {isP && <span style={{ fontFamily: F.display, fontSize: 8, fontWeight: 600, letterSpacing: '.12em', color: C.amber, padding: '1px 6px', border: `1px solid ${C.amberBorder}`, background: 'rgba(255,182,18,.06)' }}>POSS</span>}
+                </div>
+              </td>
+              {qScores(scores).map((s, i) => (
+                <td key={i} style={{ textAlign: 'center', padding: '6px 8px', fontFamily: F.display, fontSize: 14, fontWeight: 600, color: C.text }}>
+                  {s ?? '\u2014'}
+                </td>
+              ))}
+              <td style={{
+                textAlign: 'center', padding: '6px 8px', fontFamily: F.display, fontSize: 20, fontWeight: 800,
+                color: scores.total > oppScore ? C.cyan : C.textDim,
+                textShadow: scores.total > oppScore ? `0 0 8px ${C.cyanGlow}` : 'none',
+              }}>{scores.total}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }
-
-function TeamScoreRow({ team, score, hasPossession, hasOT, isHome }: {
-  team: HudTeam;
-  score: ScoreByQuarter;
-  hasPossession: boolean;
-  hasOT: boolean;
-  isHome: boolean;
-}) {
-  const quarters = [score.q1, score.q2, score.q3, score.q4];
-  if (hasOT) quarters.push(score.ot);
-
-  const colTemplate = `1fr ${quarters.map(() => '80px').join(' ')} 100px`;
-
-  return (
-    <div style={{
-      display: 'grid',
-      gridTemplateColumns: colTemplate,
-      padding: '10px 20px',
-      alignItems: 'center',
-      borderBottom: `1px solid ${C.panelBorder}`,
-      background: hasPossession ? 'rgba(0,229,255,.02)' : 'transparent',
-    }}>
-      {/* Team name + logo + possession */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-        <span style={{
-          fontFamily: F.display, fontSize: 10, fontWeight: 700,
-          color: `#${team.color}`, letterSpacing: '.08em',
-        }}>
-          {team.abbr}
-        </span>
-        <span style={{
-          fontFamily: F.body, fontSize: 15, fontWeight: 700,
-          color: C.textBright,
-        }}>
-          {team.displayName}
-        </span>
-        {hasPossession && (
-          <span style={{
-            fontFamily: F.display, fontSize: 8, fontWeight: 700,
-            padding: '2px 8px', color: C.green,
-            background: 'rgba(0,230,118,.1)',
-            letterSpacing: '.15em',
-          }}>
-            POSS
-          </span>
-        )}
-      </div>
-
-      {/* Quarter scores */}
-      {quarters.map((q, i) => (
-        <span key={i} style={{
-          textAlign: 'center',
-          fontFamily: F.display, fontSize: 14, fontWeight: 600,
-          color: q > 0 ? C.textBright : C.textDim,
-        }}>
-          {q > 0 ? q : '—'}
-        </span>
-      ))}
-
-      {/* Total */}
-      <span style={{
-        textAlign: 'right',
-        fontFamily: F.display, fontSize: 20, fontWeight: 800,
-        color: isHome ? C.green : C.textBright,
-      }}>
-        {score.total}
-      </span>
-    </div>
-  );
-}
-
-const headerCellStyle = {
-  fontFamily: "'Orbitron', monospace",
-  fontSize: 9,
-  fontWeight: 600 as const,
-  letterSpacing: '.15em',
-  color: C.textDim,
-  textTransform: 'uppercase' as const,
-};

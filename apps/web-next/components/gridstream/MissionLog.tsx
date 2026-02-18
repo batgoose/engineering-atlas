@@ -1,5 +1,12 @@
 'use client';
 
+/**
+ * Mission log table (play-by-play feed) for the active replay frame.
+ *
+ * Color coding intentionally uses lightweight text heuristics so the feed stays
+ * readable even when upstream play_type values are inconsistent.
+ */
+
 import type { MissionLogEntry } from '@atlas/sdk/gridstream/types';
 import { gridstreamColors as C, gridstreamFonts as F } from '@atlas/sdk/gridstream/theme';
 
@@ -14,7 +21,7 @@ export function MissionLog({ plays }: MissionLogProps) {
       <div style={{
         display: 'flex', gap: 8, padding: '8px 20px',
         borderBottom: `1px solid ${C.panelBorder}`,
-        position: 'sticky', top: 0, background: C.bgPanel, zIndex: 1,
+        position: 'sticky', top: 0, background: C.panel, zIndex: 1,
       }}>
         <span style={{ ...headerStyle, width: 32 }}>Q</span>
         <span style={{ ...headerStyle, width: 55 }}>TIME</span>
@@ -24,7 +31,16 @@ export function MissionLog({ plays }: MissionLogProps) {
       </div>
 
       {/* Play rows (newest first) */}
-      {[...plays].reverse().map((p, i) => (
+      {[...plays].reverse().map((p, i) => {
+        const textLower = p.text.toLowerCase();
+        const eventColor = p.type === 'turnover' || textLower.includes('intercept') || textLower.includes('sack')
+          ? C.red
+          : p.type === 'score' || textLower.includes('field goal') || textLower.includes('touchdown')
+            ? C.green
+            : textLower.includes('punt')
+              ? C.cyan
+              : C.text;
+        return (
         <div
           key={p.id}
           className="play-row"
@@ -52,9 +68,7 @@ export function MissionLog({ plays }: MissionLogProps) {
           {/* Event description */}
           <span style={{
             flex: 1, fontSize: 13, lineHeight: 1.5,
-            color: p.type === 'turnover' ? C.red
-              : p.type === 'score' ? C.green
-              : C.text,
+            color: eventColor,
           }}>
             {p.team && (
               <span style={{
@@ -77,13 +91,14 @@ export function MissionLog({ plays }: MissionLogProps) {
             {p.epa !== 0 ? p.epa.toFixed(1) : '—'}
           </span>
         </div>
-      ))}
+        );
+      })}
     </div>
   );
 }
 
 const headerStyle = {
-  fontFamily: "'Orbitron', monospace",
+  fontFamily: F.display,
   fontSize: 8,
   fontWeight: 600 as const,
   letterSpacing: '.2em',

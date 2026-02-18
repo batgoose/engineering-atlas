@@ -2,6 +2,8 @@ node_modules/
 .turbo/
 dist/
 .next/
+*.tsbuildinfo
+**/*.tsbuildinfo
 
 __pycache__/
 .pytest_cache/

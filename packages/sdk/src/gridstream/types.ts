@@ -77,6 +77,9 @@ export interface GameContext {
   clock: string;
   homeScore: number;
   awayScore: number;
+
+  homeScoreByQuarter?: ScoreByQuarter;
+  awayScoreByQuarter?: ScoreByQuarter;
 }
 
 export interface GameUpdate {
@@ -85,6 +88,10 @@ export interface GameUpdate {
   clock: string;
   homeScore: number;
   awayScore: number;
+  homeScoreByQuarter?: ScoreByQuarter;
+  awayScoreByQuarter?: ScoreByQuarter;
+  homeTimeouts?: number;
+  awayTimeouts?: number;
   possession?: string;
   spread?: number;
   total?: number;
@@ -187,11 +194,11 @@ export interface HudTeam {
   abbr: string;
   name: string;
   displayName: string;
-  color: string;        // hex without #
-  altColor: string;     // hex without #
+  color: string; // hex without #
+  altColor: string; // hex without #
   logoUrl: string;
   record: string;
-  endzoneName: string;  // "COMMANDERS", "EAGLES"
+  endzoneName: string; // "COMMANDERS", "EAGLES"
 }
 
 export interface WeatherState {
@@ -215,8 +222,8 @@ export interface GameTiming {
 export interface Situation {
   down: number;
   distance: number;
-  yardLine: number;       // yards from own endzone (yardline_100)
-  side: string;           // team abbreviation whose side of field
+  yardLine: number; // yards from own endzone (yardline_100)
+  side: string; // team abbreviation whose side of field
   downDistText: string;
   possessionTeam: string; // team abbreviation
 }
@@ -248,21 +255,11 @@ export interface ScoreByQuarter {
 
 // ─── Play Animation Types ───────────────────────────────────────
 
-export type AnimPlayType =
-  | 'pass'
-  | 'rush'
-  | 'turnover'
-  | 'kick'
-  | 'fieldgoal';
+export type AnimPlayType = 'pass' | 'rush' | 'turnover' | 'kick' | 'fieldgoal';
 
 export type PassDirection = 'left' | 'middle' | 'right';
 
-export type FgResult =
-  | 'made'
-  | 'wide_left'
-  | 'wide_right'
-  | 'short'
-  | 'blocked';
+export type FgResult = 'made' | 'wide_left' | 'wide_right' | 'short' | 'blocked';
 
 export interface ReceiverInfo {
   name: string;
@@ -271,9 +268,20 @@ export interface ReceiverInfo {
   tds: number;
 }
 
+export interface PlayActorInfo {
+  name: string;
+  line?: string;
+  summary?: string;
+  lines?: string[];
+  previousLines?: string[];
+  headshotUrl?: string;
+}
+
 export interface PlayAnimationData {
   type: AnimPlayType;
   direction: PassDirection;
+  offenseTeam?: string;
+  startDistance?: number;
   fromYardline: number;
   fromSide: string;
   toYardline: number;
@@ -284,9 +292,36 @@ export interface PlayAnimationData {
   isFirstDown: boolean;
   isTurnover: boolean;
   turnoverBy?: string;
+  turnoverSpotYardline?: number;
+  turnoverSpotSide?: string;
   receiver?: ReceiverInfo | null;
+  actor?: PlayActorInfo | null;
+  qbActor?: PlayActorInfo | null;
+  kickLandingYardline?: number;
+  kickLandingSide?: string;
   fgResult?: FgResult;
   fgDistance?: number;
+  isTouchdown?: boolean;
+  penaltyTeam?: string;
+  penaltyType?: string;
+  penaltyPlayer?: string;
+  penaltyYards?: number;
+  penaltyEnforcedYardline?: number;
+  penaltyEnforcedSide?: string;
+  penaltyAdjustedYardline?: number;
+  penaltyAdjustedSide?: string;
+  isNoPlay?: boolean;
+  postScoreTryMiss?: boolean;
+  postScoreTryKind?: 'two_point' | 'extra_point';
+  postScoreTryPlayType?: 'pass' | 'rush' | 'kick';
+  postScoreTryDirection?: PassDirection;
+  postScoreTryIsGood?: boolean;
+  postScoreTryFromYardline?: number;
+  postScoreTryFromSide?: string;
+  postScoreTryToYardline?: number;
+  postScoreTryToSide?: string;
+  postScoreTryActor?: PlayActorInfo | null;
+  postScoreTryQbActor?: PlayActorInfo | null;
   description: string;
 }
 
@@ -300,6 +335,9 @@ export interface FantasyRosterEntry {
   name: string;
   position: PositionGroup;
   points: number;
+  pointsPpr?: number;
+  pointsHalfPpr?: number;
+  pointsStandard?: number;
   breakdown: string;
 }
 
@@ -310,6 +348,37 @@ export interface PlayerSeasonLine {
   statLine: string;
   last5: number[];
   positionRank: string;
+}
+
+export interface TeamStatLine {
+  totalYards: number;
+  passingYards: number;
+  rushingYards: number;
+  firstDowns: number;
+  thirdDown: string; // "5/12"
+  turnovers: number;
+  top: string; // time of possession, "31:04"
+  penalties: string; // "7-55"
+  sacks: number;
+}
+
+export interface LeaderEntry {
+  name: string;
+  line: string; // stat summary, "22/34, 287 YDS, 2 TD"
+}
+
+export interface LeaderSet {
+  passing: LeaderEntry;
+  rushing: LeaderEntry;
+  receiving: LeaderEntry;
+}
+
+export interface ScoringEntry {
+  q: number;
+  team: string; // abbreviation
+  desc: string;
+  awayScore: number; // running score after this event
+  homeScore: number;
 }
 
 // ─── Mission Log Entry ──────────────────────────────────────────
@@ -372,7 +441,13 @@ export interface LiveGameState {
   playerSeasonStats: Record<string, PlayerSeasonLine>;
   fantasyScoring: FantasyScoring;
 
+  homeTimeouts: number;
+  awayTimeouts: number;
+  teamStats: { away: TeamStatLine; home: TeamStatLine } | null;
+  leaders: { away: LeaderSet; home: LeaderSet } | null;
+  scoring: ScoringEntry[];
+
   // Play navigation
-  playIndex: number;        // -1 = live (latest)
+  playIndex: number; // -1 = live (latest)
   playHistoryLength: number;
 }

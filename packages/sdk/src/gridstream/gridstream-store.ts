@@ -25,7 +25,6 @@ import type {
   HudTeam,
   ScoreByQuarter,
   GameStatus,
-  WpTimelinePoint,
 } from './types';
 import { ENDZONE_NAMES } from './constants';
 import { classifyPlayAnimation, computeGameProgress } from './transforms';
@@ -41,7 +40,16 @@ type EventListener<T = unknown> = (type: EventType, payload: T) => void;
 // ─── Default State ──────────────────────────────────────────────
 
 function createDefaultTeam(): HudTeam {
-  return { abbr: '', name: '', displayName: '', color: '333333', altColor: '666666', logoUrl: '', record: '', endzoneName: '' };
+  return {
+    abbr: '',
+    name: '',
+    displayName: '',
+    color: '333333',
+    altColor: '666666',
+    logoUrl: '',
+    record: '',
+    endzoneName: '',
+  };
 }
 
 function createDefaultScore(): ScoreByQuarter {
@@ -58,11 +66,24 @@ function createDefaultState(): LiveGameState {
     awayScore: createDefaultScore(),
     homeScore: createDefaultScore(),
     timing: { quarter: 1, clock: '15:00', isOT: false, elapsedMin: 0, totalMin: 60 },
-    situation: { down: 0, distance: 0, yardLine: 0, side: '', downDistText: '', possessionTeam: '' },
+    situation: {
+      down: 0,
+      distance: 0,
+      yardLine: 0,
+      side: '',
+      downDistText: '',
+      possessionTeam: '',
+    },
     possession: null,
     currentDrive: null,
     venue: '',
-    weather: { temperature: 72, condition: 'Clear', wind: '', humidity: undefined, isIndoor: false },
+    weather: {
+      temperature: 72,
+      condition: 'Clear',
+      wind: '',
+      humidity: undefined,
+      isIndoor: false,
+    },
     network: '',
     spread: null,
     wpTimeline: [],
@@ -76,6 +97,11 @@ function createDefaultState(): LiveGameState {
     fantasyScoring: 'half_ppr',
     playIndex: -1,
     playHistoryLength: 0,
+    homeTimeouts: 3,
+    awayTimeouts: 3,
+    teamStats: null,
+    leaders: null,
+    scoring: [],
   };
 }
 
@@ -144,10 +170,7 @@ class GridStreamStore {
   }
 
   private scheduleReconnect(url: string) {
-    const delay = Math.min(
-      1000 * Math.pow(2, this.reconnectAttempts),
-      this.maxReconnectDelay,
-    );
+    const delay = Math.min(1000 * Math.pow(2, this.reconnectAttempts), this.maxReconnectDelay);
     this.reconnectAttempts++;
     this.reconnectTimer = setTimeout(() => this.connect(url), delay);
   }
@@ -208,8 +231,22 @@ class GridStreamStore {
       away,
       home,
       status: ctx.status as GameStatus,
-      awayScore: { q1: 0, q2: 0, q3: 0, q4: 0, ot: 0, total: ctx.awayScore },
-      homeScore: { q1: 0, q2: 0, q3: 0, q4: 0, ot: 0, total: ctx.homeScore },
+      awayScore: ctx.awayScoreByQuarter ?? {
+        q1: 0,
+        q2: 0,
+        q3: 0,
+        q4: 0,
+        ot: 0,
+        total: ctx.awayScore,
+      },
+      homeScore: ctx.homeScoreByQuarter ?? {
+        q1: 0,
+        q2: 0,
+        q3: 0,
+        q4: 0,
+        ot: 0,
+        total: ctx.homeScore,
+      },
       timing,
       venue: ctx.venueName,
       weather: {
@@ -227,11 +264,7 @@ class GridStreamStore {
   }
 
   private handleGameUpdate(update: GameUpdate) {
-    const timing = computeGameProgress(
-      update.quarter,
-      update.clock,
-      update.quarter > 4,
-    );
+    const timing = computeGameProgress(update.quarter, update.clock, update.quarter > 4);
 
     const patch: Partial<LiveGameState> = {
       status: update.status as GameStatus,
@@ -257,7 +290,7 @@ class GridStreamStore {
   }
 
   private handlePlay(play: PlayEvent) {
-    const animData = classifyPlayAnimation(play, this.state.away.abbr);
+    const animData = classifyPlayAnimation(play, this.state.away.abbr, this.state.home.abbr);
 
     // Add to history
     this.playHistory.push(animData);
@@ -384,9 +417,8 @@ class GridStreamStore {
 
   /** Step back one play */
   public prevPlay() {
-    const current = this.state.playIndex === -1
-      ? this.playHistory.length - 1
-      : this.state.playIndex;
+    const current =
+      this.state.playIndex === -1 ? this.playHistory.length - 1 : this.state.playIndex;
     this.navigateToPlay(Math.max(0, current - 1));
   }
 
@@ -454,7 +486,14 @@ class GridStreamStore {
 
   // ── Internals ───────────────────────────────────────────────
 
-  private teamInfoToHud(info: { abbreviation: string; displayName: string; color: string; altColor: string; logoUrl: string; record?: string }): HudTeam {
+  private teamInfoToHud(info: {
+    abbreviation: string;
+    displayName: string;
+    color: string;
+    altColor: string;
+    logoUrl: string;
+    record?: string;
+  }): HudTeam {
     const abbr = info.abbreviation;
     return {
       abbr,

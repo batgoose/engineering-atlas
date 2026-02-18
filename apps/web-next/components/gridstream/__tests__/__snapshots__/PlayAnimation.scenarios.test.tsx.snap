@@ -1,0 +1,1570 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`PlayAnimation scenario coverage > matches scenario snapshot: 'field-goal-good' 1`] = `
+<svg
+  viewBox="0 0 1000 420"
+>
+  <g>
+    <g
+      style="opacity: 0; animation: fadeIn 0.16s ease 0s forwards;"
+    >
+      <rect
+        fill="rgba(7,11,20,.9)"
+        height="46"
+        rx="2"
+        stroke="rgba(255,182,18,0.25)"
+        stroke-width="1.2"
+        width="338"
+        x="522.36"
+        y="32"
+      />
+      <text
+        fill="#ffb612"
+        font-family="'Orbitron', monospace"
+        font-size="30"
+        font-weight="700"
+        letter-spacing=".08em"
+        text-anchor="middle"
+        x="691.36"
+        y="64"
+      >
+        FG ATTEMPT
+      </text>
+    </g>
+    <path
+      d="M 691.36,210 Q 820.6800000000001,50 950,210"
+      fill="none"
+      opacity="0.5"
+      pathLength="1"
+      stroke="#00e676"
+      stroke-dasharray="1"
+      stroke-dashoffset="1"
+      stroke-width="2"
+    >
+      <animate
+        attributeName="stroke-dashoffset"
+        dur="1.332s"
+        fill="freeze"
+        from="1"
+        to="0"
+      />
+    </path>
+    <circle
+      cx="950"
+      cy="210"
+      fill="#00e676"
+      opacity="0"
+      r="5"
+      style="animation: fadeIn 0.3s ease 1.332s forwards;"
+    />
+    <text
+      fill="#00e676"
+      font-family="'Orbitron', monospace"
+      font-size="11"
+      font-weight="800"
+      letter-spacing="2"
+      style="opacity: 0; animation: slideUp 0.3s ease 1.4320000000000002s forwards;"
+      text-anchor="middle"
+      x="950"
+      y="196"
+    >
+      GOOD
+    </text>
+    <text
+      fill="#5a7a90"
+      font-family="'Share Tech Mono', monospace"
+      font-size="9"
+      style="opacity: 0; animation: slideUp 0.3s ease 1.532s forwards;"
+      text-anchor="middle"
+      x="950"
+      y="208"
+    >
+      41
+       YDS
+    </text>
+    <g
+      style="opacity: 0; animation: slideUp 0.28s ease 1.572s forwards;"
+    >
+      <rect
+        fill="rgba(4,11,24,.94)"
+        height="74"
+        rx="2"
+        stroke="#ffb612"
+        stroke-opacity="0.4"
+        stroke-width="1"
+        width="148"
+        x="531.36"
+        y="130"
+      />
+      <text
+        fill="#e0f0ff"
+        font-family="'Orbitron', monospace"
+        font-size="17"
+        font-weight="700"
+        text-anchor="start"
+        x="541.36"
+        y="148"
+      >
+        J.Myers
+      </text>
+      <text
+        fill="#ffb612"
+        font-family="'Orbitron', monospace"
+        font-size="16"
+        font-weight="700"
+        text-anchor="start"
+        x="541.36"
+        y="166"
+      >
+        FG GOOD
+      </text>
+      <g>
+        <text
+          fill="#e0f0ff"
+          fill-opacity="0.98"
+          font-family="'Share Tech Mono', monospace"
+          font-size="15"
+          letter-spacing=".02em"
+          text-anchor="start"
+          x="541.36"
+          y="186"
+        >
+          2/2 FG
+        </text>
+      </g>
+    </g>
+  </g>
+</svg>
+`;
+
+exports[`PlayAnimation scenario coverage > matches scenario snapshot: 'field-goal-miss-right' 1`] = `
+<svg
+  viewBox="0 0 1000 420"
+>
+  <g>
+    <g
+      style="opacity: 0; animation: fadeIn 0.16s ease 0s forwards;"
+    >
+      <rect
+        fill="rgba(7,11,20,.9)"
+        height="46"
+        rx="2"
+        stroke="rgba(255,182,18,0.25)"
+        stroke-width="1.2"
+        width="338"
+        x="470.8399999999999"
+        y="32"
+      />
+      <text
+        fill="#ffb612"
+        font-family="'Orbitron', monospace"
+        font-size="30"
+        font-weight="700"
+        letter-spacing=".08em"
+        text-anchor="middle"
+        x="639.8399999999999"
+        y="64"
+      >
+        FG ATTEMPT
+      </text>
+    </g>
+    <path
+      d="M 639.8399999999999,210 Q 794.92,50 950,270"
+      fill="none"
+      opacity="0.5"
+      pathLength="1"
+      stroke="#ff3b4f"
+      stroke-dasharray="1"
+      stroke-dashoffset="1"
+      stroke-width="2"
+    >
+      <animate
+        attributeName="stroke-dashoffset"
+        dur="1.332s"
+        fill="freeze"
+        from="1"
+        to="0"
+      />
+    </path>
+    <circle
+      cx="950"
+      cy="270"
+      fill="#ff3b4f"
+      opacity="0"
+      r="5"
+      style="animation: fadeIn 0.3s ease 1.332s forwards;"
+    />
+    <text
+      fill="#ff3b4f"
+      font-family="'Orbitron', monospace"
+      font-size="11"
+      font-weight="800"
+      letter-spacing="2"
+      style="opacity: 0; animation: slideUp 0.3s ease 1.4320000000000002s forwards;"
+      text-anchor="middle"
+      x="950"
+      y="256"
+    >
+      WIDE RIGHT
+    </text>
+    <text
+      fill="#5a7a90"
+      font-family="'Share Tech Mono', monospace"
+      font-size="9"
+      style="opacity: 0; animation: slideUp 0.3s ease 1.532s forwards;"
+      text-anchor="middle"
+      x="950"
+      y="268"
+    >
+      49
+       YDS
+    </text>
+    <g
+      style="opacity: 0; animation: slideUp 0.28s ease 1.572s forwards;"
+    >
+      <rect
+        fill="rgba(4,11,24,.94)"
+        height="74"
+        rx="2"
+        stroke="#ff3b4f"
+        stroke-opacity="0.4"
+        stroke-width="1"
+        width="148"
+        x="479.8399999999999"
+        y="130"
+      />
+      <text
+        fill="#e0f0ff"
+        font-family="'Orbitron', monospace"
+        font-size="17"
+        font-weight="700"
+        text-anchor="start"
+        x="489.8399999999999"
+        y="148"
+      >
+        J.Myers
+      </text>
+      <text
+        fill="#ff3b4f"
+        font-family="'Orbitron', monospace"
+        font-size="16"
+        font-weight="700"
+        text-anchor="start"
+        x="489.8399999999999"
+        y="166"
+      >
+        FG NO GOOD
+      </text>
+      <g>
+        <text
+          fill="#e0f0ff"
+          fill-opacity="0.98"
+          font-family="'Share Tech Mono', monospace"
+          font-size="15"
+          letter-spacing=".02em"
+          text-anchor="start"
+          x="489.8399999999999"
+          y="186"
+        >
+          1/2 FG
+        </text>
+      </g>
+    </g>
+  </g>
+</svg>
+`;
+
+exports[`PlayAnimation scenario coverage > matches scenario snapshot: 'kickoff-return' 1`] = `
+<svg
+  viewBox="0 0 1000 420"
+>
+  <g>
+    <g
+      style="opacity: 0; animation: fadeIn 0.16s ease 0s forwards;"
+    >
+      <rect
+        fill="rgba(7,11,20,.9)"
+        height="46"
+        rx="2"
+        stroke="rgba(255,182,18,0.25)"
+        stroke-width="1.2"
+        width="263"
+        x="258.09999999999997"
+        y="32"
+      />
+      <text
+        fill="#ffb612"
+        font-family="'Orbitron', monospace"
+        font-size="30"
+        font-weight="700"
+        letter-spacing=".08em"
+        text-anchor="middle"
+        x="389.59999999999997"
+        y="64"
+      >
+        KICKOFF
+      </text>
+    </g>
+    <path
+      d="M 389.59999999999997,210 Q 606.7199999999999,90 823.8399999999999,210"
+      data-anim="kick-main-path"
+      fill="none"
+      opacity="0.52"
+      pathLength="1"
+      stroke="#00e5ff"
+      stroke-dasharray="1"
+      stroke-dashoffset="1"
+      stroke-width="1.8"
+    >
+      <animate
+        attributeName="stroke-dashoffset"
+        dur="0.6881999999999999s"
+        fill="freeze"
+        from="1"
+        to="0"
+      />
+    </path>
+    <circle
+      fill="#00e5ff"
+      opacity="0.95"
+      r="3.5"
+    >
+      <animatemotion
+        dur="0.6881999999999999s"
+        fill="freeze"
+        path="M 389.59999999999997,210 Q 606.7199999999999,90 823.8399999999999,210"
+      />
+    </circle>
+    <path
+      d="M 823.8399999999999,210 Q 592,176 360.15999999999997,210"
+      data-anim="kick-return-path"
+      fill="none"
+      opacity="0.68"
+      pathLength="1"
+      stroke="#ffb612"
+      stroke-dasharray="1"
+      stroke-dashoffset="1"
+      stroke-width="2.2"
+      visibility="hidden"
+    >
+      <set
+        attributeName="visibility"
+        begin="0.6881999999999999s"
+        fill="freeze"
+        to="visible"
+      />
+      <animate
+        attributeName="stroke-dashoffset"
+        begin="0.6881999999999999s"
+        dur="0.6437999999999999s"
+        fill="freeze"
+        from="1"
+        to="0"
+      />
+    </path>
+    <circle
+      data-anim="kick-return-runner"
+      fill="#ffb612"
+      opacity="0.96"
+      r="4.2"
+      style="filter: drop-shadow(0 0 6px rgba(255,182,18,0.4));"
+      visibility="hidden"
+    >
+      <set
+        attributeName="visibility"
+        begin="0.6881999999999999s"
+        fill="freeze"
+        to="visible"
+      />
+      <animatemotion
+        begin="0.6881999999999999s"
+        dur="0.6437999999999999s"
+        fill="freeze"
+        path="M 823.8399999999999,210 Q 592,176 360.15999999999997,210"
+      />
+    </circle>
+    <circle
+      cx="823.8399999999999"
+      cy="210"
+      data-anim="kick-landing-dot"
+      fill="#00e5ff"
+      opacity="0"
+      r="3.2"
+      visibility="hidden"
+    >
+      <set
+        attributeName="visibility"
+        begin="0.7282s"
+        fill="freeze"
+        to="visible"
+      />
+      <animate
+        attributeName="opacity"
+        begin="0.7282s"
+        dur="0.25s"
+        fill="freeze"
+        from="0"
+        to="1"
+      />
+    </circle>
+    <circle
+      cx="360.15999999999997"
+      cy="210"
+      data-anim="kick-end-dot"
+      fill="#ffb612"
+      opacity="0"
+      r="5"
+      visibility="hidden"
+    >
+      <set
+        attributeName="visibility"
+        begin="1.3719999999999999s"
+        fill="freeze"
+        to="visible"
+      />
+      <animate
+        attributeName="opacity"
+        begin="1.3719999999999999s"
+        dur="0.25s"
+        fill="freeze"
+        from="0"
+        to="1"
+      />
+    </circle>
+    <text
+      fill="#5a7a90"
+      font-family="'Orbitron', monospace"
+      font-size="10"
+      font-weight="600"
+      style="opacity: 0; animation: slideUp 0.3s ease 1.382s forwards;"
+      text-anchor="middle"
+      x="360.15999999999997"
+      y="228"
+    >
+      +25 RET
+    </text>
+    <g
+      style="opacity: 0; animation: slideUp 0.28s ease 1.382s forwards;"
+    >
+      <rect
+        fill="rgba(4,11,24,.94)"
+        height="74"
+        rx="2"
+        stroke="#ffb612"
+        stroke-opacity="0.4"
+        stroke-width="1"
+        width="214"
+        x="134.15999999999997"
+        y="126"
+      />
+      <text
+        fill="#e0f0ff"
+        font-family="'Orbitron', monospace"
+        font-size="17"
+        font-weight="700"
+        text-anchor="start"
+        x="144.15999999999997"
+        y="144"
+      >
+        R.Shaheed
+      </text>
+      <text
+        fill="#ffb612"
+        font-family="'Orbitron', monospace"
+        font-size="16"
+        font-weight="700"
+        text-anchor="start"
+        x="144.15999999999997"
+        y="162"
+      >
+        25 Yard Return
+      </text>
+      <g>
+        <text
+          fill="#e0f0ff"
+          fill-opacity="0.98"
+          font-family="'Share Tech Mono', monospace"
+          font-size="15"
+          letter-spacing=".02em"
+          text-anchor="start"
+          x="144.15999999999997"
+          y="182"
+        >
+          2 Returns - 47 Yards
+        </text>
+      </g>
+    </g>
+  </g>
+</svg>
+`;
+
+exports[`PlayAnimation scenario coverage > matches scenario snapshot: 'kickoff-touchback' 1`] = `
+<svg
+  viewBox="0 0 1000 420"
+>
+  <g>
+    <g
+      style="opacity: 0; animation: fadeIn 0.16s ease 0s forwards;"
+    >
+      <rect
+        fill="rgba(7,11,20,.9)"
+        height="46"
+        rx="2"
+        stroke="rgba(255,182,18,0.25)"
+        stroke-width="1.2"
+        width="263"
+        x="258.09999999999997"
+        y="32"
+      />
+      <text
+        fill="#ffb612"
+        font-family="'Orbitron', monospace"
+        font-size="30"
+        font-weight="700"
+        letter-spacing=".08em"
+        text-anchor="middle"
+        x="389.59999999999997"
+        y="64"
+      >
+        KICKOFF
+      </text>
+    </g>
+    <path
+      d="M 389.59999999999997,210 Q 628.8,90 868,210"
+      data-anim="kick-main-path"
+      fill="none"
+      opacity="0.52"
+      pathLength="1"
+      stroke="#00e5ff"
+      stroke-dasharray="1"
+      stroke-dashoffset="1"
+      stroke-width="1.8"
+    >
+      <animate
+        attributeName="stroke-dashoffset"
+        dur="0.6881999999999999s"
+        fill="freeze"
+        from="1"
+        to="0"
+      />
+    </path>
+    <circle
+      fill="#00e5ff"
+      opacity="0.95"
+      r="3.5"
+    >
+      <animatemotion
+        dur="0.6881999999999999s"
+        fill="freeze"
+        path="M 389.59999999999997,210 Q 628.8,90 868,210"
+      />
+    </circle>
+    <path
+      d="M 868,210 L 647.1999999999999,210"
+      data-anim="kick-return-path"
+      fill="none"
+      opacity="0.68"
+      pathLength="1"
+      stroke="#00e5ff"
+      stroke-dasharray="1"
+      stroke-dashoffset="1"
+      stroke-width="2.2"
+      visibility="hidden"
+    >
+      <set
+        attributeName="visibility"
+        begin="0.6881999999999999s"
+        fill="freeze"
+        to="visible"
+      />
+      <animate
+        attributeName="stroke-dashoffset"
+        begin="0.6881999999999999s"
+        dur="0.6437999999999999s"
+        fill="freeze"
+        from="1"
+        to="0"
+      />
+    </path>
+    <circle
+      cx="868"
+      cy="210"
+      data-anim="kick-landing-dot"
+      fill="#00e5ff"
+      opacity="0"
+      r="3.2"
+      visibility="hidden"
+    >
+      <set
+        attributeName="visibility"
+        begin="0.7282s"
+        fill="freeze"
+        to="visible"
+      />
+      <animate
+        attributeName="opacity"
+        begin="0.7282s"
+        dur="0.25s"
+        fill="freeze"
+        from="0"
+        to="1"
+      />
+    </circle>
+    <circle
+      cx="647.1999999999999"
+      cy="210"
+      data-anim="kick-end-dot"
+      fill="#00e5ff"
+      opacity="0"
+      r="5"
+      visibility="hidden"
+    >
+      <set
+        attributeName="visibility"
+        begin="1.3719999999999999s"
+        fill="freeze"
+        to="visible"
+      />
+      <animate
+        attributeName="opacity"
+        begin="1.3719999999999999s"
+        dur="0.25s"
+        fill="freeze"
+        from="0"
+        to="1"
+      />
+    </circle>
+    <text
+      fill="#5a7a90"
+      font-family="'Orbitron', monospace"
+      font-size="10"
+      font-weight="600"
+      style="opacity: 0; animation: slideUp 0.3s ease 1.382s forwards;"
+      text-anchor="middle"
+      x="647.1999999999999"
+      y="228"
+    >
+      TOUCHBACK
+    </text>
+  </g>
+</svg>
+`;
+
+exports[`PlayAnimation scenario coverage > matches scenario snapshot: 'pass-complete-right' 1`] = `
+<svg
+  viewBox="0 0 1000 420"
+>
+  <g>
+    <path
+      d="M 566.24,210 Q 614.0799999999999,176.51200000000003 661.92,270"
+      data-anim="pass-main-path"
+      fill="none"
+      opacity="0.5"
+      pathLength="1"
+      stroke="#00e5ff"
+      stroke-dasharray="1"
+      stroke-dashoffset="1"
+      stroke-width="2"
+    >
+      <animate
+        attributeName="stroke-dashoffset"
+        dur="1.24s"
+        fill="freeze"
+        from="1"
+        to="0"
+      />
+    </path>
+    <circle
+      fill="#00e5ff"
+      opacity="0.95"
+      r="3.6"
+    >
+      <animatemotion
+        dur="1.24s"
+        fill="freeze"
+        path="M 566.24,210 Q 614.0799999999999,176.51200000000003 661.92,270"
+      />
+    </circle>
+    <circle
+      cx="661.92"
+      cy="270"
+      data-anim="pass-end-flash"
+      fill="none"
+      r="4"
+      stroke="#00e676"
+      stroke-width="2"
+      style="animation: catchFlash 0.6s ease 1.26s forwards; opacity: 0;"
+    />
+    <circle
+      cx="661.92"
+      cy="270"
+      data-anim="pass-end-dot"
+      fill="#00e5ff"
+      opacity="0"
+      r="4.6"
+      visibility="hidden"
+    >
+      <set
+        attributeName="visibility"
+        begin="1.28s"
+        fill="freeze"
+        to="visible"
+      />
+      <animate
+        attributeName="opacity"
+        begin="1.28s"
+        dur="0.22s"
+        fill="freeze"
+        from="0"
+        to="1"
+      />
+    </circle>
+    <text
+      fill="#00e676"
+      font-family="'Orbitron', monospace"
+      font-size="12"
+      font-weight="700"
+      style="opacity: 0; animation: slideUp 0.3s ease 1.44s forwards;"
+      text-anchor="middle"
+      x="661.92"
+      y="256"
+    >
+      +13
+    </text>
+    <g
+      style="opacity: 0; animation: slideUp 0.28s ease 1.5s forwards;"
+    >
+      <rect
+        fill="rgba(4,11,24,.94)"
+        height="74"
+        rx="2"
+        stroke="#ffb612"
+        stroke-opacity="0.4"
+        stroke-width="1"
+        width="214"
+        x="673.92"
+        y="194"
+      />
+      <text
+        fill="#e0f0ff"
+        font-family="'Orbitron', monospace"
+        font-size="17"
+        font-weight="700"
+        text-anchor="start"
+        x="683.92"
+        y="212"
+      >
+        T.Henry
+      </text>
+      <text
+        fill="#ffb612"
+        font-family="'Orbitron', monospace"
+        font-size="16"
+        font-weight="700"
+        text-anchor="start"
+        x="683.92"
+        y="230"
+      >
+        13 Yard Catch
+      </text>
+      <g>
+        <text
+          fill="#e0f0ff"
+          fill-opacity="0.98"
+          font-family="'Share Tech Mono', monospace"
+          font-size="15"
+          letter-spacing=".02em"
+          text-anchor="start"
+          x="683.92"
+          y="250"
+        >
+          2 Catches - 25 Yards
+        </text>
+      </g>
+    </g>
+    <g
+      style="opacity: 0; animation: slideUp 0.28s ease 0.8250000000000001s forwards;"
+    >
+      <rect
+        fill="rgba(4,11,24,.94)"
+        height="74"
+        rx="2"
+        stroke="#00e5ff"
+        stroke-opacity="0.4"
+        stroke-width="1"
+        width="261"
+        x="293.24"
+        y="108"
+      />
+      <text
+        fill="#e0f0ff"
+        font-family="'Orbitron', monospace"
+        font-size="17"
+        font-weight="700"
+        text-anchor="start"
+        x="303.24"
+        y="126"
+      >
+        D.Maye
+      </text>
+      <text
+        fill="#00e5ff"
+        font-family="'Orbitron', monospace"
+        font-size="16"
+        font-weight="700"
+        text-anchor="start"
+        x="303.24"
+        y="144"
+      >
+        13 Yard Pass
+      </text>
+      <g>
+        <text
+          fill="#e0f0ff"
+          fill-opacity="0.98"
+          font-family="'Share Tech Mono', monospace"
+          font-size="15"
+          letter-spacing=".02em"
+          text-anchor="start"
+          x="303.24"
+          y="164"
+        >
+          12/18 Passing - 142 Yards
+        </text>
+      </g>
+    </g>
+    <g>
+      <line
+        opacity="0.6"
+        stroke="#00e676"
+        stroke-width="3"
+        style="animation: firstDownPulse 1.2s ease 1.3s forwards;"
+        x1="661.92"
+        x2="661.92"
+        y1="30"
+        y2="390"
+      />
+      <line
+        opacity="0.4"
+        stroke="#ffb612"
+        stroke-dasharray="6 4"
+        stroke-width="1.5"
+        style="animation: firstDownSweep 0.8s ease 1.3s forwards;"
+        x1="661.92"
+        x2="661.92"
+        y1="30"
+        y2="390"
+      />
+      <g
+        style="opacity: 0; animation: slideUp 0.3s ease 1.6s forwards;"
+      >
+        <rect
+          fill="#00e676"
+          height="14"
+          opacity="0.9"
+          rx="2"
+          width="68"
+          x="627.92"
+          y="6"
+        />
+        <text
+          fill="#070b14"
+          font-family="'Orbitron', monospace"
+          font-size="8"
+          font-weight="800"
+          text-anchor="middle"
+          x="661.92"
+          y="17"
+        >
+          1ST DOWN
+        </text>
+      </g>
+    </g>
+  </g>
+</svg>
+`;
+
+exports[`PlayAnimation scenario coverage > matches scenario snapshot: 'pass-incomplete-left' 1`] = `
+<svg
+  viewBox="0 0 1000 420"
+>
+  <g>
+    <path
+      d="M 264.48,210 Q 280.212,118 295.944,150"
+      data-anim="pass-main-path"
+      fill="none"
+      opacity="0.5"
+      pathLength="1"
+      stroke="#ff3b4f"
+      stroke-dasharray="1"
+      stroke-dashoffset="1"
+      stroke-width="2"
+    >
+      <animate
+        attributeName="stroke-dashoffset"
+        dur="1.24s"
+        fill="freeze"
+        from="1"
+        to="0"
+      />
+    </path>
+    <circle
+      fill="#ff3b4f"
+      opacity="0.95"
+      r="3.6"
+    >
+      <animatemotion
+        dur="1.24s"
+        fill="freeze"
+        path="M 264.48,210 Q 280.212,118 295.944,150"
+      />
+    </circle>
+    <circle
+      cx="295.944"
+      cy="150"
+      data-anim="pass-end-flash"
+      fill="none"
+      r="4"
+      stroke="#ff3b4f"
+      stroke-width="2"
+      style="animation: catchFlash 0.6s ease 1.26s forwards; opacity: 0;"
+    />
+    <g
+      style="opacity: 0; animation: slideUp 0.25s ease 1.29s forwards;"
+    >
+      <line
+        stroke="#ff3b4f"
+        stroke-linecap="round"
+        stroke-width="2.5"
+        x1="287.944"
+        x2="303.944"
+        y1="142"
+        y2="158"
+      />
+      <line
+        stroke="#ff3b4f"
+        stroke-linecap="round"
+        stroke-width="2.5"
+        x1="303.944"
+        x2="287.944"
+        y1="142"
+        y2="158"
+      />
+    </g>
+    <text
+      fill="#ff3b4f"
+      font-family="'Orbitron', monospace"
+      font-size="12"
+      font-weight="700"
+      style="opacity: 0; animation: slideUp 0.3s ease 1.44s forwards;"
+      text-anchor="middle"
+      x="295.944"
+      y="136"
+    >
+      INC
+    </text>
+    <g
+      style="opacity: 0; animation: slideUp 0.28s ease 0.8250000000000001s forwards;"
+    >
+      <rect
+        fill="rgba(4,11,24,.94)"
+        height="74"
+        rx="2"
+        stroke="#00e5ff"
+        stroke-opacity="0.4"
+        stroke-width="1"
+        width="261"
+        x="4"
+        y="120"
+      />
+      <text
+        fill="#e0f0ff"
+        font-family="'Orbitron', monospace"
+        font-size="17"
+        font-weight="700"
+        text-anchor="start"
+        x="14"
+        y="138"
+      >
+        S.Darnold
+      </text>
+      <text
+        fill="#00e5ff"
+        font-family="'Orbitron', monospace"
+        font-size="16"
+        font-weight="700"
+        text-anchor="start"
+        x="14"
+        y="156"
+      >
+        Incomplete Pass
+      </text>
+      <g>
+        <text
+          fill="#e0f0ff"
+          fill-opacity="0.98"
+          font-family="'Share Tech Mono', monospace"
+          font-size="15"
+          letter-spacing=".02em"
+          text-anchor="start"
+          x="14"
+          y="176"
+        >
+          15/21 Passing - 179 Yards
+        </text>
+      </g>
+    </g>
+  </g>
+</svg>
+`;
+
+exports[`PlayAnimation scenario coverage > matches scenario snapshot: 'punt-out-of-bounds' 1`] = `
+<svg
+  viewBox="0 0 1000 420"
+>
+  <g>
+    <g
+      style="opacity: 0; animation: fadeIn 0.16s ease 0s forwards;"
+    >
+      <rect
+        fill="rgba(7,11,20,.9)"
+        height="46"
+        rx="2"
+        stroke="rgba(255,182,18,0.25)"
+        stroke-width="1.2"
+        width="220"
+        x="331.12"
+        y="32"
+      />
+      <text
+        fill="#ffb612"
+        font-family="'Orbitron', monospace"
+        font-size="30"
+        font-weight="700"
+        letter-spacing=".08em"
+        text-anchor="middle"
+        x="441.12"
+        y="64"
+      >
+        PUNT
+      </text>
+    </g>
+    <path
+      d="M 441.12,210 Q 632.48,70 823.8399999999999,22"
+      data-anim="kick-main-path"
+      fill="none"
+      opacity="0.52"
+      pathLength="1"
+      stroke="#00e5ff"
+      stroke-dasharray="1"
+      stroke-dashoffset="1"
+      stroke-width="1.8"
+    >
+      <animate
+        attributeName="stroke-dashoffset"
+        dur="1.1099999999999999s"
+        fill="freeze"
+        from="1"
+        to="0"
+      />
+    </path>
+    <circle
+      fill="#00e5ff"
+      opacity="0.95"
+      r="3.5"
+    >
+      <animatemotion
+        dur="1.1099999999999999s"
+        fill="freeze"
+        path="M 441.12,210 Q 632.48,70 823.8399999999999,22"
+      />
+    </circle>
+    <circle
+      cx="823.8399999999999"
+      cy="22"
+      data-anim="kick-landing-dot"
+      fill="#00e5ff"
+      opacity="0"
+      r="5"
+      visibility="hidden"
+    >
+      <set
+        attributeName="visibility"
+        begin="1.15s"
+        fill="freeze"
+        to="visible"
+      />
+      <animate
+        attributeName="opacity"
+        begin="1.15s"
+        dur="0.25s"
+        fill="freeze"
+        from="0"
+        to="1"
+      />
+    </circle>
+    <circle
+      cx="823.8399999999999"
+      cy="22"
+      data-anim="kick-end-dot"
+      fill="#00e5ff"
+      opacity="0"
+      r="5"
+      visibility="hidden"
+    >
+      <set
+        attributeName="visibility"
+        begin="1.15s"
+        fill="freeze"
+        to="visible"
+      />
+      <animate
+        attributeName="opacity"
+        begin="1.15s"
+        dur="0.25s"
+        fill="freeze"
+        from="0"
+        to="1"
+      />
+    </circle>
+    <text
+      fill="#5a7a90"
+      font-family="'Orbitron', monospace"
+      font-size="10"
+      font-weight="600"
+      style="opacity: 0; animation: slideUp 0.3s ease 1.21s forwards;"
+      text-anchor="middle"
+      x="823.8399999999999"
+      y="42"
+    >
+      52 YDS OOB
+    </text>
+  </g>
+</svg>
+`;
+
+exports[`PlayAnimation scenario coverage > matches scenario snapshot: 'rush-middle' 1`] = `
+<svg
+  viewBox="0 0 1000 420"
+>
+  <g>
+    <path
+      d="M 617.76,210 C 630.64,222 644.256,214.2 654.56,210"
+      data-anim="rush-main-path"
+      fill="none"
+      opacity="0.58"
+      pathLength="1"
+      stroke="#00e5ff"
+      stroke-dasharray="1"
+      stroke-dashoffset="1"
+      stroke-width="2.2"
+    >
+      <animate
+        attributeName="stroke-dashoffset"
+        dur="0.8640000000000001s"
+        fill="freeze"
+        from="1"
+        to="0"
+      />
+    </path>
+    <circle
+      fill="#00e5ff"
+      opacity="0.95"
+      r="4.2"
+      style="filter: drop-shadow(0 0 6px rgba(0,229,255,0.3));"
+    >
+      <animatemotion
+        dur="0.8640000000000001s"
+        fill="freeze"
+        path="M 617.76,210 C 630.64,222 644.256,214.2 654.56,210"
+      />
+    </circle>
+    <circle
+      cx="654.56"
+      cy="210"
+      fill="#00e5ff"
+      opacity="0"
+      r="5"
+      style="animation: fadeIn 0.3s ease 0.8640000000000001s forwards;"
+    />
+    <text
+      fill="#00e5ff"
+      font-family="'Orbitron', monospace"
+      font-size="12"
+      font-weight="700"
+      style="opacity: 0; animation: slideUp 0.3s ease 0.9640000000000001s forwards;"
+      text-anchor="middle"
+      x="654.56"
+      y="198"
+    >
+      +
+      5
+    </text>
+    <g
+      style="opacity: 0; animation: slideUp 0.28s ease 1.5s forwards;"
+    >
+      <rect
+        fill="rgba(4,11,24,.94)"
+        height="74"
+        rx="2"
+        stroke="#00e5ff"
+        stroke-opacity="0.4"
+        stroke-width="1"
+        width="205"
+        x="666.56"
+        y="134"
+      />
+      <text
+        fill="#e0f0ff"
+        font-family="'Orbitron', monospace"
+        font-size="17"
+        font-weight="700"
+        text-anchor="start"
+        x="676.56"
+        y="152"
+      >
+        K.Walker
+      </text>
+      <text
+        fill="#00e5ff"
+        font-family="'Orbitron', monospace"
+        font-size="16"
+        font-weight="700"
+        text-anchor="start"
+        x="676.56"
+        y="170"
+      >
+        5 Yard Rush
+      </text>
+      <g>
+        <text
+          fill="#e0f0ff"
+          fill-opacity="0.98"
+          font-family="'Share Tech Mono', monospace"
+          font-size="15"
+          letter-spacing=".02em"
+          text-anchor="start"
+          x="676.56"
+          y="190"
+        >
+          6 Rushes - 39 Yards
+        </text>
+      </g>
+    </g>
+  </g>
+</svg>
+`;
+
+exports[`PlayAnimation scenario coverage > matches scenario snapshot: 'sack-loss' 1`] = `
+<svg
+  viewBox="0 0 1000 420"
+>
+  <g>
+    <path
+      d="M 661.92,210 L 625.12,210"
+      data-anim="pass-main-path"
+      fill="none"
+      opacity="0.5"
+      pathLength="1"
+      stroke="#ff3b4f"
+      stroke-dasharray="1"
+      stroke-dashoffset="1"
+      stroke-width="2.4"
+    >
+      <animate
+        attributeName="stroke-dashoffset"
+        dur="1.24s"
+        fill="freeze"
+        from="1"
+        to="0"
+      />
+    </path>
+    <circle
+      fill="#ff3b4f"
+      opacity="0.95"
+      r="3.6"
+    >
+      <animatemotion
+        dur="1.24s"
+        fill="freeze"
+        path="M 661.92,210 L 625.12,210"
+      />
+    </circle>
+    <circle
+      cx="625.12"
+      cy="210"
+      data-anim="pass-end-flash"
+      fill="none"
+      r="4"
+      stroke="#ff3b4f"
+      stroke-width="2"
+      style="animation: catchFlash 0.6s ease 1.26s forwards; opacity: 0;"
+    />
+    <circle
+      cx="625.12"
+      cy="210"
+      data-anim="pass-end-dot"
+      fill="#ff3b4f"
+      opacity="0"
+      r="4.4"
+      visibility="hidden"
+    >
+      <set
+        attributeName="visibility"
+        begin="1.28s"
+        fill="freeze"
+        to="visible"
+      />
+      <animate
+        attributeName="opacity"
+        begin="1.28s"
+        dur="0.22s"
+        fill="freeze"
+        from="0"
+        to="1"
+      />
+    </circle>
+    <text
+      fill="#ff3b4f"
+      font-family="'Orbitron', monospace"
+      font-size="12"
+      font-weight="700"
+      style="opacity: 0; animation: slideUp 0.3s ease 1.44s forwards;"
+      text-anchor="middle"
+      x="625.12"
+      y="196"
+    >
+      SACK
+    </text>
+    <g
+      style="opacity: 0; animation: slideUp 0.28s ease 0.8250000000000001s forwards;"
+    >
+      <rect
+        fill="rgba(4,11,24,.94)"
+        height="94"
+        rx="2"
+        stroke="#ff3b4f"
+        stroke-opacity="0.4"
+        stroke-width="1"
+        width="261"
+        x="673.92"
+        y="100"
+      />
+      <text
+        fill="#e0f0ff"
+        font-family="'Orbitron', monospace"
+        font-size="17"
+        font-weight="700"
+        text-anchor="start"
+        x="683.92"
+        y="118"
+      >
+        D.Maye
+      </text>
+      <text
+        fill="#ff3b4f"
+        font-family="'Orbitron', monospace"
+        font-size="16"
+        font-weight="700"
+        text-anchor="start"
+        x="683.92"
+        y="136"
+      >
+        -5 Yard Sack
+      </text>
+      <g>
+        <text
+          fill="#e0f0ff"
+          fill-opacity="0.98"
+          font-family="'Share Tech Mono', monospace"
+          font-size="15"
+          letter-spacing=".02em"
+          text-anchor="start"
+          x="683.92"
+          y="156"
+        >
+          17/30 Passing - 214 Yards
+        </text>
+      </g>
+      <g>
+        <text
+          fill="#e0f0ff"
+          fill-opacity="0.98"
+          font-family="'Share Tech Mono', monospace"
+          font-size="15"
+          letter-spacing=".02em"
+          text-anchor="start"
+          x="683.92"
+          y="176"
+        >
+          3 Sacks
+        </text>
+      </g>
+    </g>
+  </g>
+</svg>
+`;
+
+exports[`PlayAnimation scenario coverage > matches scenario snapshot: 'turnover-interception-return' 1`] = `
+<svg
+  viewBox="0 0 1000 420"
+>
+  <g>
+    <rect
+      fill="#ff3b4f"
+      height="360"
+      style="animation: turnoverFlash 1s ease forwards;"
+      width="900"
+      x="50"
+      y="30"
+    />
+    <path
+      d="M 544.1600000000001,210 Q 437.44000000000005,81.69919999999998 330.72,150"
+      data-anim="turnover-main-path"
+      fill="none"
+      opacity="0.58"
+      pathLength="1"
+      stroke="#00e5ff"
+      stroke-dasharray="1"
+      stroke-dashoffset="1"
+      stroke-width="2.1"
+    >
+      <animate
+        attributeName="stroke-dashoffset"
+        dur="0.858s"
+        fill="freeze"
+        from="1"
+        to="0"
+      />
+    </path>
+    <circle
+      fill="#00e5ff"
+      opacity="0.95"
+      r="3.8"
+    >
+      <animatemotion
+        dur="0.858s"
+        fill="freeze"
+        path="M 544.1600000000001,210 Q 437.44000000000005,81.69919999999998 330.72,150"
+      />
+    </circle>
+    <circle
+      cx="330.72"
+      cy="150"
+      fill="#ff3b4f"
+      opacity="0"
+      r="4.6"
+      style="animation: fadeIn 0.22s ease 0.858s forwards;"
+    />
+    <path
+      d="M 330.72,150 Q 459.52,246 588.3199999999999,210"
+      fill="none"
+      opacity="0"
+      stroke="#ff3b4f"
+      stroke-dasharray="5 4"
+      stroke-dashoffset="1000"
+      stroke-width="2.3"
+      style="animation: fadeIn 0.08s linear 1.078s forwards, trailDraw 0.9569999999999999s ease 1.078s forwards;"
+    />
+    <circle
+      fill="#ff3b4f"
+      opacity="0"
+      r="4"
+      style="filter: drop-shadow(0 0 6px rgba(255,59,79,0.6)); animation: fadeIn 0.08s linear 1.078s forwards;"
+    >
+      <animatemotion
+        begin="1.078s"
+        dur="0.9569999999999999s"
+        fill="freeze"
+        path="M 330.72,150 Q 459.52,246 588.3199999999999,210"
+      />
+    </circle>
+    <circle
+      cx="588.3199999999999"
+      cy="210"
+      fill="#ff3b4f"
+      opacity="0"
+      r="4.6"
+      style="animation: fadeIn 0.22s ease 2.035s forwards;"
+    />
+    <g
+      style="opacity: 0; animation: slideUp 0.3s ease 0.938s forwards;"
+    >
+      <text
+        fill="#ff3b4f"
+        font-family="'Orbitron', monospace"
+        font-size="11"
+        font-weight="800"
+        text-anchor="middle"
+        x="330.72"
+        y="128"
+      >
+        SEA
+      </text>
+      <text
+        fill="#ff3b4f"
+        font-family="'Orbitron', monospace"
+        font-size="10"
+        font-weight="700"
+        letter-spacing="2"
+        text-anchor="middle"
+        x="330.72"
+        y="140"
+      >
+        TURNOVER
+      </text>
+    </g>
+    <g
+      style="opacity: 0; animation: slideUp 0.28s ease 2.115s forwards;"
+    >
+      <rect
+        fill="rgba(4,11,24,.94)"
+        height="74"
+        rx="2"
+        stroke="#ff3b4f"
+        stroke-opacity="0.4"
+        stroke-width="1"
+        width="242"
+        x="600.3199999999999"
+        y="126"
+      />
+      <text
+        fill="#e0f0ff"
+        font-family="'Orbitron', monospace"
+        font-size="17"
+        font-weight="700"
+        text-anchor="start"
+        x="610.3199999999999"
+        y="144"
+      >
+        J.Love
+      </text>
+      <text
+        fill="#ff3b4f"
+        font-family="'Orbitron', monospace"
+        font-size="16"
+        font-weight="700"
+        text-anchor="start"
+        x="610.3199999999999"
+        y="162"
+      >
+        35 Yard Return
+      </text>
+      <g>
+        <text
+          fill="#e0f0ff"
+          fill-opacity="0.98"
+          font-family="'Share Tech Mono', monospace"
+          font-size="15"
+          letter-spacing=".02em"
+          text-anchor="start"
+          x="610.3199999999999"
+          y="182"
+        >
+          1 INT - 35 Return Yards
+        </text>
+      </g>
+    </g>
+  </g>
+</svg>
+`;

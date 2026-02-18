@@ -17,6 +17,7 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './'),
+      '@atlas/sdk/gridstream': path.resolve(__dirname, '../../packages/sdk/src/gridstream'),
     },
   },
 });

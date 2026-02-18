@@ -20,6 +20,12 @@ Endpoints:
   /seasons/                     — season metadata
   /news/{entity}/{id}/          — proxied news feeds
   /transactions/                — recent roster transactions
+
+OpenAPI prep note:
+  When Swagger/OpenAPI wiring is added, annotate these ViewSets with
+  drf-spectacular decorators (`@extend_schema`, `@extend_schema_view`)
+  so each custom action (`live`, `plays`, `drives`, `boxscore`, etc.)
+  has explicit request/response examples.
 """
 
 import logging
@@ -32,6 +38,22 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.exceptions import NotFound
 
+# Optional OpenAPI decorators.
+# If drf-spectacular is not installed yet, these no-op shims let us keep
+# endpoint annotation intent close to the code without breaking runtime.
+try:
+    from drf_spectacular.utils import extend_schema, extend_schema_view
+except Exception:  # pragma: no cover - exercised only when package absent
+    def extend_schema(*args, **kwargs):
+        def _decorator(obj):
+            return obj
+        return _decorator
+
+    def extend_schema_view(**kwargs):
+        def _decorator(obj):
+            return obj
+        return _decorator
+
 from .models import (
     Team,
     Venue,
@@ -39,6 +61,7 @@ from .models import (
     PlayerTransaction,
     Season,
     Game,
+    GameLeader,
     Drive,
     Play,
     PlayerGameStats,
@@ -57,6 +80,7 @@ from .serializers import (
     SeasonSerializer,
     GameListSerializer,
     GameDetailSerializer,
+    GameLeaderSerializer,
     DriveSerializer,
     PlaySerializer,
     PlayDetailSerializer,
@@ -340,6 +364,18 @@ class PlayerViewSet(viewsets.ReadOnlyModelViewSet):
 # =============================================================================
 
 
+@extend_schema_view(
+    list=extend_schema(
+        summary="List games",
+        description="Scoreboard endpoint filtered by season/week/team/status.",
+        tags=["games"],
+    ),
+    retrieve=extend_schema(
+        summary="Retrieve game detail",
+        description="Single-game detail payload used for Gridstream hydration.",
+        tags=["games"],
+    ),
+)
 class GameViewSet(viewsets.ReadOnlyModelViewSet):
     """
     NFL games — the central resource.
@@ -411,6 +447,11 @@ class GameViewSet(viewsets.ReadOnlyModelViewSet):
     # -----------------------------------------------------------------
     # LIVE HYDRATION — the WebSocket bridge endpoint
     # -----------------------------------------------------------------
+    @extend_schema(
+        summary="List live/scheduled-today games",
+        description="Hydration endpoint used before WebSocket updates start.",
+        tags=["games"],
+    )
     @action(detail=False, methods=["get"], url_path="live")
     def live(self, request):
         """
@@ -452,6 +493,11 @@ class GameViewSet(viewsets.ReadOnlyModelViewSet):
     # -----------------------------------------------------------------
     # PLAYS — nested under game
     # -----------------------------------------------------------------
+    @extend_schema(
+        summary="List plays for game",
+        description="Cursor-paginated play-by-play feed for a game.",
+        tags=["games", "plays"],
+    )
     @action(detail=True, methods=["get"], url_path="plays")
     def plays(self, request, pk=None):
         """
@@ -485,6 +531,11 @@ class GameViewSet(viewsets.ReadOnlyModelViewSet):
     # -----------------------------------------------------------------
     # DRIVES — nested under game
     # -----------------------------------------------------------------
+    @extend_schema(
+        summary="List drives for game",
+        description="Drive summaries for a game, optionally filterable by team/result.",
+        tags=["games", "drives"],
+    )
     @action(detail=True, methods=["get"], url_path="drives")
     def drives(self, request, pk=None):
         """
@@ -509,12 +560,19 @@ class GameViewSet(viewsets.ReadOnlyModelViewSet):
     # -----------------------------------------------------------------
     # BOXSCORE — nested under game
     # -----------------------------------------------------------------
+    @extend_schema(
+        summary="Get game boxscore",
+        description="Returns team stats, player stats, and leader data for one game.",
+        tags=["games", "boxscore"],
+    )
     @action(detail=True, methods=["get"], url_path="boxscore")
     def boxscore(self, request, pk=None):
         """
         GET /games/{id}/boxscore/
 
         Returns team stats and player stats grouped by team.
+        If canonical team/leader rows are missing, derives fallback values
+        from play-by-play and player rows so postgame pages still populate.
         Cached for 1 hour for completed games.
         """
         game = self.get_object()
@@ -544,9 +602,269 @@ class GameViewSet(viewsets.ReadOnlyModelViewSet):
         for ps in player_stats_data:
             by_team[ps["team_abbr"]].append(ps)
 
+        away_abbr = game.away_team.abbreviation
+        home_abbr = game.home_team.abbreviation
+
+        def _parse_clock_seconds(clock):
+            if not clock:
+                return 0
+            try:
+                mins, secs = str(clock).split(":")
+                return max(0, int(mins) * 60 + int(secs))
+            except Exception:
+                return 0
+
+        def _format_clock(seconds):
+            total = max(0, int(seconds))
+            mins = total // 60
+            secs = total % 60
+            return f"{mins}:{secs:02d}"
+
+        def _derive_team_stats_from_plays():
+            plays_qs = (
+                Play.objects.filter(game=game)
+                .select_related("possession_team")
+                .order_by("sequence")
+            )
+            drives_qs = Drive.objects.filter(game=game).select_related("team")
+
+            stats = {
+                away_abbr: {
+                    "team_abbr": away_abbr,
+                    "total_yards": 0,
+                    "pass_yards": 0,
+                    "rush_yards": 0,
+                    "first_downs": 0,
+                    "third_down_attempts": 0,
+                    "third_down_conversions": 0,
+                    "turnovers": 0,
+                    "penalties": 0,
+                    "penalty_yards": 0,
+                    "sacks_made": 0,
+                    "time_of_possession_seconds": 0,
+                },
+                home_abbr: {
+                    "team_abbr": home_abbr,
+                    "total_yards": 0,
+                    "pass_yards": 0,
+                    "rush_yards": 0,
+                    "first_downs": 0,
+                    "third_down_attempts": 0,
+                    "third_down_conversions": 0,
+                    "turnovers": 0,
+                    "penalties": 0,
+                    "penalty_yards": 0,
+                    "sacks_made": 0,
+                    "time_of_possession_seconds": 0,
+                },
+            }
+
+            for drive in drives_qs:
+                team_abbr = getattr(drive.team, "abbreviation", "")
+                if team_abbr in stats:
+                    stats[team_abbr]["time_of_possession_seconds"] += _parse_clock_seconds(
+                        drive.time_elapsed
+                    )
+
+            for play in plays_qs:
+                offense_abbr = (
+                    getattr(play.possession_team, "abbreviation", "")
+                    if play.possession_team_id
+                    else ""
+                )
+                if offense_abbr not in stats:
+                    continue
+
+                defense_abbr = home_abbr if offense_abbr == away_abbr else away_abbr
+                offense = stats[offense_abbr]
+                defense = stats[defense_abbr]
+
+                play_type = (play.play_type or "").lower()
+                yards = int(round(play.yards_gained or 0))
+
+                if (play.down or 0) == 3:
+                    offense["third_down_attempts"] += 1
+                    if play.first_down or play.touchdown:
+                        offense["third_down_conversions"] += 1
+
+                if play.first_down:
+                    offense["first_downs"] += 1
+
+                if play.interception or play.fumble_lost:
+                    offense["turnovers"] += 1
+
+                if play.penalty:
+                    offense["penalties"] += 1
+                    offense["penalty_yards"] += max(0, int(play.penalty_yards or 0))
+
+                if play.sack:
+                    defense["sacks_made"] += 1
+                    offense["pass_yards"] += yards
+                    continue
+
+                if play_type in ("pass", "two_point_attempt"):
+                    if play.complete_pass or yards != 0:
+                        offense["pass_yards"] += yards
+                elif play_type in ("run", "rush", "qb_kneel", "qb_scramble"):
+                    offense["rush_yards"] += yards
+
+            for abbr in (away_abbr, home_abbr):
+                stats[abbr]["total_yards"] = (
+                    stats[abbr]["pass_yards"] + stats[abbr]["rush_yards"]
+                )
+                stats[abbr]["time_of_possession"] = _format_clock(
+                    stats[abbr]["time_of_possession_seconds"]
+                )
+
+            return [stats[away_abbr], stats[home_abbr]]
+
+        def _format_passing_line(row):
+            comp = int(row.get("completions") or 0)
+            att = int(row.get("pass_attempts") or 0)
+            yds = int(row.get("passing_yards") or 0)
+            td = int(row.get("passing_tds") or 0)
+            ints = int(row.get("interceptions_thrown") or 0)
+            parts = [f"{comp}/{att}", f"{yds} YDS"]
+            if td > 0:
+                parts.append(f"{td} TD")
+            if ints > 0:
+                parts.append(f"{ints} INT")
+            return " · ".join(parts)
+
+        def _format_rushing_line(row):
+            car = int(row.get("carries") or 0)
+            yds = int(row.get("rushing_yards") or 0)
+            td = int(row.get("rushing_tds") or 0)
+            parts = [f"{car} CAR", f"{yds} YDS"]
+            if td > 0:
+                parts.append(f"{td} TD")
+            return " · ".join(parts)
+
+        def _format_receiving_line(row):
+            rec = int(row.get("receptions") or 0)
+            yds = int(row.get("receiving_yards") or 0)
+            td = int(row.get("receiving_tds") or 0)
+            parts = [f"{rec} REC", f"{yds} YDS"]
+            if td > 0:
+                parts.append(f"{td} TD")
+            return " · ".join(parts)
+
+        def _pick_best(rows, predicate, score):
+            best = None
+            best_score = float("-inf")
+            for row in rows:
+                if not predicate(row):
+                    continue
+                row_score = score(row)
+                if row_score > best_score:
+                    best = row
+                    best_score = row_score
+            return best
+
+        def _derive_leaders_from_player_stats(rows_by_team):
+            result_rows = []
+            for team_abbr in (away_abbr, home_abbr):
+                rows = rows_by_team.get(team_abbr, [])
+                if not rows:
+                    continue
+
+                passing = _pick_best(
+                    rows,
+                    lambda r: int(r.get("pass_attempts") or 0) > 0
+                    or int(r.get("passing_yards") or 0) != 0
+                    or int(r.get("passing_tds") or 0) > 0,
+                    lambda r: int(r.get("passing_yards") or 0) * 10000
+                    + int(r.get("passing_tds") or 0) * 100
+                    + int(r.get("pass_attempts") or 0),
+                )
+                rushing = _pick_best(
+                    rows,
+                    lambda r: int(r.get("carries") or 0) > 0
+                    or int(r.get("rushing_yards") or 0) != 0
+                    or int(r.get("rushing_tds") or 0) > 0,
+                    lambda r: int(r.get("rushing_yards") or 0) * 10000
+                    + int(r.get("rushing_tds") or 0) * 100
+                    + int(r.get("carries") or 0),
+                )
+                receiving = _pick_best(
+                    rows,
+                    lambda r: int(r.get("receptions") or 0) > 0
+                    or int(r.get("receiving_yards") or 0) != 0
+                    or int(r.get("receiving_tds") or 0) > 0,
+                    lambda r: int(r.get("receiving_yards") or 0) * 10000
+                    + int(r.get("receiving_tds") or 0) * 100
+                    + int(r.get("receptions") or 0),
+                )
+
+                if passing:
+                    result_rows.append(
+                        {
+                            "team_abbr": team_abbr,
+                            "category": "passing",
+                            "athlete_name": passing.get("player_name") or "—",
+                            "display_value": _format_passing_line(passing),
+                        }
+                    )
+                if rushing:
+                    result_rows.append(
+                        {
+                            "team_abbr": team_abbr,
+                            "category": "rushing",
+                            "athlete_name": rushing.get("player_name") or "—",
+                            "display_value": _format_rushing_line(rushing),
+                        }
+                    )
+                if receiving:
+                    result_rows.append(
+                        {
+                            "team_abbr": team_abbr,
+                            "category": "receiving",
+                            "athlete_name": receiving.get("player_name") or "—",
+                            "display_value": _format_receiving_line(receiving),
+                        }
+                    )
+            return result_rows
+
+        team_stats_complete = len(team_stats_data) >= 2
+        team_stats_source = "db"
+        if not team_stats_complete:
+            derived_team_stats = _derive_team_stats_from_plays()
+            team_stats_source = "derived"
+            if team_stats_data:
+                combined = {row.get("team_abbr"): dict(row) for row in derived_team_stats}
+                for row in team_stats_data:
+                    abbr = row.get("team_abbr")
+                    if not abbr:
+                        continue
+                    base = combined.get(abbr, {})
+                    base.update(row)
+                    combined[abbr] = base
+                team_stats_data = [
+                    combined.get(away_abbr, {}),
+                    combined.get(home_abbr, {}),
+                ]
+            else:
+                team_stats_data = derived_team_stats
+
+        leaders_qs = GameLeader.objects.filter(game=game).select_related("team")
+        leaders_data = GameLeaderSerializer(leaders_qs, many=True).data
+        leaders_complete = len(leaders_data) >= 6
+        leaders_source = "db"
+        if not leaders_data:
+            leaders_data = _derive_leaders_from_player_stats(dict(by_team))
+            leaders_source = "derived"
+
         result = {
             "team_stats": team_stats_data,
             "player_stats": dict(by_team),
+            "leaders": leaders_data,
+            "completeness": {
+                "team_stats_complete": team_stats_complete,
+                "player_stats_complete": len(player_stats_data) > 0,
+                "leaders_complete": leaders_complete,
+                "team_stats_source": team_stats_source,
+                "leaders_source": leaders_source,
+            },
         }
 
         # Long TTL for completed games, short for live

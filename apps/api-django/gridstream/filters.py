@@ -3,6 +3,11 @@ Gridstream filter classes.
 
 Provides rich filtering for the API endpoints, especially for the
 play-by-play and stats tables which are the largest datasets.
+
+OpenAPI prep note:
+  If/when schema generation is enabled, mirror these filter fields in
+  operation parameter docs so frontend query-builder tooling can consume
+  them directly.
 """
 
 import django_filters
@@ -34,6 +39,8 @@ class GameFilter(django_filters.FilterSet):
     week = django_filters.NumberFilter()
     season_type = django_filters.CharFilter()
     status = django_filters.CharFilter()
+    espn_event_id = django_filters.CharFilter(lookup_expr="exact")
+    nflverse_game_id = django_filters.CharFilter(lookup_expr="exact")
 
     team = django_filters.CharFilter(method="filter_team")
     home_team = django_filters.CharFilter(

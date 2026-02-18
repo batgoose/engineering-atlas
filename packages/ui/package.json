@@ -15,7 +15,8 @@
     "./atlas": "./src/atlas/index.ts",
     "./package.json": "./package.json",
     "./tailwind.config": "./tailwind.config.js",
-    "./tailwind.config.js": "./tailwind.config.js"
+    "./tailwind.config.js": "./tailwind.config.js",
+    "./gridstream": "./src/gridstream/index.css"
   },
   "dependencies": {
     "@tailwindcss/typography": "^0.5.15",

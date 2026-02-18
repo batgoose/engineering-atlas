@@ -1,0 +1,47 @@
+/**
+ * Gridstream design tokens — CSS custom properties.
+ *
+ * These map 1:1 to `gridstreamColors` and `gridstreamFonts` in
+ * @atlas/sdk/gridstream/theme, so any framework that can't use
+ * the JS tokens can use these instead.
+ *
+ * Mount on :root (global use) or .gridstream (scoped use).
+ *
+ * @see packages/sdk/src/gridstream/theme.ts for the JS counterpart
+ */
+
+:root,
+.gridstream {
+  /* ── Backgrounds ────────────────────────────────────────────── */
+  --gs-bg: #070b14;
+  --gs-panel: #0a1020;
+
+  /* ── Cyan (primary HUD accent) ──────────────────────────────── */
+  --gs-cyan: #00e5ff;
+  --gs-cyan-dim: #0097a7;
+  --gs-cyan-border: rgba(0, 229, 255, 0.15);
+  --gs-cyan-glow: rgba(0, 229, 255, 0.3);
+
+  /* ── Amber (scores, possession, highlights) ─────────────────── */
+  --gs-amber: #ffb612;
+  --gs-amber-glow: rgba(255, 182, 18, 0.4);
+  --gs-amber-border: rgba(255, 182, 18, 0.25);
+
+  /* ── Signal colors ──────────────────────────────────────────── */
+  --gs-green: #00e676;
+  --gs-red: #ff3b4f;
+
+  /* ── Text hierarchy ─────────────────────────────────────────── */
+  --gs-text-bright: #e0f0ff;
+  --gs-text: #b0c8d8;
+  --gs-text-dim: #5a7a90;
+  --gs-text-muted: #2e4858;
+
+  /* ── Panel chrome ───────────────────────────────────────────── */
+  --gs-panel-border: rgba(0, 229, 255, 0.1);
+
+  /* ── Typography ─────────────────────────────────────────────── */
+  --gs-font-display: 'Orbitron', monospace;
+  --gs-font-body: 'Barlow Condensed', sans-serif;
+  --gs-font-mono: 'Share Tech Mono', monospace;
+}

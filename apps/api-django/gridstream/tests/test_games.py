@@ -46,6 +46,14 @@ class TestGameList:
         assert resp.data["count"] == 1
         assert resp.data["results"][0]["status"] == "final"
 
+    def test_filter_by_espn_event_id(self, api_client, game_final):
+        url = reverse("game-list")
+        resp = api_client.get(url, {"espn_event_id": game_final.espn_event_id})
+
+        assert resp.status_code == status.HTTP_200_OK
+        assert resp.data["count"] == 1
+        assert resp.data["results"][0]["id"] == game_final.pk
+
     def test_scoreboard_includes_team_details(self, api_client, game_final):
         url = reverse("game-list")
         resp = api_client.get(url, {"season": 2024, "week": 1})
@@ -326,6 +334,8 @@ class TestGameBoxscore:
         assert resp.status_code == status.HTTP_200_OK
         assert "team_stats" in resp.data
         assert "player_stats" in resp.data
+        assert "leaders" in resp.data
+        assert "completeness" in resp.data
 
     def test_boxscore_team_stats(
         self,
@@ -337,7 +347,7 @@ class TestGameBoxscore:
         resp = api_client.get(url)
 
         assert len(resp.data["team_stats"]) >= 1
-        sea_stats = resp.data["team_stats"][0]
+        sea_stats = next(row for row in resp.data["team_stats"] if row.get("team_abbr") == "SEA")
         assert sea_stats["team_abbr"] == "SEA"
         assert sea_stats["total_yards"] == 380
         assert sea_stats["points_scored"] == 26
@@ -360,3 +370,50 @@ class TestGameBoxscore:
         names = [p["player_name"] for p in sea_players]
         assert "Geno Smith" in names
         assert "DK Metcalf" in names
+
+    def test_boxscore_includes_db_leaders_and_completeness(
+        self,
+        api_client,
+        game_final,
+        player_game_stats_qb,
+        player_game_stats_wr,
+        team_game_stats_sea,
+        game_leader,
+    ):
+        url = reverse("game-boxscore", kwargs={"pk": game_final.pk})
+        resp = api_client.get(url)
+
+        assert resp.status_code == status.HTTP_200_OK
+        assert resp.data["completeness"]["team_stats_source"] == "derived"
+        assert resp.data["completeness"]["team_stats_complete"] is False
+        assert resp.data["completeness"]["leaders_source"] == "db"
+        assert isinstance(resp.data["leaders"], list)
+        assert len(resp.data["leaders"]) >= 1
+
+    def test_boxscore_derives_team_stats_when_missing_rows(
+        self,
+        api_client,
+        game_final,
+        plays,
+    ):
+        url = reverse("game-boxscore", kwargs={"pk": game_final.pk})
+        resp = api_client.get(url)
+
+        assert resp.status_code == status.HTTP_200_OK
+        assert resp.data["completeness"]["team_stats_complete"] is False
+        assert resp.data["completeness"]["team_stats_source"] == "derived"
+        assert len(resp.data["team_stats"]) == 2
+
+    def test_boxscore_derives_leaders_when_missing_game_leaders(
+        self,
+        api_client,
+        game_final,
+        player_game_stats_qb,
+        player_game_stats_wr,
+    ):
+        url = reverse("game-boxscore", kwargs={"pk": game_final.pk})
+        resp = api_client.get(url)
+
+        assert resp.status_code == status.HTTP_200_OK
+        assert resp.data["completeness"]["leaders_source"] == "derived"
+        assert len(resp.data["leaders"]) >= 1
