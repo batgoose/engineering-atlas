@@ -1,0 +1,875 @@
+import { describe, expect, it } from 'vitest';
+
+import { __gridstreamTestUtils } from '../page';
+
+function makePlay(overrides: Record<string, unknown>): Record<string, unknown> {
+  return {
+    id: 1,
+    drive_id: 1,
+    sequence: 1,
+    quarter: 1,
+    clock: '15:00',
+    down: 1,
+    distance: 10,
+    yard_line: 75,
+    side_of_field: 'SEA',
+    down_distance_text: '1st & 10',
+    possession_team_abbr: 'SEA',
+    play_type: 'pass',
+    description: '',
+    short_description: '',
+    yards_gained: 0,
+    is_scoring_play: false,
+    home_score_after: 0,
+    away_score_after: 0,
+    touchdown: false,
+    interception: false,
+    sack: false,
+    penalty: false,
+    penalty_yards: null,
+    fumble_lost: false,
+    complete_pass: false,
+    first_down: false,
+    end_down: null,
+    end_distance: null,
+    end_yard_line: null,
+    epa: null,
+    air_yards: null,
+    pass_location: '',
+    run_location: '',
+    passer_player_name: '',
+    rusher_player_name: '',
+    receiver_player_name: '',
+    field_goal_result: '',
+    kick_distance: null,
+    ...overrides,
+  };
+}
+
+function makeDetail(overrides: Record<string, unknown>): Record<string, unknown> {
+  return {
+    id: 1,
+    espn_event_id: '401772988',
+    nflverse_game_id: '2025_01_SEA_NE',
+    season_id: 2025,
+    week: 5,
+    game_date: '2025-09-07',
+    game_time: '20:20',
+    season_type: 'REG',
+    game_note: '',
+    home_team_detail: {
+      id: 2,
+      abbreviation: 'NE',
+      display_name: 'New England Patriots',
+      short_display_name: 'Patriots',
+      color_primary: '002244',
+      color_secondary: 'c60c30',
+      logo_url: '',
+    },
+    away_team_detail: {
+      id: 1,
+      abbreviation: 'SEA',
+      display_name: 'Seattle Seahawks',
+      short_display_name: 'Seahawks',
+      color_primary: '002244',
+      color_secondary: '69be28',
+      logo_url: '',
+    },
+    status: 'in_progress',
+    quarter: 1,
+    clock: '14:00',
+    home_score: 0,
+    away_score: 0,
+    home_score_q1: 0,
+    home_score_q2: 0,
+    home_score_q3: 0,
+    home_score_q4: 0,
+    home_score_ot: 0,
+    away_score_q1: 0,
+    away_score_q2: 0,
+    away_score_q3: 0,
+    away_score_q4: 0,
+    away_score_ot: 0,
+    possession_team: 1,
+    spread: null,
+    total: null,
+    home_moneyline: null,
+    away_moneyline: null,
+    broadcast_network: '',
+    broadcast_names: [],
+    home_record: '',
+    away_record: '',
+    home_coach: '',
+    away_coach: '',
+    home_qb_name: '',
+    away_qb_name: '',
+    weather_temp: 72,
+    weather_condition: 'Clear',
+    weather_condition_id: null,
+    weather_wind: '',
+    weather_humidity: null,
+    weather_detail: '',
+    venue_name: 'Test Stadium',
+    venue_detail: null,
+    leaders: [],
+    scoring_plays: [],
+    ...overrides,
+  };
+}
+
+function makeTotals(overrides: Record<string, unknown> = {}): Record<string, unknown> {
+  return {
+    passAtt: 0,
+    passComp: 0,
+    passYds: 0,
+    passTd: 0,
+    passInt: 0,
+    rushAtt: 0,
+    rushYds: 0,
+    rushTd: 0,
+    rec: 0,
+    recYds: 0,
+    recTd: 0,
+    fgAtt: 0,
+    fgMade: 0,
+    fgMade0to39: 0,
+    fgMade40to49: 0,
+    fgMade50to59: 0,
+    fgMade60plus: 0,
+    fgMissed: 0,
+    xpAtt: 0,
+    xpMade: 0,
+    fumblesLost: 0,
+    sacks: 0,
+    ...overrides,
+  };
+}
+
+describe('Gridstream timeline derivation', () => {
+  it('derives punt start from landing + kick_distance field (nflverse data)', () => {
+    // nflverse data: kick_distance is populated, yard_line may use own-endzone convention.
+    const puntPlay = makePlay({
+      id: 6001,
+      sequence: 6001,
+      quarter: 2,
+      clock: '14:37',
+      down: 4,
+      distance: 5,
+      yard_line: 37,          // ESPN "own-endzone" value (wrong for yardline100ToDisplay)
+      possession_team_abbr: 'NE',
+      play_type: 'punt',
+      description: 'B.Baringer punts 39 yards to SEA 24, Center-J.Ashby, fair catch by R.Shaheed.',
+      yards_gained: 39,
+      kick_distance: 39,      // explicit DB field available
+    });
+
+    const nextSnap = makePlay({
+      id: 6002,
+      sequence: 6002,
+      quarter: 2,
+      clock: '14:30',
+      down: 1,
+      distance: 10,
+      yard_line: 76,
+      possession_team_abbr: 'SEA',
+      play_type: 'pass',
+      description: 'S.Darnold pass incomplete.',
+    });
+
+    const animation = __gridstreamTestUtils.toPlayAnimation(
+      puntPlay as any,
+      nextSnap as any,
+      'SEA', 'NE',
+      new Map<string, any>(), new Map<string, any>(), new Map<string, any>(),
+    );
+
+    expect(animation?.type).toBe('kick');
+    expect(animation?.fromSide).toBe('NE');
+    expect(animation?.fromYardline).toBe(37);
+    expect(animation?.kickLandingSide).toBe('SEA');
+    expect(animation?.kickLandingYardline).toBe(24);
+  });
+
+  it('derives punt start from play text yards when kick_distance field is null (ESPN data)', () => {
+    // ESPN-sourced games do not populate kick_distance. The yards must be parsed from
+    // the description: "B.Baringer punts 39 yards to SEA 24" → kickYards=39.
+    const puntPlay = makePlay({
+      id: 6003,
+      sequence: 6003,
+      quarter: 2,
+      clock: '14:37',
+      down: 4,
+      distance: 5,
+      yard_line: 37,          // ESPN "own-endzone" value (wrong for yardline100ToDisplay)
+      possession_team_abbr: 'NE',
+      play_type: 'punt',
+      description: 'B.Baringer punts 39 yards to SEA 24, Center-J.Ashby, fair catch by R.Shaheed.',
+      yards_gained: 39,
+      kick_distance: null,    // ESPN does NOT set kick_distance
+    });
+
+    const nextSnap = makePlay({
+      id: 6004,
+      sequence: 6004,
+      quarter: 2,
+      clock: '14:30',
+      down: 1,
+      distance: 10,
+      yard_line: 76,
+      possession_team_abbr: 'SEA',
+      play_type: 'pass',
+      description: 'S.Darnold pass incomplete.',
+    });
+
+    const animation = __gridstreamTestUtils.toPlayAnimation(
+      puntPlay as any,
+      nextSnap as any,
+      'SEA', 'NE',
+      new Map<string, any>(), new Map<string, any>(), new Map<string, any>(),
+    );
+
+    expect(animation?.type).toBe('kick');
+    // Start should be NE 37 derived from: SEA 24 + 39 yards reversed = NE 37
+    expect(animation?.fromSide).toBe('NE');
+    expect(animation?.fromYardline).toBe(37);
+    expect(animation?.kickLandingSide).toBe('SEA');
+    expect(animation?.kickLandingYardline).toBe(24);
+  });
+
+  it('uses 0 return yards for punt returns with no gain', () => {
+    const puntPlay = makePlay({
+      id: 1001,
+      sequence: 1001,
+      quarter: 1,
+      clock: '0:32',
+      down: 4,
+      distance: 15,
+      yard_line: 77,
+      down_distance_text: '4th & 15',
+      possession_team_abbr: 'SEA',
+      play_type: 'punt',
+      description: 'SEA M.Dickson punts 45 yards to NE 32, Center-C.Stoll. M.Jones to NE 32 for no gain (D.Thomas).',
+      short_description: 'M.Dickson punts 45 yards to NE 32. M.Jones to NE 32 for no gain.',
+      yards_gained: 45,
+      kick_distance: 45,
+    });
+
+    const nextSnap = makePlay({
+      id: 1002,
+      sequence: 1002,
+      quarter: 1,
+      clock: '0:24',
+      down: 1,
+      distance: 10,
+      yard_line: 68,
+      down_distance_text: '1st & 10',
+      possession_team_abbr: 'NE',
+      play_type: 'pass',
+      description: 'NE D.Maye pass short right to T.Henry for 3 yards.',
+      short_description: 'D.Maye pass short right to T.Henry for 3 yards.',
+      yards_gained: 3,
+      complete_pass: true,
+    });
+
+    const runningTotals = new Map<string, any>();
+    const runningMeta = new Map<string, any>();
+    __gridstreamTestUtils.updateRunningTotalsFromPlay(
+      puntPlay as any,
+      runningTotals,
+      runningMeta,
+    );
+
+    const animation = __gridstreamTestUtils.toPlayAnimation(
+      puntPlay as any,
+      nextSnap as any,
+      'SEA',
+      'NE',
+      new Map<string, any>(),
+      runningTotals,
+      new Map<string, any>(),
+    );
+
+    expect(animation?.type).toBe('kick');
+    expect(animation?.yardsGained).toBe(0);
+    expect(animation?.actor?.summary).toBe('0 Yard Return');
+  });
+
+  it('builds frame team metrics/personnel/fantasy from game state at that play', () => {
+    const detail = makeDetail({});
+    const plays = [
+      makePlay({
+        id: 2001,
+        sequence: 2001,
+        quarter: 1,
+        clock: '14:42',
+        down: 1,
+        distance: 10,
+        yard_line: 75,
+        down_distance_text: '1st & 10 at SEA 25',
+        possession_team_abbr: 'SEA',
+        play_type: 'pass',
+        description: 'SEA (Shotgun) S.Darnold pass short right to T.Henry to SEA 35 for 10 yards.',
+        short_description: 'S.Darnold pass short right to T.Henry for 10 yards.',
+        yards_gained: 10,
+        complete_pass: true,
+        first_down: true,
+        end_yard_line: 65,
+      }),
+      makePlay({
+        id: 2002,
+        sequence: 2002,
+        quarter: 1,
+        clock: '14:05',
+        down: 1,
+        distance: 10,
+        yard_line: 65,
+        down_distance_text: '1st & 10 at SEA 35',
+        possession_team_abbr: 'SEA',
+        play_type: 'run',
+        description: 'SEA K.Walker up the middle to SEA 40 for 5 yards.',
+        short_description: 'K.Walker up the middle for 5 yards.',
+        yards_gained: 5,
+        first_down: false,
+        end_yard_line: 60,
+      }),
+    ];
+
+    const boxscore = {
+      team_stats: [
+        {
+          team_abbr: 'SEA',
+          total_yards: 999,
+          pass_yards: 777,
+          rush_yards: 222,
+          first_downs: 20,
+          third_down_attempts: 8,
+          third_down_conversions: 6,
+          turnovers: 0,
+          penalties: 1,
+          penalty_yards: 5,
+          sacks_made: 0,
+          time_of_possession: '20:00',
+        },
+        {
+          team_abbr: 'NE',
+          total_yards: 888,
+          pass_yards: 500,
+          rush_yards: 388,
+          first_downs: 18,
+          third_down_attempts: 9,
+          third_down_conversions: 5,
+          turnovers: 1,
+          penalties: 2,
+          penalty_yards: 10,
+          sacks_made: 1,
+          time_of_possession: '10:00',
+        },
+      ],
+      player_stats: {
+        SEA: [],
+        NE: [],
+      },
+      leaders: [
+        { team_abbr: 'SEA', category: 'passing', athlete_name: 'Final QB', display_value: '30/40 · 400 YDS · 4 TD' },
+      ],
+    };
+
+    const timeline = __gridstreamTestUtils.buildTimeline(
+      detail as any,
+      plays as any,
+      [],
+      boxscore as any,
+    );
+
+    const firstFrame = timeline.frames[0];
+    expect(firstFrame).toBeTruthy();
+
+    // Team metrics should reflect only play #1 (10 pass yards), not full-game boxscore totals.
+    expect(firstFrame.teamStats?.away.passingYards).toBe(10);
+    expect(firstFrame.teamStats?.away.totalYards).toBe(10);
+    expect(firstFrame.teamStats?.away.totalYards).not.toBe(999);
+
+    // Personnel leaders should come from in-frame running totals, not final leader feed.
+    expect(firstFrame.leaders?.away.passing.name).toBe('S.Darnold');
+    expect(firstFrame.leaders?.away.passing.name).not.toBe('Final QB');
+
+    // Fantasy should only include players with production at that play.
+    expect(firstFrame.fantasyAway.some((player) => player.name === 'S.Darnold')).toBe(true);
+    expect(firstFrame.fantasyAway.some((player) => player.name === 'K.Walker')).toBe(false);
+  });
+
+  it('keeps fantasy positions from player metadata and includes mixed rushing/receiving breakdown', () => {
+    const detail = makeDetail({});
+    const plays = [
+      makePlay({
+        id: 3001,
+        sequence: 3001,
+        quarter: 1,
+        clock: '14:40',
+        down: 1,
+        distance: 10,
+        yard_line: 75,
+        down_distance_text: '1st & 10 at SEA 25',
+        possession_team_abbr: 'SEA',
+        play_type: 'pass',
+        description: 'SEA (Shotgun) S.Darnold pass short right to R.Shaheed to SEA 32 for 7 yards.',
+        short_description: 'S.Darnold pass short right to R.Shaheed for 7 yards.',
+        yards_gained: 7,
+        complete_pass: true,
+        end_yard_line: 68,
+      }),
+      makePlay({
+        id: 3002,
+        sequence: 3002,
+        quarter: 1,
+        clock: '14:05',
+        down: 2,
+        distance: 3,
+        yard_line: 68,
+        down_distance_text: '2nd & 3 at SEA 32',
+        possession_team_abbr: 'SEA',
+        play_type: 'run',
+        description: 'SEA R.Shaheed left end to SEA 36 for 4 yards.',
+        short_description: 'R.Shaheed left end for 4 yards.',
+        yards_gained: 4,
+        end_yard_line: 64,
+      }),
+    ];
+
+    const boxscore = {
+      team_stats: [],
+      player_stats: {
+        SEA: [
+          {
+            player_name: 'R.Shaheed',
+            player_headshot: null,
+            player_position: 'WR',
+            team_abbr: 'SEA',
+            completions: 0,
+            pass_attempts: 0,
+            passing_yards: 0,
+            passing_tds: 0,
+            interceptions_thrown: 0,
+            carries: 1,
+            rushing_yards: 4,
+            rushing_tds: 0,
+            rushing_fumbles_lost: 0,
+            receptions: 1,
+            receiving_yards: 7,
+            receiving_tds: 0,
+            receiving_fumbles_lost: 0,
+            fg_attempts: 0,
+            fg_made: 0,
+            pat_attempts: 0,
+            pat_made: 0,
+            sacks_made: 0,
+            interceptions_caught: 0,
+            fumble_recoveries: 0,
+            fantasy_points_standard: 1.1,
+            fantasy_points_ppr: 2.1,
+            fantasy_points_half_ppr: 1.6,
+          },
+        ],
+        NE: [],
+      },
+      leaders: [],
+    };
+
+    const timeline = __gridstreamTestUtils.buildTimeline(
+      detail as any,
+      plays as any,
+      [],
+      boxscore as any,
+    );
+
+    const secondFrame = timeline.frames[1];
+    expect(secondFrame).toBeTruthy();
+
+    const shaheed = secondFrame.fantasyAway.find((player) => player.name === 'R.Shaheed');
+    expect(shaheed).toBeTruthy();
+    expect(shaheed?.position).toBe('WR');
+    expect(shaheed?.breakdown).toContain('1 rec · 7 yds');
+    expect(shaheed?.breakdown).toContain('1 car · 4 yds');
+    expect(shaheed?.pointsPpr).toBeGreaterThan(shaheed?.pointsHalfPpr ?? -999);
+    expect(shaheed?.pointsHalfPpr).toBeGreaterThan(shaheed?.pointsStandard ?? -999);
+  });
+
+  it('scores kickers from made FG/XP attempts', () => {
+    const totals = new Map<string, any>();
+    // Use makeTotals to ensure all required fields (including fgMissed, fgMade0to39, etc.)
+    // are present with default 0 values so the scoring formula doesn't produce NaN.
+    totals.set('jmyers', makeTotals({ fgAtt: 3, fgMade: 3 }));
+
+    const meta = new Map<string, any>();
+    meta.set('jmyers', { name: 'J.Myers', teamAbbr: 'SEA', position: 'K' });
+
+    const fantasy = __gridstreamTestUtils.mapFantasyFromRunningTotals(
+      totals,
+      meta,
+      'SEA',
+      'NE',
+    );
+
+    expect(fantasy.away).toHaveLength(1);
+    expect(fantasy.away[0]?.position).toBe('K');
+    expect(fantasy.away[0]?.pointsPpr).toBe(9);
+    expect(fantasy.away[0]?.pointsHalfPpr).toBe(9);
+    expect(fantasy.away[0]?.pointsStandard).toBe(9);
+  });
+
+  it('adds DEF fantasy entry from team state when frame totals are available', () => {
+    const totals = new Map<string, any>();
+    const meta = new Map<string, any>();
+
+    const fantasy = __gridstreamTestUtils.mapFantasyFromRunningTotals(
+      totals,
+      meta,
+      'SEA',
+      'NE',
+      undefined,
+      {
+        away: {
+          totalYards: 100,
+          passingYards: 60,
+          rushingYards: 40,
+          firstDowns: 5,
+          thirdDown: '1/5',
+          turnovers: 0,
+          top: '10:00',
+          penalties: '2-10',
+          sacks: 2,
+        },
+        home: {
+          totalYards: 80,
+          passingYards: 50,
+          rushingYards: 30,
+          firstDowns: 4,
+          thirdDown: '1/6',
+          turnovers: 1,
+          top: '5:00',
+          penalties: '1-5',
+          sacks: 1,
+        },
+      },
+      { away: 9, home: 0 },
+    );
+
+    const awayDef = fantasy.away.find((entry: any) => entry.position === 'DEF');
+    const homeDef = fantasy.home.find((entry: any) => entry.position === 'DEF');
+
+    expect(awayDef).toBeTruthy();
+    expect(homeDef).toBeTruthy();
+    expect(awayDef?.name).toBe('SEA Defense');
+    expect(homeDef?.name).toBe('NE Defense');
+  });
+
+  it('scores all fantasy positions using ESPN-style formulas (PPR/HALF/STD)', () => {
+    const totals = new Map<string, any>();
+    totals.set('qb', makeTotals({
+      passAtt: 30,
+      passComp: 20,
+      passYds: 250,
+      passTd: 2,
+      passInt: 1,
+      rushAtt: 4,
+      rushYds: 20,
+      rushTd: 1,
+      fumblesLost: 1,
+    }));
+    totals.set('rb', makeTotals({
+      rushAtt: 18,
+      rushYds: 90,
+      rushTd: 1,
+      rec: 3,
+      recYds: 20,
+    }));
+    totals.set('wr', makeTotals({
+      rushAtt: 1,
+      rushYds: 10,
+      rec: 6,
+      recYds: 80,
+      recTd: 1,
+      fumblesLost: 1,
+    }));
+    totals.set('te', makeTotals({
+      rec: 5,
+      recYds: 50,
+      recTd: 1,
+    }));
+    totals.set('k', makeTotals({
+      fgAtt: 4,
+      fgMade: 3,
+      fgMade0to39: 1,
+      fgMade40to49: 1,
+      fgMade50to59: 1,
+      fgMissed: 1,
+      xpAtt: 2,
+      xpMade: 2,
+    }));
+
+    const meta = new Map<string, any>();
+    meta.set('qb', { name: 'Q.Back', teamAbbr: 'SEA', position: 'QB' });
+    meta.set('rb', { name: 'R.Back', teamAbbr: 'SEA', position: 'RB' });
+    meta.set('wr', { name: 'W.Receiver', teamAbbr: 'SEA', position: 'WR' });
+    meta.set('te', { name: 'T.End', teamAbbr: 'SEA', position: 'TE' });
+    meta.set('k', { name: 'K.Icker', teamAbbr: 'SEA', position: 'K' });
+
+    const fantasy = __gridstreamTestUtils.mapFantasyFromRunningTotals(
+      totals,
+      meta,
+      'SEA',
+      'NE',
+      undefined,
+      undefined,
+      undefined,
+      {
+        SEA: {
+          pointsAllowed: 14,
+          sacks: 3,
+          takeaways: 3,
+          interceptions: 2,
+          fumbleRecoveries: 1,
+          blockedKicks: 1,
+          safeties: 1,
+          defensiveTds: 1,
+        },
+        NE: {
+          pointsAllowed: 9,
+          sacks: 0,
+          takeaways: 0,
+          interceptions: 0,
+          fumbleRecoveries: 0,
+          blockedKicks: 0,
+          safeties: 0,
+          defensiveTds: 0,
+        },
+      },
+    );
+
+    const qb = fantasy.away.find((entry) => entry.name === 'Q.Back');
+    const rb = fantasy.away.find((entry) => entry.name === 'R.Back');
+    const wr = fantasy.away.find((entry) => entry.name === 'W.Receiver');
+    const te = fantasy.away.find((entry) => entry.name === 'T.End');
+    const k = fantasy.away.find((entry) => entry.name === 'K.Icker');
+    const def = fantasy.away.find((entry) => entry.position === 'DEF');
+
+    expect(qb?.pointsStandard).toBeCloseTo(22.0, 4);
+    expect(qb?.pointsHalfPpr).toBeCloseTo(22.0, 4);
+    expect(qb?.pointsPpr).toBeCloseTo(22.0, 4);
+
+    expect(rb?.pointsStandard).toBeCloseTo(17.0, 4);
+    expect(rb?.pointsHalfPpr).toBeCloseTo(18.5, 4);
+    expect(rb?.pointsPpr).toBeCloseTo(20.0, 4);
+
+    expect(wr?.pointsStandard).toBeCloseTo(13.0, 4);
+    expect(wr?.pointsHalfPpr).toBeCloseTo(16.0, 4);
+    expect(wr?.pointsPpr).toBeCloseTo(19.0, 4);
+
+    expect(te?.pointsStandard).toBeCloseTo(11.0, 4);
+    expect(te?.pointsHalfPpr).toBeCloseTo(13.5, 4);
+    expect(te?.pointsPpr).toBeCloseTo(16.0, 4);
+
+    expect(k?.pointsStandard).toBeCloseTo(13.0, 4);
+    expect(k?.pointsHalfPpr).toBeCloseTo(13.0, 4);
+    expect(k?.pointsPpr).toBeCloseTo(13.0, 4);
+
+    expect(def?.pointsStandard).toBeCloseTo(20.0, 4);
+    expect(def?.pointsHalfPpr).toBeCloseTo(20.0, 4);
+    expect(def?.pointsPpr).toBeCloseTo(20.0, 4);
+  });
+
+  it('uses ESPN points-allowed D/ST tiers', () => {
+    const cases = [
+      { pa: 0, expected: 5 },
+      { pa: 6, expected: 4 },
+      { pa: 13, expected: 3 },
+      { pa: 17, expected: 1 },
+      { pa: 27, expected: 0 },
+      { pa: 34, expected: -1 },
+      { pa: 45, expected: -3 },
+      { pa: 46, expected: -5 },
+    ];
+
+    for (const { pa, expected } of cases) {
+      expect(__gridstreamTestUtils.defensePointsAllowedBand(pa)).toBe(expected);
+    }
+  });
+
+  it('derives D/ST sacks, takeaways, defensive TDs and blocked kicks from play stream', () => {
+    const plays = [
+      makePlay({
+        id: 4001,
+        sequence: 4001,
+        quarter: 1,
+        clock: '13:10',
+        possession_team_abbr: 'NE',
+        play_type: 'pass',
+        description: 'NE D.Maye pass deep middle intended for K.Boutte INTERCEPTED by U.Nwosu at NE 45. U.Nwosu for 45 yards, TOUCHDOWN.',
+        interception: true,
+        touchdown: true,
+        home_score_after: 0,
+        away_score_after: 6,
+      }),
+      makePlay({
+        id: 4002,
+        sequence: 4002,
+        quarter: 1,
+        clock: '13:05',
+        possession_team_abbr: 'SEA',
+        play_type: 'extra_point',
+        description: 'SEA J.Myers extra point is GOOD.',
+        home_score_after: 0,
+        away_score_after: 7,
+      }),
+      makePlay({
+        id: 4003,
+        sequence: 4003,
+        quarter: 1,
+        clock: '12:40',
+        possession_team_abbr: 'NE',
+        play_type: 'pass',
+        description: 'NE D.Maye sacked at NE 20 for -7 yards.',
+        sack: true,
+        home_score_after: 0,
+        away_score_after: 7,
+      }),
+      makePlay({
+        id: 4004,
+        sequence: 4004,
+        quarter: 1,
+        clock: '12:00',
+        possession_team_abbr: 'NE',
+        play_type: 'run',
+        description: 'NE R.Stevenson left guard to NE 22 for 2 yards, FUMBLES (forced by B.Wagner), recovered by SEA-C.Bryant.',
+        fumble_lost: true,
+        home_score_after: 0,
+        away_score_after: 7,
+      }),
+      makePlay({
+        id: 4005,
+        sequence: 4005,
+        quarter: 1,
+        clock: '11:30',
+        possession_team_abbr: 'NE',
+        play_type: 'field_goal',
+        description: 'NE J.Slye 41 yard field goal is BLOCKED, recovered by NE.',
+        home_score_after: 0,
+        away_score_after: 7,
+      }),
+    ];
+
+    const defenseTotals = __gridstreamTestUtils.deriveDefenseFantasyTotalsFromPlays(
+      plays as any,
+      'SEA',
+      'NE',
+      { away: 7, home: 0 },
+    );
+
+    expect(defenseTotals.SEA.sacks).toBe(1);
+    expect(defenseTotals.SEA.interceptions).toBe(1);
+    expect(defenseTotals.SEA.fumbleRecoveries).toBe(1);
+    expect(defenseTotals.SEA.takeaways).toBe(2);
+    expect(defenseTotals.SEA.blockedKicks).toBe(1);
+    expect(defenseTotals.SEA.defensiveTds).toBe(1);
+    expect(defenseTotals.SEA.pointsAllowed).toBe(0);
+  });
+
+  it('does not award offensive passing TD/completion/yards on interception return touchdown', () => {
+    const totals = new Map<string, any>();
+    const meta = new Map<string, any>();
+
+    __gridstreamTestUtils.updateRunningTotalsFromPlay(
+      makePlay({
+        id: 5001,
+        sequence: 5001,
+        quarter: 4,
+        clock: '8:49',
+        down: 2,
+        distance: 3,
+        yard_line: 56,
+        down_distance_text: '2nd & 3 at NE 44',
+        possession_team_abbr: 'NE',
+        play_type: 'pass',
+        description: 'NE (Shotgun) D.Maye pass deep middle intended for K.Williams INTERCEPTED by J.Love at SEA 27. J.Love pushed ob at NE 38 for 35 yards (T.Henderson), TOUCHDOWN.',
+        short_description: 'D.Maye pass intercepted and returned for touchdown.',
+        interception: true,
+        touchdown: true,
+        complete_pass: false,
+        yards_gained: 35,
+        home_score_after: 7,
+        away_score_after: 19,
+      }) as any,
+      totals,
+      meta,
+    );
+
+    const maye = totals.get('dmaye');
+    expect(maye).toBeTruthy();
+    expect(maye.passAtt).toBe(1);
+    expect(maye.passComp).toBe(0);
+    expect(maye.passYds).toBe(0);
+    expect(maye.passTd).toBe(0);
+    expect(maye.passInt).toBe(1);
+  });
+
+  it('increments passing TD only for offensive passing touchdowns', () => {
+    const totals = new Map<string, any>();
+    const meta = new Map<string, any>();
+
+    __gridstreamTestUtils.updateRunningTotalsFromPlay(
+      makePlay({
+        id: 5101,
+        sequence: 5101,
+        quarter: 4,
+        clock: '2:21',
+        down: 2,
+        distance: 7,
+        yard_line: 93,
+        down_distance_text: '2nd & 7 at SEA 7',
+        possession_team_abbr: 'NE',
+        play_type: 'pass',
+        description: 'NE D.Maye pass short left to R.Stevenson for 7 yards, TOUCHDOWN.',
+        short_description: 'D.Maye pass short left to R.Stevenson for 7 yards, TOUCHDOWN.',
+        interception: false,
+        touchdown: true,
+        complete_pass: true,
+        yards_gained: 7,
+        home_score_after: 13,
+        away_score_after: 29,
+      }) as any,
+      totals,
+      meta,
+    );
+
+    __gridstreamTestUtils.updateRunningTotalsFromPlay(
+      makePlay({
+        id: 5102,
+        sequence: 5102,
+        quarter: 4,
+        clock: '1:49',
+        down: 1,
+        distance: 10,
+        yard_line: 94,
+        down_distance_text: '1st & 10 at NE 6',
+        possession_team_abbr: 'NE',
+        play_type: 'pass',
+        description: 'NE D.Maye pass short middle to S.Diggs to NE 12 for 6 yards (E.Jones).',
+        short_description: 'D.Maye pass short middle to S.Diggs for 6 yards.',
+        interception: false,
+        touchdown: false,
+        complete_pass: true,
+        yards_gained: 6,
+        home_score_after: 13,
+        away_score_after: 29,
+      }) as any,
+      totals,
+      meta,
+    );
+
+    const maye = totals.get('dmaye');
+    expect(maye).toBeTruthy();
+    expect(maye.passTd).toBe(1);
+    expect(maye.passComp).toBe(2);
+    expect(maye.passYds).toBe(13);
+  });
+});
