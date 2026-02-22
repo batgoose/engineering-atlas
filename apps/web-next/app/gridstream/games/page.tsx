@@ -770,6 +770,7 @@ export default function GamesPage() {
                       aria-expanded={teamMenuOpen}
                     >
                       {selectedTeam?.logoUrl ? (
+                        // eslint-disable-next-line @next/next/no-img-element
                         <img
                           src={selectedTeam.logoUrl}
                           alt={`${selectedTeam.name} logo`}
@@ -828,6 +829,7 @@ export default function GamesPage() {
                                 onMouseLeave={() => setTeamMenuHoverKey(null)}
                               >
                                 {team.logoUrl ? (
+                                  // eslint-disable-next-line @next/next/no-img-element
                                   <img
                                     src={team.logoUrl}
                                     alt={`${team.name} logo`}

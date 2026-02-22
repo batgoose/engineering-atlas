@@ -68,6 +68,8 @@ function TeamLogo({
       }}
     >
       {imgSrc ? (
+        // External team logos come from API URLs; keep native img so we don't require domain allowlists.
+        // eslint-disable-next-line @next/next/no-img-element
         <img
           key={imgSrc}
           src={imgSrc}
