@@ -39,9 +39,7 @@ logger = logging.getLogger(__name__)
 HISTORICAL_URL = (
     "https://raw.githubusercontent.com/dynastyprocess/data/master/files/db_fpecr.csv.gz"
 )
-CURRENT_WEEK_URL = (
-    "https://raw.githubusercontent.com/dynastyprocess/data/master/files/fp_latest_weekly.csv"
-)
+CURRENT_WEEK_URL = "https://raw.githubusercontent.com/dynastyprocess/data/master/files/fp_latest_weekly.csv"
 
 FANTASY_POSITIONS = {"QB", "RB", "WR", "TE", "K", "PK"}
 # ECR type for weekly positional rankings in the historical file
@@ -74,7 +72,9 @@ class Command(ImportBaseCommand):
             week_map = self._build_date_week_map()
         self.stdout.write(f"  {len(week_map)} game-weeks indexed")
         if not week_map:
-            self.stderr.write(self.style.ERROR("No games in DB — cannot map ECR dates to weeks."))
+            self.stderr.write(
+                self.style.ERROR("No games in DB — cannot map ECR dates to weeks.")
+            )
             return
 
         # ── Build player name+pos lookup cache ───────────────────────────
@@ -98,7 +98,9 @@ class Command(ImportBaseCommand):
             total_updated += updated
         else:
             # ── Historical (all weekly ECR rows) ─────────────────────────
-            created, updated = self._sync_historical(week_map, name_cache, requested_seasons)
+            created, updated = self._sync_historical(
+                week_map, name_cache, requested_seasons
+            )
             total_created += created
             total_updated += updated
 
@@ -125,7 +127,8 @@ class Command(ImportBaseCommand):
 
         # Filter to weekly positional ECR only + fantasy positions
         rows = [
-            r for r in all_rows
+            r
+            for r in all_rows
             if r.get("ecr_type", "") in WEEKLY_ECR_TYPES
             and r.get("pos", "").upper() in FANTASY_POSITIONS
         ]
@@ -156,7 +159,9 @@ class Command(ImportBaseCommand):
             dated.append(r)
 
         if unmapped:
-            self.stdout.write(self.style.WARNING(f"  Could not map {unmapped} rows to season/week"))
+            self.stdout.write(
+                self.style.WARNING(f"  Could not map {unmapped} rows to season/week")
+            )
         self.stdout.write(f"  Rows with season+week resolved: {len(dated):,}")
 
         return self._write_rows(dated, name_cache)
@@ -164,7 +169,9 @@ class Command(ImportBaseCommand):
     # ── Current-week sync ─────────────────────────────────────────────────
 
     def _sync_current_week(self, week_map, name_cache):
-        with self.timed_operation("Downloading current-week ECR (fp_latest_weekly.csv)"):
+        with self.timed_operation(
+            "Downloading current-week ECR (fp_latest_weekly.csv)"
+        ):
             try:
                 resp = requests.get(CURRENT_WEEK_URL, timeout=30)
                 resp.raise_for_status()
@@ -174,7 +181,8 @@ class Command(ImportBaseCommand):
 
         all_rows = list(csv.DictReader(io.StringIO(resp.text)))
         rows = [
-            r for r in all_rows
+            r
+            for r in all_rows
             if r.get("pos", r.get("page_pos", "")).upper() in FANTASY_POSITIONS
         ]
         self.stdout.write(f"  {len(rows)} current-week rows (after position filter)")
@@ -188,9 +196,15 @@ class Command(ImportBaseCommand):
             except ValueError:
                 continue
 
-        season_week = self._date_to_season_week(sample_date, week_map) if sample_date else None
+        season_week = (
+            self._date_to_season_week(sample_date, week_map) if sample_date else None
+        )
         if not season_week:
-            self.stderr.write(self.style.ERROR("Cannot determine current season/week from scrape_date"))
+            self.stderr.write(
+                self.style.ERROR(
+                    "Cannot determine current season/week from scrape_date"
+                )
+            )
             return 0, 0
 
         season, week = season_week
@@ -242,9 +256,13 @@ class Command(ImportBaseCommand):
             player = name_cache.get(self._np_key(player_name, pos))
             # Fuzzy fallback: try without position (last name only)
             if not player:
-                last_name = player_name.strip().split()[-1] if player_name.strip() else ""
+                last_name = (
+                    player_name.strip().split()[-1] if player_name.strip() else ""
+                )
                 for key, p in name_cache.items():
-                    if key.split("|")[0].endswith(last_name.lower()) and key.endswith(f"|{pos}"):
+                    if key.split("|")[0].endswith(last_name.lower()) and key.endswith(
+                        f"|{pos}"
+                    ):
                         player = p
                         break
 
@@ -279,7 +297,9 @@ class Command(ImportBaseCommand):
             updated += u
 
         if skipped:
-            self.stdout.write(self.style.WARNING(f"  Skipped {skipped} rows (no player match)"))
+            self.stdout.write(
+                self.style.WARNING(f"  Skipped {skipped} rows (no player match)")
+            )
 
         return created, updated
 
@@ -293,6 +313,7 @@ class Command(ImportBaseCommand):
         """
         # Get all distinct (season_year, week, game_date) from DB
         from django.db.models import Min, Max
+
         entries = (
             Game.objects.using("nfl")
             .values("season__year", "week", "season_type")
@@ -300,12 +321,14 @@ class Command(ImportBaseCommand):
         )
         week_map = []
         for e in entries:
-            week_map.append({
-                "season": e["season__year"],
-                "week": e["week"],
-                "min_date": e["min_date"],
-                "max_date": e["max_date"],
-            })
+            week_map.append(
+                {
+                    "season": e["season__year"],
+                    "week": e["week"],
+                    "min_date": e["min_date"],
+                    "max_date": e["max_date"],
+                }
+            )
         return week_map
 
     def _date_to_season_week(self, d: date, week_map):

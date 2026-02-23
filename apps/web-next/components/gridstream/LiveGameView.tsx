@@ -360,7 +360,14 @@ export function LiveGameView({
             }}
           >
             {/* Play event label (SAFETY, etc.) */}
-            <div style={{ height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <div
+              style={{
+                height: 28,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
               {playEventLabel && (
                 <span
                   style={{
@@ -404,7 +411,15 @@ export function LiveGameView({
                 >
                   FLAG
                 </span>
-                <span style={{ width: 1, height: 10, background: C.amberBorder, opacity: 0.6, flexShrink: 0 }} />
+                <span
+                  style={{
+                    width: 1,
+                    height: 10,
+                    background: C.amberBorder,
+                    opacity: 0.6,
+                    flexShrink: 0,
+                  }}
+                />
                 {penaltyStrip.team && (
                   <>
                     <span
@@ -418,7 +433,15 @@ export function LiveGameView({
                     >
                       {penaltyStrip.team}
                     </span>
-                    <span style={{ width: 1, height: 10, background: C.amberBorder, opacity: 0.6, flexShrink: 0 }} />
+                    <span
+                      style={{
+                        width: 1,
+                        height: 10,
+                        background: C.amberBorder,
+                        opacity: 0.6,
+                        flexShrink: 0,
+                      }}
+                    />
                   </>
                 )}
                 <span
@@ -434,7 +457,15 @@ export function LiveGameView({
                 </span>
                 {penaltyStrip.yards > 0 && (
                   <>
-                    <span style={{ width: 1, height: 10, background: C.amberBorder, opacity: 0.6, flexShrink: 0 }} />
+                    <span
+                      style={{
+                        width: 1,
+                        height: 10,
+                        background: C.amberBorder,
+                        opacity: 0.6,
+                        flexShrink: 0,
+                      }}
+                    />
                     <span
                       style={{
                         fontFamily: F.display,
@@ -449,7 +480,15 @@ export function LiveGameView({
                 )}
                 {penaltyStrip.player && (
                   <>
-                    <span style={{ width: 1, height: 10, background: C.amberBorder, opacity: 0.6, flexShrink: 0 }} />
+                    <span
+                      style={{
+                        width: 1,
+                        height: 10,
+                        background: C.amberBorder,
+                        opacity: 0.6,
+                        flexShrink: 0,
+                      }}
+                    />
                     <span
                       style={{
                         fontFamily: F.mono,
@@ -487,22 +526,23 @@ export function LiveGameView({
             />
 
             {/* Player stats panel — appears when a headshot is clicked */}
-            {statsPanelActor && (() => {
-              const nameKey = statsPanelActor.name.toLowerCase().replace(/[^a-z0-9]/g, '');
-              const fantasyEntry =
-                [...state.fantasyAway, ...state.fantasyHome].find(
-                  (e) => e.name.toLowerCase().replace(/[^a-z0-9]/g, '') === nameKey
-                ) ?? null;
-              return (
-                <PlayerStatsPanel
-                  actor={statsPanelActor}
-                  onClose={() => setStatsPanelActor(null)}
-                  fantasyEntry={fantasyEntry}
-                  season={season}
-                  week={week}
-                />
-              );
-            })()}
+            {statsPanelActor &&
+              (() => {
+                const nameKey = statsPanelActor.name.toLowerCase().replace(/[^a-z0-9]/g, '');
+                const fantasyEntry =
+                  [...state.fantasyAway, ...state.fantasyHome].find(
+                    (e) => e.name.toLowerCase().replace(/[^a-z0-9]/g, '') === nameKey
+                  ) ?? null;
+                return (
+                  <PlayerStatsPanel
+                    actor={statsPanelActor}
+                    onClose={() => setStatsPanelActor(null)}
+                    fantasyEntry={fantasyEntry}
+                    season={season}
+                    week={week}
+                  />
+                );
+              })()}
           </div>
 
           {/* Controls row: Drive (left) | Playback (center) | Environment (right) */}
@@ -1054,7 +1094,9 @@ function PlayerStatsPanel({
         />
 
         {/* ── HEADER ── */}
-        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 14, padding: '14px 16px 12px' }}>
+        <div
+          style={{ display: 'flex', alignItems: 'flex-start', gap: 14, padding: '14px 16px 12px' }}
+        >
           {/* Headshot / initials circle */}
           <div
             style={{

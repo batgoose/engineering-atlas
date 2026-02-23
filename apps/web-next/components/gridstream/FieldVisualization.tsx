@@ -25,15 +25,9 @@ import {
   FIELD_RIGHT,
   FIELD_TOP,
   FIELD_BOTTOM,
-  AWAY_EZ_LEFT,
-  AWAY_EZ_RIGHT,
-  HOME_EZ_LEFT,
-  HOME_EZ_RIGHT,
   FIELD_CENTER_Y,
   FG_UPRIGHT_Y_HALF,
   FG_PORTAL_CENTER_Y,
-  AWAY_FG_UPRIGHT_X,
-  HOME_FG_UPRIGHT_X,
   FIELD_PERSPECTIVE,
   YARD_LINE_POSITIONS,
   fieldPctToSvgX,
@@ -186,8 +180,13 @@ interface PostScoreTryOverlayData {
   actor?: PlayAnimationData['postScoreTryActor'];
 }
 
-
-function OverlayHeadshotMarker({ marker, onClickActor }: { marker: OverlayHeadshotMarkerSpec; onClickActor?: (actor: PlayActorInfo) => void }) {
+function OverlayHeadshotMarker({
+  marker,
+  onClickActor,
+}: {
+  marker: OverlayHeadshotMarkerSpec;
+  onClickActor?: (actor: PlayActorInfo) => void;
+}) {
   const [hovered, setHovered] = useState(false);
   const scaledAvatarRadius =
     marker.avatarRadius * FIELD_HEADSHOT_SCALE * (marker.sizeMultiplier ?? 1);
@@ -202,7 +201,7 @@ function OverlayHeadshotMarker({ marker, onClickActor }: { marker: OverlayHeadsh
   const isClickable = Boolean(marker.actorInfo && onClickActor);
 
   // Name plate — small tab attached at the top of the circle, extends freely (no clip)
-  const namePlateH = Math.max(10, scaledAvatarRadius * 0.30);
+  const namePlateH = Math.max(10, scaledAvatarRadius * 0.3);
   const nameFontSize = Math.max(5.5, namePlateH * 0.72);
   const lastNameToken = marker.playerName
     ? (marker.playerName.trim().split(/\s+/).pop() ?? '').toUpperCase()
@@ -255,7 +254,10 @@ function OverlayHeadshotMarker({ marker, onClickActor }: { marker: OverlayHeadsh
         {/* Glow bloom — blurred fill circle that fades in on hover */}
         <defs>
           <filter id={glowFilterId} x="-100%" y="-100%" width="300%" height="300%">
-            <feGaussianBlur in="SourceGraphic" stdDeviation={Math.max(3, scaledAvatarRadius * 0.3)} />
+            <feGaussianBlur
+              in="SourceGraphic"
+              stdDeviation={Math.max(3, scaledAvatarRadius * 0.3)}
+            />
           </filter>
         </defs>
         <circle
@@ -385,7 +387,12 @@ function OverlayHeadshotMarker({ marker, onClickActor }: { marker: OverlayHeadsh
       />
       {/* Circle + image — no CSS scale so clipPath stays aligned */}
       <g>
-        <circle cx={cx} cy={cy} r={scaledAvatarRadius + ringStroke * 2.45} fill={`url(#${glowId})`} />
+        <circle
+          cx={cx}
+          cy={cy}
+          r={scaledAvatarRadius + ringStroke * 2.45}
+          fill={`url(#${glowId})`}
+        />
         <ellipse
           cx={cx}
           cy={shadowSoftY}
@@ -915,11 +922,11 @@ function OverlayFgArc({
   let portalCornerPts = '';
   if (isMade) {
     const nearFieldY = FG_PORTAL_CENTER_Y + FG_UPRIGHT_Y_HALF; // 215
-    const farFieldY  = FG_PORTAL_CENTER_Y - FG_UPRIGHT_Y_HALF; // 105
+    const farFieldY = FG_PORTAL_CENTER_Y - FG_UPRIGHT_Y_HALF; // 105
     const bNearBase = projectFieldPointToScreen(uprightX, nearFieldY);
-    const bFarBase  = projectFieldPointToScreen(uprightX, farFieldY);
+    const bFarBase = projectFieldPointToScreen(uprightX, farFieldY);
     const bNear_y = bNearBase.y - PORTAL_LIFT;
-    const bFar_y  = bFarBase.y  - PORTAL_LIFT;
+    const bFar_y = bFarBase.y - PORTAL_LIFT;
     const relY = nearFieldY - FIELD_PERSPECTIVE_ORIGIN_Y;
     const z = relY * Math.sin(FIELD_TILT_RAD);
     const sc = FIELD_PERSPECTIVE_PX / (FIELD_PERSPECTIVE_PX - z);
@@ -948,7 +955,7 @@ function OverlayFgArc({
     const faceVecX = bFarBase.x - bNearBase.x;
     const faceVecY = bFar_y - bNear_y;
     portalFaceHalfW = Math.sqrt(faceVecX * faceVecX + faceVecY * faceVecY) / 2;
-    portalFaceAngleDeg = Math.atan2(faceVecY, faceVecX) * 180 / Math.PI;
+    portalFaceAngleDeg = (Math.atan2(faceVecY, faceVecX) * 180) / Math.PI;
   } else {
     let endSvgY = FIELD_CENTER_Y;
     if (play.fgResult === 'wide_left') endSvgY = FIELD_CENTER_Y + wideMissSign * wideMissOffset;
@@ -1021,13 +1028,20 @@ function OverlayFgArc({
           <g clipPath={`url(#${possIsAway ? 'pent-clip-a' : 'pent-clip-h'})`}>
             {/* Rotate into the portal face's local plane — same orientation as the portal
                 rectangle, so effects "face" the field center rather than the SVG plane */}
-            <g transform={`translate(${end.x.toFixed(1)},${end.y.toFixed(1)}) rotate(${portalFaceAngleDeg.toFixed(1)})`}>
+            <g
+              transform={`translate(${end.x.toFixed(1)},${end.y.toFixed(1)}) rotate(${portalFaceAngleDeg.toFixed(1)})`}
+            >
               {/* Bright impact flash covering the portal face */}
-              <ellipse cx={0} cy={0}
-                rx={portalFaceHalfW * 2.5} ry={portalFaceHalfH * 0.9}
-                fill="#c8f8ff" fillOpacity={0}
+              <ellipse
+                cx={0}
+                cy={0}
+                rx={portalFaceHalfW * 2.5}
+                ry={portalFaceHalfH * 0.9}
+                fill="#c8f8ff"
+                fillOpacity={0}
               >
-                <animate attributeName="fill-opacity"
+                <animate
+                  attributeName="fill-opacity"
                   values="0;0.92;0"
                   keyTimes="0;0.12;1"
                   begin={`${impactBegin.toFixed(3)}s`}
@@ -1036,25 +1050,31 @@ function OverlayFgArc({
                 />
               </ellipse>
               {/* Three expanding rings in the portal face plane, staggered */}
-              {[0, 1, 2].map(k => (
-                <ellipse key={k} cx={0} cy={0}
+              {[0, 1, 2].map((k) => (
+                <ellipse
+                  key={k}
+                  cx={0}
+                  cy={0}
                   fill="none"
                   stroke={k === 0 ? '#ffffff' : '#00d4ff'}
                   strokeWidth={2.2 - k * 0.55}
                 >
-                  <animate attributeName="rx"
+                  <animate
+                    attributeName="rx"
                     values={`2;${portalFaceHalfW * (1.8 + k * 0.9)}`}
                     begin={`${(impactBegin + k * 0.11).toFixed(3)}s`}
                     dur={`${0.62 - k * 0.04}s`}
                     fill="freeze"
                   />
-                  <animate attributeName="ry"
+                  <animate
+                    attributeName="ry"
                     values={`2;${portalFaceHalfH * (0.7 + k * 0.25)}`}
                     begin={`${(impactBegin + k * 0.11).toFixed(3)}s`}
                     dur={`${0.62 - k * 0.04}s`}
                     fill="freeze"
                   />
-                  <animate attributeName="stroke-opacity"
+                  <animate
+                    attributeName="stroke-opacity"
                     values="0.95;0"
                     begin={`${(impactBegin + k * 0.11).toFixed(3)}s`}
                     dur={`${0.62 - k * 0.04}s`}
@@ -1096,7 +1116,6 @@ function buildPostScoreTryData(
       }
     : null;
 }
-
 
 function OverlayFieldNotice({ notice }: { notice: string }) {
   const noticeText = notice.trim().toUpperCase();
@@ -1523,7 +1542,8 @@ export function FieldVisualization({
             {/* Drive start marker — sci-fi waypoint beacon on near (bottom) sideline */}
             {!isPreKickoffOfficialTimeout &&
               (hasSituation || showGuidesDuringTimeout) &&
-              currentDrive && (() => {
+              currentDrive &&
+              (() => {
                 // Use cyan (not team color) — yellow/amber is reserved for first-down/penalty
                 const beaconColor = C.cyan;
                 const cx = driveStartX;
@@ -1536,35 +1556,81 @@ export function FieldVisualization({
                 return (
                   <g>
                     {/* Outer scan ring — pulses outward and fades */}
-                    <circle cx={cx} cy={cy} r="5" fill="none"
-                      stroke={beaconColor} strokeWidth="0.8" opacity="0">
-                      <animate attributeName="r" values="5;18" dur="2.2s"
-                        repeatCount="indefinite" calcMode="ease-out" />
-                      <animate attributeName="opacity" values="0.55;0" dur="2.2s"
-                        repeatCount="indefinite" calcMode="ease-out" />
+                    <circle
+                      cx={cx}
+                      cy={cy}
+                      r="5"
+                      fill="none"
+                      stroke={beaconColor}
+                      strokeWidth="0.8"
+                      opacity="0"
+                    >
+                      <animate
+                        attributeName="r"
+                        values="5;18"
+                        dur="2.2s"
+                        repeatCount="indefinite"
+                        calcMode="ease-out"
+                      />
+                      <animate
+                        attributeName="opacity"
+                        values="0.55;0"
+                        dur="2.2s"
+                        repeatCount="indefinite"
+                        calcMode="ease-out"
+                      />
                     </circle>
                     {/* Mid scan ring — offset phase */}
-                    <circle cx={cx} cy={cy} r="5" fill="none"
-                      stroke={beaconColor} strokeWidth="0.5" opacity="0">
-                      <animate attributeName="r" values="5;13" dur="2.2s"
-                        begin="1.1s" repeatCount="indefinite" calcMode="ease-out" />
-                      <animate attributeName="opacity" values="0.4;0" dur="2.2s"
-                        begin="1.1s" repeatCount="indefinite" calcMode="ease-out" />
+                    <circle
+                      cx={cx}
+                      cy={cy}
+                      r="5"
+                      fill="none"
+                      stroke={beaconColor}
+                      strokeWidth="0.5"
+                      opacity="0"
+                    >
+                      <animate
+                        attributeName="r"
+                        values="5;13"
+                        dur="2.2s"
+                        begin="1.1s"
+                        repeatCount="indefinite"
+                        calcMode="ease-out"
+                      />
+                      <animate
+                        attributeName="opacity"
+                        values="0.4;0"
+                        dur="2.2s"
+                        begin="1.1s"
+                        repeatCount="indefinite"
+                        calcMode="ease-out"
+                      />
                     </circle>
                     {/* Soft glow halo */}
                     <circle cx={cx} cy={cy} r={r + 5} fill={beaconColor} opacity=".07" />
                     {/* Diamond waypoint body */}
                     <path d={d} fill={beaconColor} opacity=".9" />
                     {/* Inner highlight */}
-                    <path d={`M ${cx},${cy - r + 1.5} L ${cx + r - 1.5},${cy} L ${cx},${cy - 1}`}
-                      fill="rgba(255,255,255,.2)" />
+                    <path
+                      d={`M ${cx},${cy - r + 1.5} L ${cx + r - 1.5},${cy} L ${cx},${cy - 1}`}
+                      fill="rgba(255,255,255,.2)"
+                    />
                     {/* Connector from diamond top tip to field edge */}
-                    <line x1={cx} y1={cy - r} x2={cx} y2={connTop}
-                      stroke={beaconColor} strokeWidth="1" opacity=".45"
-                      strokeDasharray="2 2" />
+                    <line
+                      x1={cx}
+                      y1={cy - r}
+                      x2={cx}
+                      y2={connTop}
+                      stroke={beaconColor}
+                      strokeWidth="1"
+                      opacity=".45"
+                      strokeDasharray="2 2"
+                    />
                     {/* Label to the right */}
                     <text
-                      x={cx + r + 5} y={cy + 2.5}
+                      x={cx + r + 5}
+                      y={cy + 2.5}
                       textAnchor="start"
                       fill={beaconColor}
                       fontSize="7"
@@ -1612,25 +1678,48 @@ export function FieldVisualization({
                       // Pole extends upward from the disc toward y=0
                       const poleW = 5;
                       const poleX = fdX - poleW / 2;
-                      const poleBotY = discCy - discR;      // y ≈ 15
+                      const poleBotY = discCy - discR; // y ≈ 15
                       const poleTopY = 2;
-                      const poleH = poleBotY - poleTopY;    // ≈ 13
+                      const poleH = poleBotY - poleTopY; // ≈ 13
                       return (
                         <g>
                           {/* Ambient glow */}
                           <circle cx={fdX} cy={discCy} r={discR + 5} fill={C.amber} opacity=".1" />
                           {/* Pole extends up from disc */}
-                          <rect x={poleX} y={poleTopY} width={poleW} height={poleH}
-                            fill={C.amber} opacity=".92" rx="1" />
+                          <rect
+                            x={poleX}
+                            y={poleTopY}
+                            width={poleW}
+                            height={poleH}
+                            fill={C.amber}
+                            opacity=".92"
+                            rx="1"
+                          />
                           {/* Alternating dark stripes */}
-                          <rect x={poleX} y={poleTopY + 2} width={poleW} height={2.5}
-                            fill="rgba(0,0,0,.45)" />
-                          <rect x={poleX} y={poleTopY + 7} width={poleW} height={2.5}
-                            fill="rgba(0,0,0,.45)" />
+                          <rect
+                            x={poleX}
+                            y={poleTopY + 2}
+                            width={poleW}
+                            height={2.5}
+                            fill="rgba(0,0,0,.45)"
+                          />
+                          <rect
+                            x={poleX}
+                            y={poleTopY + 7}
+                            width={poleW}
+                            height={2.5}
+                            fill="rgba(0,0,0,.45)"
+                          />
                           {/* Disc — round pad at bottom of pole, touching the sideline */}
                           <circle cx={fdX} cy={discCy} r={discR} fill={C.amber} opacity=".95" />
-                          <circle cx={fdX} cy={discCy} r={discR} fill="none"
-                            stroke="rgba(0,0,0,.35)" strokeWidth="1" />
+                          <circle
+                            cx={fdX}
+                            cy={discCy}
+                            r={discR}
+                            fill="none"
+                            stroke="rgba(0,0,0,.35)"
+                            strokeWidth="1"
+                          />
                         </g>
                       );
                     })()}
@@ -1929,8 +2018,8 @@ export function FieldVisualization({
           // Vortex ellipse axes: ~50% of portal bottom-edge width and near-side height
           const bWidth = Math.sqrt((bNear.x - bFar.x) ** 2 + (bNear.y - bFar.y) ** 2);
           const bHeight = bNear.y - tNear.y;
-          const vRX = bWidth * 0.50;
-          const vRY = bHeight * 0.50;
+          const vRX = bWidth * 0.5;
+          const vRY = bHeight * 0.5;
           const floatDur = i === 0 ? '4.4s' : '3.8s';
           return { bFar, bNear, tFar, tNear, cx, cy, vRX, vRY, floatDur };
         });
@@ -1956,7 +2045,7 @@ export function FieldVisualization({
               const ty = cy.toFixed(1);
               const clipId = `pclip-${i}`;
               const gradId = `pgrad-${i}`;
-              const vfxId  = `pvfx-${i}`;
+              const vfxId = `pvfx-${i}`;
               const glowFId = `pglow-${i}`;
               // Displacement scale: enough to warp the gradient edge organically
               const dispScale = Math.round(vRY * 0.32);
@@ -1983,14 +2072,21 @@ export function FieldVisualization({
                     </clipPath>
                     {/* Radial gradient: deep void center → electric cyan rim */}
                     <radialGradient id={gradId} cx="50%" cy="50%" r="50%">
-                      <stop offset="0%"   stopColor="#000510" />
-                      <stop offset="22%"  stopColor="#000f28" />
-                      <stop offset="52%"  stopColor="#002568" />
-                      <stop offset="78%"  stopColor="#004db5" />
+                      <stop offset="0%" stopColor="#000510" />
+                      <stop offset="22%" stopColor="#000f28" />
+                      <stop offset="52%" stopColor="#002568" />
+                      <stop offset="78%" stopColor="#004db5" />
                       <stop offset="100%" stopColor="#00c8ff" stopOpacity="0.88" />
                     </radialGradient>
                     {/* Vortex filter: fractal noise displaces the gradient fill → organic swirl */}
-                    <filter id={vfxId} x="-70%" y="-70%" width="240%" height="240%" colorInterpolationFilters="sRGB">
+                    <filter
+                      id={vfxId}
+                      x="-70%"
+                      y="-70%"
+                      width="240%"
+                      height="240%"
+                      colorInterpolationFilters="sRGB"
+                    >
                       <feTurbulence
                         type="fractalNoise"
                         baseFrequency="0.055 0.032"
@@ -2024,15 +2120,21 @@ export function FieldVisualization({
 
                   {/* All portal interior — clipped to portal polygon */}
                   <g clipPath={`url(#${clipId})`}>
-
                     {/* Slowly rotating turbulent vortex — fractal noise warps the
                         radial gradient into organic fluid swirls as it spins */}
                     <g transform={`translate(${tx},${ty})`}>
                       <g>
-                        <animateTransform attributeName="transform" type="rotate"
-                          from="0" to="360" dur="25s" repeatCount="indefinite" />
+                        <animateTransform
+                          attributeName="transform"
+                          type="rotate"
+                          from="0"
+                          to="360"
+                          dur="25s"
+                          repeatCount="indefinite"
+                        />
                         <ellipse
-                          rx={vRX * 1.25} ry={vRY * 1.25}
+                          rx={vRX * 1.25}
+                          ry={vRY * 1.25}
                           fill={`url(#${gradId})`}
                           filter={`url(#${vfxId})`}
                         />
@@ -2042,10 +2144,17 @@ export function FieldVisualization({
                     {/* Second counter-rotating layer at smaller scale — adds depth */}
                     <g transform={`translate(${tx},${ty})`}>
                       <g>
-                        <animateTransform attributeName="transform" type="rotate"
-                          from="360" to="0" dur="40s" repeatCount="indefinite" />
+                        <animateTransform
+                          attributeName="transform"
+                          type="rotate"
+                          from="360"
+                          to="0"
+                          dur="40s"
+                          repeatCount="indefinite"
+                        />
                         <ellipse
-                          rx={vRX * 0.72} ry={vRY * 0.72}
+                          rx={vRX * 0.72}
+                          ry={vRY * 0.72}
                           fill={`url(#${gradId})`}
                           fillOpacity="0.55"
                           filter={`url(#${vfxId})`}
@@ -2054,8 +2163,11 @@ export function FieldVisualization({
                     </g>
 
                     {/* Event-horizon: blurred outer glow */}
-                    <ellipse cx={cx} cy={cy}
-                      rx={vRX * 0.88} ry={vRY * 0.88}
+                    <ellipse
+                      cx={cx}
+                      cy={cy}
+                      rx={vRX * 0.88}
+                      ry={vRY * 0.88}
                       fill="none"
                       stroke="#00ccff"
                       strokeWidth={Math.max(2.5, vRX * 0.26)}
@@ -2065,40 +2177,61 @@ export function FieldVisualization({
                     {/* Core: two layers of soft blurred glow — no hard edges,
                         matches the same cyan/blue energy as the event horizon */}
                     {/* Outer bloom — larger, mid-blue, slow breathe */}
-                    <ellipse cx={cx} cy={cy}
-                      fill="#0066cc"
-                      filter={`url(#${glowFId})`}
-                    >
-                      <animate attributeName="rx"
-                        values={`${vRX * 0.20};${vRX * 0.28};${vRX * 0.20}`}
-                        dur="3.4s" repeatCount="indefinite" calcMode="spline"
-                        keySplines="0.45 0 0.55 1; 0.45 0 0.55 1" />
-                      <animate attributeName="ry"
-                        values={`${vRY * 0.20};${vRY * 0.28};${vRY * 0.20}`}
-                        dur="3.4s" repeatCount="indefinite" calcMode="spline"
-                        keySplines="0.45 0 0.55 1; 0.45 0 0.55 1" />
-                      <animate attributeName="fillOpacity"
-                        values="0.5;0.88;0.5" dur="3.4s"
-                        repeatCount="indefinite" calcMode="spline"
-                        keySplines="0.45 0 0.55 1; 0.45 0 0.55 1" />
+                    <ellipse cx={cx} cy={cy} fill="#0066cc" filter={`url(#${glowFId})`}>
+                      <animate
+                        attributeName="rx"
+                        values={`${vRX * 0.2};${vRX * 0.28};${vRX * 0.2}`}
+                        dur="3.4s"
+                        repeatCount="indefinite"
+                        calcMode="spline"
+                        keySplines="0.45 0 0.55 1; 0.45 0 0.55 1"
+                      />
+                      <animate
+                        attributeName="ry"
+                        values={`${vRY * 0.2};${vRY * 0.28};${vRY * 0.2}`}
+                        dur="3.4s"
+                        repeatCount="indefinite"
+                        calcMode="spline"
+                        keySplines="0.45 0 0.55 1; 0.45 0 0.55 1"
+                      />
+                      <animate
+                        attributeName="fillOpacity"
+                        values="0.5;0.88;0.5"
+                        dur="3.4s"
+                        repeatCount="indefinite"
+                        calcMode="spline"
+                        keySplines="0.45 0 0.55 1; 0.45 0 0.55 1"
+                      />
                     </ellipse>
                     {/* Inner bright spot — smaller, cyan, offset phase */}
-                    <ellipse cx={cx} cy={cy}
-                      fill="#22ddff"
-                      filter={`url(#${glowFId})`}
-                    >
-                      <animate attributeName="rx"
+                    <ellipse cx={cx} cy={cy} fill="#22ddff" filter={`url(#${glowFId})`}>
+                      <animate
+                        attributeName="rx"
                         values={`${vRX * 0.09};${vRX * 0.13};${vRX * 0.09}`}
-                        dur="3.4s" begin="-0.6s" repeatCount="indefinite" calcMode="spline"
-                        keySplines="0.45 0 0.55 1; 0.45 0 0.55 1" />
-                      <animate attributeName="ry"
+                        dur="3.4s"
+                        begin="-0.6s"
+                        repeatCount="indefinite"
+                        calcMode="spline"
+                        keySplines="0.45 0 0.55 1; 0.45 0 0.55 1"
+                      />
+                      <animate
+                        attributeName="ry"
                         values={`${vRY * 0.09};${vRY * 0.13};${vRY * 0.09}`}
-                        dur="3.4s" begin="-0.6s" repeatCount="indefinite" calcMode="spline"
-                        keySplines="0.45 0 0.55 1; 0.45 0 0.55 1" />
-                      <animate attributeName="fillOpacity"
-                        values="0.7;1.0;0.7" dur="3.4s" begin="-0.6s"
-                        repeatCount="indefinite" calcMode="spline"
-                        keySplines="0.45 0 0.55 1; 0.45 0 0.55 1" />
+                        dur="3.4s"
+                        begin="-0.6s"
+                        repeatCount="indefinite"
+                        calcMode="spline"
+                        keySplines="0.45 0 0.55 1; 0.45 0 0.55 1"
+                      />
+                      <animate
+                        attributeName="fillOpacity"
+                        values="0.7;1.0;0.7"
+                        dur="3.4s"
+                        begin="-0.6s"
+                        repeatCount="indefinite"
+                        calcMode="spline"
+                        keySplines="0.45 0 0.55 1; 0.45 0 0.55 1"
+                      />
                     </ellipse>
                   </g>
 
@@ -2150,7 +2283,9 @@ export function FieldVisualization({
               delay={postTryKickArcDelay}
             />
           )}
-          {lastPlay && showOverlays && <FieldHeadshotOverlay markers={overlayHeadshotMarkers} onClickActor={onHeadshotClick} />}
+          {lastPlay && showOverlays && (
+            <FieldHeadshotOverlay markers={overlayHeadshotMarkers} onClickActor={onHeadshotClick} />
+          )}
           {fieldNotice && <OverlayFieldNotice notice={fieldNotice} />}
         </svg>
       )}

@@ -40,7 +40,6 @@ export function WeatherLayer({ weather, venue }: WeatherLayerProps) {
       size: isSnow ? 2 + Math.random() * 2.5 : 1.5,
       height: isSnow ? 0 : 8 + Math.random() * 4, // snow uses size for both
     }));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [count, isSnow, hDrift]);
 
   if (isDomed) return null;

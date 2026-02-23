@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import type { CSSProperties } from 'react';
 
 // ═══════════════════════════════════════════════════════════════
 // GRIDSTREAM LIVE — FAITHFUL PORT OF v11 PROTOTYPE
@@ -212,6 +213,7 @@ export default function GridstreamLive({ game }: { game: GridstreamGameData }) {
         fontFamily: "'Share Tech Mono', monospace",
       }}
     >
+      {/* eslint-disable-next-line @next/next/no-page-custom-font */}
       <link
         href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Orbitron:wght@400;500;600;700;800;900&family=Barlow+Condensed:ital,wght@0,400;0,500;0,600;0,700;1,600&display=swap"
         rel="stylesheet"
@@ -1956,7 +1958,7 @@ function CornerTicks() {
   return (
     <>
       {(['top-left', 'top-right', 'bottom-left', 'bottom-right'] as const).map((p) => {
-        const s: Record<string, any> = { position: 'absolute', width: 8, height: 8, zIndex: 5 };
+        const s: CSSProperties = { position: 'absolute', width: 8, height: 8, zIndex: 5 };
         if (p === 'top-left')
           Object.assign(s, {
             top: 3,
@@ -2274,7 +2276,11 @@ function TeamStatsPanel({
     { label: 'PASSING', a: stats.away.passingYards, h: stats.home.passingYards, max: 400 },
     { label: 'RUSHING', a: stats.away.rushingYards, h: stats.home.rushingYards, max: 250 },
     { label: '1ST DOWNS', a: stats.away.firstDowns, h: stats.home.firstDowns, max: 30 },
-    { label: '3RD DOWN', a: stats.away.thirdDown as any, h: stats.home.thirdDown as any },
+    {
+      label: '3RD DOWN',
+      a: stats.away.thirdDown as string | number,
+      h: stats.home.thirdDown as string | number,
+    },
     { label: 'SACKS', a: stats.away.sacks, h: stats.home.sacks },
     { label: 'TURNOVERS', a: stats.away.turnovers, h: stats.home.turnovers },
     { label: 'POSSESSION', a: stats.away.top, h: stats.home.top },

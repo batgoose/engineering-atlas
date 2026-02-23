@@ -19,7 +19,7 @@ function scenarioById(id: string) {
   return found;
 }
 
-function parseTranslateXY(transform: string | null): { x: number; y: number } | null {
+function _parseTranslateXY(transform: string | null): { x: number; y: number } | null {
   if (!transform) return null;
   const match = transform.match(/translate\(\s*(-?\d+(?:\.\d+)?)\s*[ ,]\s*(-?\d+(?:\.\d+)?)\s*\)/);
   if (!match) return null;

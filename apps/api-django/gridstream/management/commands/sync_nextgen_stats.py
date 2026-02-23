@@ -118,9 +118,7 @@ class Command(ImportBaseCommand):
         # Build player gsis_id cache once
         with self.timed_operation("Building player cache"):
             gsis_cache = {
-                p.gsis_id: p
-                for p in Player.objects.using("nfl").all()
-                if p.gsis_id
+                p.gsis_id: p for p in Player.objects.using("nfl").all() if p.gsis_id
             }
         self.stdout.write(f"  {len(gsis_cache):,} players in cache")
 
@@ -147,15 +145,18 @@ class Command(ImportBaseCommand):
             # Filter by season
             if requested_seasons:
                 rows = [
-                    r for r in rows
+                    r
+                    for r in rows
                     if self.safe_int(r.get("season")) in set(requested_seasons)
                 ]
                 self.stdout.write(f"  After season filter: {len(rows):,} rows")
 
             # Filter: only REG and POST, skip aggregates that lack gsis_id
             rows = [
-                r for r in rows
-                if r.get("player_gsis_id") and r.get("player_gsis_id").strip()
+                r
+                for r in rows
+                if r.get("player_gsis_id")
+                and r.get("player_gsis_id").strip()
                 and r.get("season_type", "REG") in ("REG", "POST")
             ]
             self.stdout.write(f"  After gsis_id filter: {len(rows):,} rows")
@@ -188,7 +189,9 @@ class Command(ImportBaseCommand):
                         if val is not None:
                             metrics[field] = round(val, 4)
 
-                    batch.append((player, season, week, season_type, stat_type, metrics))
+                    batch.append(
+                        (player, season, week, season_type, stat_type, metrics)
+                    )
 
                     if len(batch) >= self.batch_size:
                         c, u = self._flush_batch(batch)
@@ -202,7 +205,9 @@ class Command(ImportBaseCommand):
                     updated += u
 
             if skipped:
-                self.stdout.write(self.style.WARNING(f"  Skipped {skipped} (no player match)"))
+                self.stdout.write(
+                    self.style.WARNING(f"  Skipped {skipped} (no player match)")
+                )
             self.stdout.write(f"  {stat_type}: {created} created, {updated} updated")
             total_created += created
             total_updated += updated
@@ -220,7 +225,9 @@ class Command(ImportBaseCommand):
             return len(batch), 0
         with transaction.atomic(using="nfl"):
             for player, season, week, season_type, stat_type, metrics in batch:
-                _, was_created = PlayerNextGenStats.objects.using("nfl").update_or_create(
+                _, was_created = PlayerNextGenStats.objects.using(
+                    "nfl"
+                ).update_or_create(
                     player=player,
                     season=season,
                     week=week,

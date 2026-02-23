@@ -794,7 +794,7 @@ function PassAnimation({
     hidePrimaryAt != null ? Math.max(hidePrimaryAt - 0.08, duration + 0.35) : undefined;
   const passLateralSign = targetX >= fromX ? 1 : -1;
   const cardSide: 'left' | 'right' = targetX >= fromX ? 'right' : 'left';
-  const qbCardSide: 'left' | 'right' = targetX >= fromX ? 'left' : 'right';
+  const _qbCardSide: 'left' | 'right' = targetX >= fromX ? 'left' : 'right';
   const qbReleaseHeadshot = normalizeHeadshotUrl(play.qbActor?.headshotUrl);
   const sackTravelHeadshot = isSack ? qbReleaseHeadshot : undefined;
   const receiverEndHeadshot =
@@ -1347,7 +1347,7 @@ function PenaltyAdjustmentOverlay({
 function PostScoreAttemptOverlay({
   data,
   delay,
-  fallbackSide,
+  fallbackSide: _fallbackSide,
   offenseRingColor,
   hideFgTrail = false,
 }: {
@@ -1591,7 +1591,7 @@ function TurnoverAnimation({
   const returnDuration = hasReturn ? totalDuration * 0.58 : 0;
   const turnoverLabelDelay = firstDuration + 0.08;
   const returnStartDelay = firstDuration + 0.22;
-  const actorDelay = hasReturn
+  const _actorDelay = hasReturn
     ? returnStartDelay + returnDuration + 0.08
     : turnoverLabelDelay + 0.14;
   const turnoverY = isInterception ? dirY : FIELD_CENTER_Y;
@@ -1780,7 +1780,7 @@ function KickAnimation({
     play.kickLandingSide && typeof play.kickLandingYardline === 'number'
       ? fieldPctToSvgX(yardToFieldPct(play.kickLandingYardline, play.kickLandingSide, awayAbbr))
       : toX;
-  const isPunt = /\bpunts?\b/i.test(play.description);
+  const _isPunt = /\bpunts?\b/i.test(play.description);
   const hasReturn = Math.abs(toX - landingX) > 2;
   const isTouchback = /touchback/i.test(play.description);
   const kickOutOfBounds = /\bout of bounds\b/i.test(play.description);
@@ -1811,8 +1811,8 @@ function KickAnimation({
   const puntDistanceYards =
     parseKickDistanceYards(play.description) ??
     Math.round(Math.abs(landingX - fromX) / YARDS_TO_PX);
-  const punterSummary = puntDistanceYards > 0 ? `${puntDistanceYards} Yard Punt` : 'Punt';
-  const punterStatsLine =
+  const _punterSummary = puntDistanceYards > 0 ? `${puntDistanceYards} Yard Punt` : 'Punt';
+  const _punterStatsLine =
     (play.qbActor?.lines ?? []).find((line) => /\bpunts?\b/i.test(line)) ??
     (/\bpunts?\b/i.test(play.qbActor?.line ?? '') ? play.qbActor?.line : undefined) ??
     '1 Punt';
@@ -2051,7 +2051,7 @@ function FieldGoalAnimation({
   else if (play.fgResult === 'wide_right') endY = FIELD_CENTER_Y + wideMissOffset;
 
   const trailColor = isMade ? C.green : C.red;
-  const cardSide: 'left' | 'right' = possIsAway ? 'left' : 'right';
+  const _cardSide: 'left' | 'right' = possIsAway ? 'left' : 'right';
   const hasPenalty = Boolean((play.penaltyYards ?? 0) > 0 || play.penaltyType);
 
   return (
@@ -2251,7 +2251,7 @@ interface NumericSwapPlan {
   changed: NumericSwapSegment[];
 }
 
-function buildNumericSwapPlan(previousLine: string, nextLine: string): NumericSwapPlan | null {
+function _buildNumericSwapPlan(previousLine: string, nextLine: string): NumericSwapPlan | null {
   const prevSkeleton = previousLine.replace(/\d+/g, '#');
   const nextSkeleton = nextLine.replace(/\d+/g, '#');
   if (prevSkeleton !== nextSkeleton) return null;

@@ -14,6 +14,7 @@ The v1 database stays live and untouched until v2 reaches parity and passes QA.
 All new work targets v2 only.
 
 ### Phase 1 — Infrastructure
+
 - [ ] **1.1** Create `postgres-nfl-v2` database instance; add connection config to `.env` alongside v1 creds
 - [ ] **1.2** Build `bootstrap_nfl_v2` management command: deterministic staged runner (migrate → raw ingest → core transforms → QA report)
 - [ ] **1.3** Define `raw_` schema with source-faithful tables (no lossy projections):
@@ -32,6 +33,7 @@ All new work targets v2 only.
 - [ ] **1.4** Store source metadata per raw batch (source URL, checksum, `loaded_at`)
 
 ### Phase 2 — Raw Ingest
+
 - [ ] **2.1** Upgrade Rust ingest (or replace with DuckDB/Polars stage) to ingest full 372-field nflfastR PBP parquet into `raw_nflverse_pbp`; remove reduced column projection from `models.rs`/`lib.rs`
 - [ ] **2.2** Replace `import_player_game_stats.py` with direct ingest from nflfastR `player_stats` dataset into `raw_nflverse_player_stats`
 - [ ] **2.3** Replace `import_team_game_stats.py` with direct ingest from nflfastR team stats dataset
@@ -44,6 +46,7 @@ All new work targets v2 only.
 - [ ] **2.10** Upgrade `import_games.py` to use authoritative nflverse `games.csv` + ESPN IDs join; populate `is_division_game`, coaches, referees, `away_rest`/`home_rest`, odds fields
 
 ### Phase 3 — Django Model / Migration Updates
+
 - [ ] **3.1** Add new fields to `gridstream_play`: `timeout`, `timeout_team`, `home_timeouts_remaining`, `away_timeouts_remaining`, `pass_attempt`, `rush_attempt`, `kickoff_attempt`, `punt_attempt`, `extra_point_attempt`, `two_point_attempt`, `special_teams_play`, `st_play_type`, `touchback`, `out_of_bounds`, `punt_inside_twenty`, `punt_fair_catch`, `kickoff_fair_catch`, `kickoff_in_endzone`, `return_yards`, `return_team`, `punt_returner_player_name`, `punt_returner_player_id`, `kickoff_returner_player_name`, `kickoff_returner_player_id`, `interception_player_name`, `interception_player_id`, `fumble_recovery_1_player_name`, `fumble_recovery_1_team`, `fumble_recovery_1_yards`, `sack_player_name`, `sack_player_id`, `tackle_for_loss_1_player_name`, `pass_defense_1_player_name`, `penalty_player_name`, `penalty_player_id`, `penalty_team`, `home_wp`, `away_wp`, `vegas_wp`, `vegas_home_wp`, `ep`, `cp`, `cpoe`, `td_prob`, `fg_prob`, `no_score_prob`, `score_differential`, `drive_start_transition`, `drive_end_transition`, `drive_yards_penalized`, `series_result`
 - [ ] **3.2** Add new fields to `gridstream_game`: `away_rest`, `home_rest`, `referee`, `attendance`, `overtime` flag, `div_game` (mapped from nflverse), `spread_line`/`total_line`/`away_spread_odds`/`home_spread_odds`/`over_odds`/`under_odds` (from pickcenter)
 - [ ] **3.3** Add `gridstream_teamstanding` table (persisted standings: wins, losses, ties, pct, div_rank, seed, point_diff, sov, sos, streak, last_5, playoff clincher)
@@ -54,6 +57,7 @@ All new work targets v2 only.
 - [ ] **3.8** Run migrations against v2 only; generate migration files cleanly from scratch
 
 ### Phase 4 — Serializer / API Updates
+
 - [ ] **4.1** Expose new play fields in `PlayDetailSerializer`: timeout fields, all returner/player name fields, `home_wp`/`away_wp`, `ep`, `score_differential`, `series_result`, `drive_start_transition`
 - [ ] **4.2** Add `GameOfficialSerializer` and include in `GameDetailSerializer`
 - [ ] **4.3** Add `PlayerInjurySerializer` and include in `GameDetailSerializer` (game-day injury report)
@@ -61,12 +65,14 @@ All new work targets v2 only.
 - [ ] **4.5** Add odds fields to `GameDetailSerializer`
 
 ### Phase 5 — Backend Logic Replacement
+
 - [ ] **5.1** Remove `_derive_team_stats_from_plays()` fallback in `GameViewSet.boxscore`; require canonical `TeamGameStats` rows (keep a narrow fallback only as resilience mode behind a flag)
 - [ ] **5.2** Remove `_derive_leaders_from_player_stats()` fallback; require canonical `GameLeader` rows
 - [ ] **5.3** Remove computed standings derivation from `StandingsViewSet`; replace with `TeamStanding` table query
 - [ ] **5.4** Validate `teamstats_points_scored_pct` and `playerstats_fg_made_pct` are 100% in v2 before removing fallbacks
 
 ### Phase 6 — SDK Heuristic Replacement
+
 - [ ] **6.1** Replace `hasTurnoverLanguage()` description regex with `play.interception` + `play.fumble_lost` flags
 - [ ] **6.2** Replace `resolveAnimType()` play-category inference with explicit `pass_attempt`, `rush_attempt`, `kickoff_attempt`, `punt_attempt`, `extra_point_attempt`, `two_point_attempt`, `special_teams_play`, `st_play_type` flags
 - [ ] **6.3** Replace `parseKickDetails()` 80-line regex with: `punt_returner_player_name`, `kickoff_returner_player_name`, `return_yards`, `return_team`, `touchback`, `out_of_bounds`, `punt_inside_twenty`, `punt_fair_catch`, `kickoff_in_endzone`
@@ -79,6 +85,7 @@ All new work targets v2 only.
 - [ ] **6.10** Replace rolling EPA accumulation in replay with `total_home_epa`/`total_away_epa` per play from nflfastR
 
 ### Phase 7 — New UI Features (unlocked by v2 data)
+
 - [ ] **7.1** Games list: Add spread/total/moneyline display on game cards
 - [ ] **7.2** Games list: Add rest advantage badge (short week indicator) from `away_rest`/`home_rest`
 - [ ] **7.3** Games list: Add injury status flags for key players (game-day availability)
@@ -96,6 +103,7 @@ All new work targets v2 only.
 - [ ] **7.15** Game view: Surface Next Gen Stats metrics in player leaders panel
 
 ### Phase 8 — Cutover
+
 - [ ] **8.1** Run full QA report comparing v1 vs v2 stat totals for a sample of games (passes, rushing yards, scoring plays)
 - [ ] **8.2** Update all Django `DATABASES` config to point `default` at v2
 - [ ] **8.3** Decommission v1 database after soak period
@@ -103,6 +111,7 @@ All new work targets v2 only.
 ---
 
 ## Scope
+
 This document answers four questions:
 
 1. What data is currently stored in the NFL database.
@@ -111,6 +120,7 @@ This document answers four questions:
 4. Which downstream functions can be replaced/upgraded after data improvements.
 
 ## Sources reviewed
+
 - `https://github.com/nflverse/nflfastR/releases`
 - `https://github.com/nflverse/nfldata/blob/master/DATASETS.md`
 - `https://github.com/pseudo-r/Public-ESPN-API?tab=readme-ov-file#endpoints`
@@ -121,6 +131,7 @@ This document answers four questions:
 ## 1) Current data stored in `nfl_data`
 
 ### 1.1 Current table counts
+
 - `plays`: `1279628` rows
 - `gridstream_play`: `1151654` rows
 - `gridstream_drive`: `159345` rows
@@ -149,6 +160,7 @@ This document answers four questions:
 - `gridstream_playercollegehistory`: `0` rows
 
 ### 1.2 Coverage ranges (time/seasons)
+
 - `combine_seasons`: min=`2000`, max=`2025`, distinct=`26`
 - `nextgen_seasons`: min=`2016`, max=`2025`, distinct=`10`
 - `contract_year_signed`: min=`1993`, max=`2022`, distinct=`29`
@@ -157,6 +169,7 @@ This document answers four questions:
 - `plays_dates`: min=`1999-09-12`, max=`2026-02-08`, distinct=`27`
 
 ### 1.3 Key completeness metrics (actual data quality)
+
 - `play_description_pct`: `84.6%`
 - `play_espn_id_pct`: `88.7%`
 - `game_broadcast_pct`: `81.7%`
@@ -168,6 +181,7 @@ This document answers four questions:
 - `playerstats_punt_attempts_pct`: `0.0%`
 
 Notes:
+
 - `game_odds_any_pct = 0.0%` means odds fields exist in schema but are currently unpopulated in this snapshot.
 - Team and player stat subdomains for first downs / kicking / punting are materially incomplete (0% populated on key columns).
 - The 0% columns are a key signal: the v1 enrichment approach was never going to fill these reliably. This is a primary motivation for the v2 full rebuild.
@@ -285,16 +299,19 @@ Notes:
 ## 2A) nflfastR PBP field coverage gap
 
 ### Summary
+
 - `nflfastR` PBP fields available: **372**
 - Current raw `plays` fields ingested: **52**
 - Missing vs nflfastR full field set: **320**
 
 Current raw schema source:
+
 - `packages/db/init/01_schema.sql`
 - `apps/service-rust/nflreadrust/src/models.rs`
 - `apps/service-rust/nflreadrust/src/lib.rs`
 
 Current importer explicitly acknowledges missing columns:
+
 - `apps/api-django/gridstream/management/commands/import_plays.py`
 - `apps/api-django/gridstream/management/commands/import_player_game_stats.py`
 - `apps/api-django/gridstream/management/commands/import_team_game_stats.py`
@@ -304,353 +321,354 @@ Current importer explicitly acknowledges missing columns:
 The following fields from the 320 missing are highest priority for v2 because they directly eliminate
 frontend heuristics or unlock new UI features. See the full table below for the complete list.
 
-| Field | Why it matters |
-|---|---|
-| `home_timeouts_remaining`, `away_timeouts_remaining` | Eliminates timeout text-parsing counter; enables accurate TO bubbles in score bug |
-| `timeout`, `timeout_team` | Eliminates `parseTimeoutUsage()` regex |
-| `home_wp`, `away_wp`, `vegas_wp`, `vegas_home_wp` | Replaces `estimateAwayWinPct()` heuristic entirely; makes WinProbSparkline accurate |
-| `punt_returner_player_name/id`, `kickoff_returner_player_name/id` | Eliminates 80-line `parseKickDetails()` regex; enables reliable kick animation |
-| `return_yards`, `return_team` | Part of eliminating kick/turnover text parsing |
-| `touchback`, `out_of_bounds`, `punt_inside_twenty`, `punt_fair_catch`, `kickoff_in_endzone` | Kick animation flags; currently all parsed from description text |
-| `interception_player_name/id`, `fumble_recovery_1_player_name/team/yards` | Eliminates `parseTurnoverDetails()` regex + projection heuristic |
-| `penalty_player_name`, `penalty_player_id`, `penalty_team` | Eliminates `parsePenaltyDetails()` regex |
-| `pass_attempt`, `rush_attempt`, `kickoff_attempt`, `punt_attempt`, `extra_point_attempt`, `two_point_attempt`, `special_teams_play`, `st_play_type` | Eliminates play-type inference in `resolveAnimType()` |
-| `score_differential` | Eliminates manual running score diff accumulation |
-| `total_home_epa`, `total_away_epa`, `total_home_rush_epa`, `total_home_pass_epa` | Eliminates per-play EPA accumulation in replay timeline |
-| `drive_start_transition`, `drive_end_transition` | Enriches drive tracker ("Following INT", "After Punt") |
-| `series_result` | Adds drive series context to mission log |
-| `sack_player_name/id`, `tackle_for_loss_1_player_name`, `pass_defense_1_player_name` | Enables defender attribution in MissionLog |
-| `cp`, `cpoe` | New: completion % over expectation annotation on pass plays |
-| `td_prob`, `fg_prob`, `no_score_prob` | New: pre-snap score probability context overlay |
+| Field                                                                                                                                               | Why it matters                                                                      |
+| --------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
+| `home_timeouts_remaining`, `away_timeouts_remaining`                                                                                                | Eliminates timeout text-parsing counter; enables accurate TO bubbles in score bug   |
+| `timeout`, `timeout_team`                                                                                                                           | Eliminates `parseTimeoutUsage()` regex                                              |
+| `home_wp`, `away_wp`, `vegas_wp`, `vegas_home_wp`                                                                                                   | Replaces `estimateAwayWinPct()` heuristic entirely; makes WinProbSparkline accurate |
+| `punt_returner_player_name/id`, `kickoff_returner_player_name/id`                                                                                   | Eliminates 80-line `parseKickDetails()` regex; enables reliable kick animation      |
+| `return_yards`, `return_team`                                                                                                                       | Part of eliminating kick/turnover text parsing                                      |
+| `touchback`, `out_of_bounds`, `punt_inside_twenty`, `punt_fair_catch`, `kickoff_in_endzone`                                                         | Kick animation flags; currently all parsed from description text                    |
+| `interception_player_name/id`, `fumble_recovery_1_player_name/team/yards`                                                                           | Eliminates `parseTurnoverDetails()` regex + projection heuristic                    |
+| `penalty_player_name`, `penalty_player_id`, `penalty_team`                                                                                          | Eliminates `parsePenaltyDetails()` regex                                            |
+| `pass_attempt`, `rush_attempt`, `kickoff_attempt`, `punt_attempt`, `extra_point_attempt`, `two_point_attempt`, `special_teams_play`, `st_play_type` | Eliminates play-type inference in `resolveAnimType()`                               |
+| `score_differential`                                                                                                                                | Eliminates manual running score diff accumulation                                   |
+| `total_home_epa`, `total_away_epa`, `total_home_rush_epa`, `total_home_pass_epa`                                                                    | Eliminates per-play EPA accumulation in replay timeline                             |
+| `drive_start_transition`, `drive_end_transition`                                                                                                    | Enriches drive tracker ("Following INT", "After Punt")                              |
+| `series_result`                                                                                                                                     | Adds drive series context to mission log                                            |
+| `sack_player_name/id`, `tackle_for_loss_1_player_name`, `pass_defense_1_player_name`                                                                | Enables defender attribution in MissionLog                                          |
+| `cp`, `cpoe`                                                                                                                                        | New: completion % over expectation annotation on pass plays                         |
+| `td_prob`, `fg_prob`, `no_score_prob`                                                                                                               | New: pre-snap score probability context overlay                                     |
 
 ### Exhaustive missing nflfastR fields (name + description)
 
-| Missing Field | Description |
-|---|---|
-| `game_half` | String indicating which half the play is in, either Half1, Half2, or Overtime. |
-| `quarter_end` | Binary indicator for whether or not the row of the data is marking the end of a quarter. |
-| `sp` | Binary indicator for whether or not a score occurred on the play. |
-| `goal_to_go` | Binary indicator for whether or not the posteam is in a goal down situation. |
-| `time` | Time at start of play provided in string format as minutes:seconds remaining in the quarter. |
-| `yrdln` | String indicating the current field position for a given play. |
-| `ydsnet` | Numeric value for total yards gained on the given drive. |
-| `desc` | Detailed string description for the given play. |
-| `qb_dropback` | Binary indicator for whether or not the QB dropped back on the play (pass attempt, sack, or scrambled). |
-| `qb_kneel` | Binary indicator for whether or not the QB took a knee. |
-| `qb_spike` | Binary indicator for whether or not the QB spiked the ball. |
-| `qb_scramble` | Binary indicator for whether or not the QB scrambled. |
-| `pass_length` | String indicator for pass length: short or deep. |
-| `pass_location` | String indicator for pass location: left, middle, or right. |
-| `run_location` | String indicator for location of run: left, middle, or right. |
-| `run_gap` | String indicator for line gap of run: end, guard, or tackle |
-| `extra_point_result` | String indicator for the result of the extra point attempt: good, failed, blocked, safety (touchback in defensive endzone is 1 point apparently), or aborted. |
-| `two_point_conv_result` | String indicator for result of two point conversion attempt: success, failure, safety (touchback in defensive endzone is 1 point apparently), or return. |
-| `home_timeouts_remaining` | Numeric timeouts remaining in the half for the home team. |
-| `away_timeouts_remaining` | Numeric timeouts remaining in the half for the away team. |
-| `timeout` | Binary indicator for whether or not a timeout was called by either team. |
-| `timeout_team` | String abbreviation for which team called the timeout. |
-| `td_team` | String abbreviation for which team scored the touchdown. |
-| `td_player_name` | String name of the player who scored a touchdown. |
-| `td_player_id` | Unique identifier of the player who scored a touchdown. |
-| `posteam_timeouts_remaining` | Number of timeouts remaining for the possession team. |
-| `defteam_timeouts_remaining` | Number of timeouts remaining for the team on defense. |
-| `total_home_score` | Score for the home team at the end of the play. |
-| `total_away_score` | Score for the away team at the end of the play. |
-| `posteam_score` | Score the posteam at the start of the play. |
-| `defteam_score` | Score the defteam at the start of the play. |
-| `score_differential` | Score differential between the posteam and defteam at the start of the play. |
-| `posteam_score_post` | Score for the posteam at the end of the play. |
-| `defteam_score_post` | Score for the defteam at the end of the play. |
-| `score_differential_post` | Score differential between the posteam and defteam at the end of the play. |
-| `no_score_prob` | Predicted probability of no score occurring for the rest of the half based on the expected points model. |
-| `opp_fg_prob` | Predicted probability of the defteam scoring a FG next. |
-| `opp_safety_prob` | Predicted probability of the defteam scoring a safety next. |
-| `opp_td_prob` | Predicted probability of the defteam scoring a TD next. |
-| `fg_prob` | Predicted probability of the posteam scoring a FG next. |
-| `safety_prob` | Predicted probability of the posteam scoring a safety next. |
-| `td_prob` | Predicted probability of the posteam scoring a TD next. |
-| `extra_point_prob` | Predicted probability of the posteam scoring an extra point. |
-| `two_point_conversion_prob` | Predicted probability of the posteam scoring the two point conversion. |
-| `ep` | Using the scoring event probabilities, the estimated expected points with respect to the possession team for the given play. |
-| `total_home_epa` | Cumulative total EPA for the home team in the game so far. |
-| `total_away_epa` | Cumulative total EPA for the away team in the game so far. |
-| `total_home_rush_epa` | Cumulative total rushing EPA for the home team in the game so far. |
-| `total_away_rush_epa` | Cumulative total rushing EPA for the away team in the game so far. |
-| `total_home_pass_epa` | Cumulative total passing EPA for the home team in the game so far. |
-| `total_away_pass_epa` | Cumulative total passing EPA for the away team in the game so far. |
-| `air_epa` | EPA from the air yards alone. For completions this represents the actual value provided through the air. For incompletions this represents the hypothetical value that could've been added through the air if the pass was completed. |
-| `yac_epa` | EPA from the yards after catch alone. For completions this represents the actual value provided after the catch. For incompletions this represents the difference between the hypothetical air_epa and the play's raw observed EPA (how much the incomplete pass cost the posteam). |
-| `comp_air_epa` | EPA from the air yards alone only for completions. |
-| `comp_yac_epa` | EPA from the yards after catch alone only for completions. |
-| `total_home_comp_air_epa` | Cumulative total completions air EPA for the home team in the game so far. |
-| `total_away_comp_air_epa` | Cumulative total completions air EPA for the away team in the game so far. |
-| `total_home_comp_yac_epa` | Cumulative total completions yac EPA for the home team in the game so far. |
-| `total_away_comp_yac_epa` | Cumulative total completions yac EPA for the away team in the game so far. |
-| `total_home_raw_air_epa` | Cumulative total raw air EPA for the home team in the game so far. |
-| `total_away_raw_air_epa` | Cumulative total raw air EPA for the away team in the game so far. |
-| `total_home_raw_yac_epa` | Cumulative total raw yac EPA for the home team in the game so far. |
-| `total_away_raw_yac_epa` | Cumulative total raw yac EPA for the away team in the game so far. |
-| `wp` | Estimated win probabiity for the posteam given the current situation at the start of the given play. |
-| `def_wp` | Estimated win probability for the defteam. |
-| `home_wp` | Estimated win probability for the home team. |
-| `away_wp` | Estimated win probability for the away team. |
-| `vegas_wpa` | Win probability added (WPA) for the posteam: spread_adjusted model. |
-| `vegas_home_wpa` | Win probability added (WPA) for the home team: spread_adjusted model. |
-| `home_wp_post` | Estimated win probability for the home team at the end of the play. |
-| `away_wp_post` | Estimated win probability for the away team at the end of the play. |
-| `vegas_wp` | Estimated win probabiity for the posteam given the current situation at the start of the given play, incorporating pre-game Vegas line. |
-| `vegas_home_wp` | Estimated win probability for the home team incorporating pre-game Vegas line. |
-| `total_home_rush_wpa` | Cumulative total rushing WPA for the home team in the game so far. |
-| `total_away_rush_wpa` | Cumulative total rushing WPA for the away team in the game so far. |
-| `total_home_pass_wpa` | Cumulative total passing WPA for the home team in the game so far. |
-| `total_away_pass_wpa` | Cumulative total passing WPA for the away team in the game so far. |
-| `air_wpa` | WPA through the air (same logic as air_epa). |
-| `yac_wpa` | WPA from yards after the catch (same logic as yac_epa). |
-| `comp_air_wpa` | The air_wpa for completions only. |
-| `comp_yac_wpa` | The yac_wpa for completions only. |
-| `total_home_comp_air_wpa` | Cumulative total completions air WPA for the home team in the game so far. |
-| `total_away_comp_air_wpa` | Cumulative total completions air WPA for the away team in the game so far. |
-| `total_home_comp_yac_wpa` | Cumulative total completions yac WPA for the home team in the game so far. |
-| `total_away_comp_yac_wpa` | Cumulative total completions yac WPA for the away team in the game so far. |
-| `total_home_raw_air_wpa` | Cumulative total raw air WPA for the home team in the game so far. |
-| `total_away_raw_air_wpa` | Cumulative total raw air WPA for the away team in the game so far. |
-| `total_home_raw_yac_wpa` | Cumulative total raw yac WPA for the home team in the game so far. |
-| `total_away_raw_yac_wpa` | Cumulative total raw yac WPA for the away team in the game so far. |
-| `first_down_rush` | Binary indicator for if a running play converted the first down. |
-| `first_down_pass` | Binary indicator for if a passing play converted the first down. |
-| `first_down_penalty` | Binary indicator for if a penalty converted the first down. |
-| `third_down_converted` | Binary indicator for if the first down was converted on third down. |
-| `third_down_failed` | Binary indicator for if the posteam failed to convert first down on third down. |
-| `fourth_down_converted` | Binary indicator for if the first down was converted on fourth down. |
-| `fourth_down_failed` | Binary indicator for if the posteam failed to convert first down on fourth down. |
-| `incomplete_pass` | Binary indicator for if the pass was incomplete. |
-| `touchback` | Binary indicator for if a touchback occurred on the play. |
-| `punt_inside_twenty` | Binary indicator for if the punt ended inside the twenty yard line. |
-| `punt_in_endzone` | Binary indicator for if the punt was in the endzone. |
-| `punt_out_of_bounds` | Binary indicator for if the punt went out of bounds. |
-| `punt_downed` | Binary indicator for if the punt was downed. |
-| `punt_fair_catch` | Binary indicator for if the punt was caught with a fair catch. |
-| `kickoff_inside_twenty` | Binary indicator for if the kickoff ended inside the twenty yard line. |
-| `kickoff_in_endzone` | Binary indicator for if the kickoff was in the endzone. |
-| `kickoff_out_of_bounds` | Binary indicator for if the kickoff went out of bounds. |
-| `kickoff_downed` | Binary indicator for if the kickoff was downed. |
-| `kickoff_fair_catch` | Binary indicator for if the kickoff was caught with a fair catch. |
-| `fumble_forced` | Binary indicator for if the fumble was forced. |
-| `fumble_not_forced` | Binary indicator for if the fumble was not forced. |
-| `fumble_out_of_bounds` | Binary indicator for if the fumble went out of bounds. |
-| `solo_tackle` | Binary indicator if the play had a solo tackle (could be multiple due to fumbles). |
-| `safety` | Binary indicator for whether or not a safety occurred. |
-| `tackled_for_loss` | Binary indicator for whether or not a tackle for loss on a run play occurred. |
-| `fumble_lost` | Binary indicator for if the fumble was lost. |
-| `own_kickoff_recovery` | Binary indicator for if the kicking team recovered the kickoff. |
-| `own_kickoff_recovery_td` | Binary indicator for if the kicking team recovered the kickoff and scored a TD. |
-| `qb_hit` | Binary indicator if the QB was hit on the play. |
-| `rush_attempt` | Binary indicator for if the play was a run. |
-| `pass_attempt` | Binary indicator for if the play was a pass attempt (includes sacks). |
-| `return_touchdown` | Binary indicator for if the play resulted in a return TD. |
-| `extra_point_attempt` | Binary indicator for extra point attempt. |
-| `two_point_attempt` | Binary indicator for two point conversion attempt. |
-| `field_goal_attempt` | Binary indicator for field goal attempt. |
-| `kickoff_attempt` | Binary indicator for kickoff. |
-| `punt_attempt` | Binary indicator for punts. |
-| `assist_tackle` | Binary indicator for if an assist tackle occurred. |
-| `lateral_reception` | Binary indicator for if a lateral occurred on the reception. |
-| `lateral_rush` | Binary indicator for if a lateral occurred on a run. |
-| `lateral_return` | Binary indicator for if a lateral occurred on a return. |
-| `lateral_recovery` | Binary indicator for if a lateral occurred on a fumble recovery. |
-| `passing_yards` | Numeric yards by the passer_player_name, including yards gained in pass plays with laterals. This should equal official passing statistics. |
-| `receiving_yards` | Numeric yards by the receiver_player_name, excluding yards gained in pass plays with laterals. This should equal official receiving statistics but could miss yards gained in pass plays with laterals. Please see the description of `lateral_receiver_player_name` for further information. |
-| `rushing_yards` | Numeric yards by the rusher_player_name, excluding yards gained in rush plays with laterals. This should equal official rushing statistics but could miss yards gained in rush plays with laterals. Please see the description of `lateral_rusher_player_name` for further information. |
-| `lateral_receiver_player_id` | Unique identifier for the player that received the last(!) lateral on a pass play. |
-| `lateral_receiver_player_name` | String name for the player that received the last(!) lateral on a pass play. If there were multiple laterals in the same play, this will only be the last player who received a lateral. Please see <https://github.com/mrcaseb/nfl-data/tree/master/data/lateral_yards> for a list of plays where multiple players recorded lateral receiving yards. |
-| `lateral_receiving_yards` | Numeric yards by the `lateral_receiver_player_name` in pass plays with laterals. Please see the description of `lateral_receiver_player_name` for further information. |
-| `lateral_rusher_player_id` | Unique identifier for the player that received the last(!) lateral on a run play. |
-| `lateral_rusher_player_name` | String name for the player that received the last(!) lateral on a run play. If there were multiple laterals in the same play, this will only be the last player who received a lateral. Please see <https://github.com/mrcaseb/nfl-data/tree/master/data/lateral_yards> for a list of plays where multiple players recorded lateral rushing yards. |
-| `lateral_rushing_yards` | Numeric yards by the `lateral_rusher_player_name` in run plays with laterals. Please see the description of `lateral_rusher_player_name` for further information. |
-| `lateral_sack_player_id` | Unique identifier for the player that received the lateral on a sack. |
-| `lateral_sack_player_name` | String name for the player that received the lateral on a sack. |
-| `interception_player_id` | Unique identifier for the player that intercepted the pass. |
-| `interception_player_name` | String name for the player that intercepted the pass. |
-| `lateral_interception_player_id` | Unique indentifier for the player that received the lateral on an interception. |
-| `lateral_interception_player_name` | String name for the player that received the lateral on an interception. |
-| `punt_returner_player_id` | Unique identifier for the punt returner. |
-| `punt_returner_player_name` | String name for the punt returner. |
-| `lateral_punt_returner_player_id` | Unique identifier for the player that received the lateral on a punt return. |
-| `lateral_punt_returner_player_name` | String name for the player that received the lateral on a punt return. |
-| `kickoff_returner_player_name` | String name for the kickoff returner. |
-| `kickoff_returner_player_id` | Unique identifier for the kickoff returner. |
-| `lateral_kickoff_returner_player_id` | Unique identifier for the player that received the lateral on a kickoff return. |
-| `lateral_kickoff_returner_player_name` | String name for the player that received the lateral on a kickoff return. |
-| `punter_player_id` | Unique identifier for the punter. |
-| `punter_player_name` | String name for the punter. |
-| `kicker_player_name` | String name for the kicker on FG or kickoff. |
-| `kicker_player_id` | Unique identifier for the kicker on FG or kickoff. |
-| `own_kickoff_recovery_player_id` | Unique identifier for the player that recovered their own kickoff. |
-| `own_kickoff_recovery_player_name` | String name for the player that recovered their own kickoff. |
-| `blocked_player_id` | Unique identifier for the player that blocked the punt or FG. |
-| `blocked_player_name` | String name for the player that blocked the punt or FG. |
-| `tackle_for_loss_1_player_id` | Unique identifier for one of the potential players with the tackle for loss. |
-| `tackle_for_loss_1_player_name` | String name for one of the potential players with the tackle for loss. |
-| `tackle_for_loss_2_player_id` | Unique identifier for one of the potential players with the tackle for loss. |
-| `tackle_for_loss_2_player_name` | String name for one of the potential players with the tackle for loss. |
-| `qb_hit_1_player_id` | Unique identifier for one of the potential players that hit the QB. No sack as the QB was not the ball carrier. For sacks please see `sack_player` or `half_sack_*_player`. |
-| `qb_hit_1_player_name` | String name for one of the potential players that hit the QB. No sack as the QB was not the ball carrier. For sacks please see `sack_player` or `half_sack_*_player`. |
-| `qb_hit_2_player_id` | Unique identifier for one of the potential players that hit the QB. No sack as the QB was not the ball carrier. For sacks please see `sack_player` or `half_sack_*_player`. |
-| `qb_hit_2_player_name` | String name for one of the potential players that hit the QB. No sack as the QB was not the ball carrier. For sacks please see `sack_player` or `half_sack_*_player`. |
-| `forced_fumble_player_1_team` | Team of one of the players with a forced fumble. |
-| `forced_fumble_player_1_player_id` | Unique identifier of one of the players with a forced fumble. |
-| `forced_fumble_player_1_player_name` | String name of one of the players with a forced fumble. |
-| `forced_fumble_player_2_team` | Team of one of the players with a forced fumble. |
-| `forced_fumble_player_2_player_id` | Unique identifier of one of the players with a forced fumble. |
-| `forced_fumble_player_2_player_name` | String name of one of the players with a forced fumble. |
-| `solo_tackle_1_team` | Team of one of the players with a solo tackle. |
-| `solo_tackle_2_team` | Team of one of the players with a solo tackle. |
-| `solo_tackle_1_player_id` | Unique identifier of one of the players with a solo tackle. |
-| `solo_tackle_2_player_id` | Unique identifier of one of the players with a solo tackle. |
-| `solo_tackle_1_player_name` | String name of one of the players with a solo tackle. |
-| `solo_tackle_2_player_name` | String name of one of the players with a solo tackle. |
-| `assist_tackle_1_player_id` | Unique identifier of one of the players with a tackle assist. |
-| `assist_tackle_1_player_name` | String name of one of the players with a tackle assist. |
-| `assist_tackle_1_team` | Team of one of the players with a tackle assist. |
-| `assist_tackle_2_player_id` | Unique identifier of one of the players with a tackle assist. |
-| `assist_tackle_2_player_name` | String name of one of the players with a tackle assist. |
-| `assist_tackle_2_team` | Team of one of the players with a tackle assist. |
-| `assist_tackle_3_player_id` | Unique identifier of one of the players with a tackle assist. |
-| `assist_tackle_3_player_name` | String name of one of the players with a tackle assist. |
-| `assist_tackle_3_team` | Team of one of the players with a tackle assist. |
-| `assist_tackle_4_player_id` | Unique identifier of one of the players with a tackle assist. |
-| `assist_tackle_4_player_name` | String name of one of the players with a tackle assist. |
-| `assist_tackle_4_team` | Team of one of the players with a tackle assist. |
-| `tackle_with_assist` | Binary indicator for if there has been a tackle with assist. |
-| `tackle_with_assist_1_player_id` | Unique identifier of one of the players with a tackle with assist. |
-| `tackle_with_assist_1_player_name` | String name of one of the players with a tackle with assist. |
-| `tackle_with_assist_1_team` | Team of one of the players with a tackle with assist. |
-| `tackle_with_assist_2_player_id` | Unique identifier of one of the players with a tackle with assist. |
-| `tackle_with_assist_2_player_name` | String name of one of the players with a tackle with assist. |
-| `tackle_with_assist_2_team` | Team of one of the players with a tackle with assist. |
-| `pass_defense_1_player_id` | Unique identifier of one of the players with a pass defense. |
-| `pass_defense_1_player_name` | String name of one of the players with a pass defense. |
-| `pass_defense_2_player_id` | Unique identifier of one of the players with a pass defense. |
-| `pass_defense_2_player_name` | String name of one of the players with a pass defense. |
-| `fumbled_1_team` | Team of one of the first player with a fumble. |
-| `fumbled_1_player_id` | Unique identifier of the first player who fumbled on the play. |
-| `fumbled_1_player_name` | String name of one of the first player who fumbled on the play. |
-| `fumbled_2_player_id` | Unique identifier of the second player who fumbled on the play. |
-| `fumbled_2_player_name` | String name of one of the second player who fumbled on the play. |
-| `fumbled_2_team` | Team of one of the second player with a fumble. |
-| `fumble_recovery_1_team` | Team of one of the players with a fumble recovery. |
-| `fumble_recovery_1_yards` | Yards gained by one of the players with a fumble recovery. |
-| `fumble_recovery_1_player_id` | Unique identifier of one of the players with a fumble recovery. |
-| `fumble_recovery_1_player_name` | String name of one of the players with a fumble recovery. |
-| `fumble_recovery_2_team` | Team of one of the players with a fumble recovery. |
-| `fumble_recovery_2_yards` | Yards gained by one of the players with a fumble recovery. |
-| `fumble_recovery_2_player_id` | Unique identifier of one of the players with a fumble recovery. |
-| `fumble_recovery_2_player_name` | String name of one of the players with a fumble recovery. |
-| `sack_player_id` | Unique identifier of the player who recorded a solo sack. |
-| `sack_player_name` | String name of the player who recorded a solo sack. |
-| `half_sack_1_player_id` | Unique identifier of the first player who recorded half a sack. |
-| `half_sack_1_player_name` | String name of the first player who recorded half a sack. |
-| `half_sack_2_player_id` | Unique identifier of the second player who recorded half a sack. |
-| `half_sack_2_player_name` | String name of the second player who recorded half a sack. |
-| `return_team` | String abbreviation of the return team. |
-| `return_yards` | Yards gained by the return team. |
-| `penalty_team` | String abbreviation of the team with the penalty. |
-| `penalty_player_id` | Unique identifier for the player with the penalty. |
-| `penalty_player_name` | String name for the player with the penalty. |
-| `replay_or_challenge` | Binary indicator for whether or not a replay or challenge. |
-| `replay_or_challenge_result` | String indicating the result of the replay or challenge. |
-| `defensive_two_point_attempt` | Binary indicator whether or not the defense was able to have an attempt on a two point conversion, this results following a turnover. |
-| `defensive_two_point_conv` | Binary indicator whether or not the defense successfully scored on the two point conversion. |
-| `defensive_extra_point_attempt` | Binary indicator whether or not the defense was able to have an attempt on an extra point attempt, this results following a blocked attempt that the defense recovers the ball. |
-| `defensive_extra_point_conv` | Binary indicator whether or not the defense successfully scored on an extra point attempt. |
-| `safety_player_name` | String name for the player who scored a safety. |
-| `safety_player_id` | Unique identifier for the player who scored a safety. |
-| `season` | 4 digit number indicating to which season the game belongs to. |
-| `cp` | Numeric value indicating the probability for a complete pass based on comparable game situations. |
-| `cpoe` | For a single pass play this is 1 - cp when the pass was completed or 0 - cp when the pass was incomplete. Analyzed for a whole game or season an indicator for the passer how much over or under expectation his completion percentage was. |
-| `series` | Starts at 1, each new first down increments, numbers shared across both teams NA: kickoffs, extra point/two point conversion attempts, non-plays, no posteam |
-| `series_success` | 1: scored touchdown, gained enough yards for first down. |
-| `series_result` | Possible values: First down, Touchdown, Opp touchdown, Field goal, Missed field goal, Safety, Turnover, Punt, Turnover on downs, QB kneel, End of half |
-| `order_sequence` | Column provided by NFL to fix out-of-order plays. Available 2011 and beyond with source "nfl". |
-| `start_time` | Kickoff time in eastern time zone. |
-| `time_of_day` | Time of day of play in UTC "HH:MM:SS" format. Available 2011 and beyond with source "nfl". |
-| `nfl_api_id` | UUID of the game in the new NFL API. |
-| `play_clock` | Time on the playclock when the ball was snapped. |
-| `play_deleted` | Binary indicator for deleted plays. |
-| `play_type_nfl` | Play type as listed in the NFL source. Slightly different to the regular play_type variable. |
-| `special_teams_play` | Binary indicator for whether play is special teams play from NFL source. Available 2011 and beyond with source "nfl". |
-| `st_play_type` | Type of special teams play from NFL source. Available 2011 and beyond with source "nfl". |
-| `end_clock_time` | Game time at the end of a given play. |
-| `end_yard_line` | String indicating the yardline at the end of the given play consisting of team half and yard line number. |
-| `fixed_drive` | Manually created drive number in a game. |
-| `fixed_drive_result` | Manually created drive result. |
-| `drive_real_start_time` | Local day time when the drive started (currently not used by the NFL and therefore mostly 'NA'). |
-| `drive_play_count` | Numeric value of how many regular plays happened in a given drive. |
-| `drive_time_of_possession` | Time of possession in a given drive. |
-| `drive_first_downs` | Number of first downs in a given drive. |
-| `drive_inside20` | Binary indicator if the offense was able to get inside the opponents 20 yard line. |
-| `drive_ended_with_score` | Binary indicator the drive ended with a score. |
-| `drive_quarter_start` | Numeric value indicating in which quarter the given drive has started. |
-| `drive_quarter_end` | Numeric value indicating in which quarter the given drive has ended. |
-| `drive_yards_penalized` | Numeric value of how many yards the offense gained or lost through penalties in the given drive. |
-| `drive_start_transition` | String indicating how the offense got the ball. |
-| `drive_end_transition` | String indicating how the offense lost the ball. |
-| `drive_game_clock_start` | Game time at the beginning of a given drive. |
-| `drive_game_clock_end` | Game time at the end of a given drive. |
-| `drive_start_yard_line` | String indicating where a given drive started consisting of team half and yard line number. |
-| `drive_end_yard_line` | String indicating where a given drive ended consisting of team half and yard line number. |
-| `drive_play_id_started` | Play_id of the first play in the given drive. |
-| `drive_play_id_ended` | Play_id of the last play in the given drive. |
-| `away_score` | Total points scored by the away team. |
-| `home_score` | Total points scored by the home team. |
-| `location` | Either 'Home' o 'Neutral' indicating if the home team played at home or at a neutral site.  |
-| `result` | Equals home_score - away_score and means the game outcome from the perspective of the home team. |
-| `total` | Equals home_score + away_score and means the total points scored in the given game. |
-| `spread_line` | The closing spread line for the game. A positive number means the home team was favored by that many points, a negative number means the away team was favored by that many points. (Source: Pro-Football-Reference) |
-| `total_line` | The closing total line for the game. (Source: Pro-Football-Reference) |
-| `div_game` | Binary indicator for if the given game was a division game. |
-| `temp` | The temperature at the stadium only for 'roof' = 'outdoors' or 'open'.(Source: Pro-Football-Reference) |
-| `wind` | The speed of the wind in miles/hour only for 'roof' = 'outdoors' or 'open'. (Source: Pro-Football-Reference) |
-| `home_coach` | First and last name of the home team coach. (Source: Pro-Football-Reference) |
-| `away_coach` | First and last name of the away team coach. (Source: Pro-Football-Reference) |
-| `stadium_id` | ID of the stadium the game was played in. (Source: Pro-Football-Reference) |
-| `game_stadium` | Name of the stadium the game was played in. (Source: Pro-Football-Reference) |
-| `passer` | Name of the dropback player (scrambles included) including plays with penalties. |
-| `passer_jersey_number` | Jersey number of the passer. |
-| `rusher` | Name of the rusher (no scrambles) including plays with penalties. |
-| `rusher_jersey_number` | Jersey number of the rusher. |
-| `receiver` | Name of the receiver including plays with penalties. |
-| `receiver_jersey_number` | Jersey number of the receiver. |
-| `pass` | Binary indicator if the play was a pass play (sacks and scrambles included). |
-| `rush` | Binary indicator if the play was a rushing play. |
-| `first_down` | Binary indicator if the play ended in a first down. |
-| `aborted_play` | Binary indicator if the play description indicates "Aborted". |
-| `special` | Binary indicator if the play was a special teams play. |
-| `play` | Binary indicator: 1 if the play was a 'normal' play (including penalties), 0 otherwise. |
-| `passer_id` | ID of the player in the 'passer' column. |
-| `rusher_id` | ID of the player in the 'rusher' column. |
-| `receiver_id` | ID of the player in the 'receiver' column. |
-| `name` | Name of the 'passer' if it is not 'NA', or name of the 'rusher' otherwise. |
-| `jersey_number` | Jersey number of the player listed in the 'name' column. |
-| `id` | ID of the player in the 'name' column. |
-| `fantasy_player_name` | Name of the rusher on rush plays or receiver on pass plays (from official stats). |
-| `fantasy_player_id` | ID of the rusher on rush plays or receiver on pass plays (from official stats). |
-| `fantasy` | Name of the rusher on rush plays or receiver on pass plays. |
-| `fantasy_id` | ID of the rusher on rush plays or receiver on pass plays. |
-| `out_of_bounds` | 1 if play description contains ran ob, pushed ob, or sacked ob; 0 otherwise. |
-| `home_opening_kickoff` | = 1 if the home team received the opening kickoff, 0 otherwise. |
-| `qb_epa` | Gives QB credit for EPA for up to the point where a receiver lost a fumble after a completed catch and makes EPA work more like passing yards on plays with fumbles. |
-| `xyac_epa` | Expected value of EPA gained after the catch, starting from where the catch was made. Zero yards after the catch would be listed as zero EPA. |
-| `xyac_mean_yardage` | Average expected yards after the catch based on where the ball was caught. |
-| `xyac_median_yardage` | Median expected yards after the catch based on where the ball was caught. |
-| `xyac_success` | Probability play earns positive EPA (relative to where play started) based on where ball was caught. |
-| `xyac_fd` | Probability play earns a first down based on where the ball was caught. |
-| `xpass` | Probability of dropback scaled from 0 to 1. |
-| `pass_oe` | Dropback percent over expected on a given play scaled from 0 to 100. |
+| Missing Field                          | Description                                                                                                                                                                                                                                                                                                                                           |
+| -------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `game_half`                            | String indicating which half the play is in, either Half1, Half2, or Overtime.                                                                                                                                                                                                                                                                        |
+| `quarter_end`                          | Binary indicator for whether or not the row of the data is marking the end of a quarter.                                                                                                                                                                                                                                                              |
+| `sp`                                   | Binary indicator for whether or not a score occurred on the play.                                                                                                                                                                                                                                                                                     |
+| `goal_to_go`                           | Binary indicator for whether or not the posteam is in a goal down situation.                                                                                                                                                                                                                                                                          |
+| `time`                                 | Time at start of play provided in string format as minutes:seconds remaining in the quarter.                                                                                                                                                                                                                                                          |
+| `yrdln`                                | String indicating the current field position for a given play.                                                                                                                                                                                                                                                                                        |
+| `ydsnet`                               | Numeric value for total yards gained on the given drive.                                                                                                                                                                                                                                                                                              |
+| `desc`                                 | Detailed string description for the given play.                                                                                                                                                                                                                                                                                                       |
+| `qb_dropback`                          | Binary indicator for whether or not the QB dropped back on the play (pass attempt, sack, or scrambled).                                                                                                                                                                                                                                               |
+| `qb_kneel`                             | Binary indicator for whether or not the QB took a knee.                                                                                                                                                                                                                                                                                               |
+| `qb_spike`                             | Binary indicator for whether or not the QB spiked the ball.                                                                                                                                                                                                                                                                                           |
+| `qb_scramble`                          | Binary indicator for whether or not the QB scrambled.                                                                                                                                                                                                                                                                                                 |
+| `pass_length`                          | String indicator for pass length: short or deep.                                                                                                                                                                                                                                                                                                      |
+| `pass_location`                        | String indicator for pass location: left, middle, or right.                                                                                                                                                                                                                                                                                           |
+| `run_location`                         | String indicator for location of run: left, middle, or right.                                                                                                                                                                                                                                                                                         |
+| `run_gap`                              | String indicator for line gap of run: end, guard, or tackle                                                                                                                                                                                                                                                                                           |
+| `extra_point_result`                   | String indicator for the result of the extra point attempt: good, failed, blocked, safety (touchback in defensive endzone is 1 point apparently), or aborted.                                                                                                                                                                                         |
+| `two_point_conv_result`                | String indicator for result of two point conversion attempt: success, failure, safety (touchback in defensive endzone is 1 point apparently), or return.                                                                                                                                                                                              |
+| `home_timeouts_remaining`              | Numeric timeouts remaining in the half for the home team.                                                                                                                                                                                                                                                                                             |
+| `away_timeouts_remaining`              | Numeric timeouts remaining in the half for the away team.                                                                                                                                                                                                                                                                                             |
+| `timeout`                              | Binary indicator for whether or not a timeout was called by either team.                                                                                                                                                                                                                                                                              |
+| `timeout_team`                         | String abbreviation for which team called the timeout.                                                                                                                                                                                                                                                                                                |
+| `td_team`                              | String abbreviation for which team scored the touchdown.                                                                                                                                                                                                                                                                                              |
+| `td_player_name`                       | String name of the player who scored a touchdown.                                                                                                                                                                                                                                                                                                     |
+| `td_player_id`                         | Unique identifier of the player who scored a touchdown.                                                                                                                                                                                                                                                                                               |
+| `posteam_timeouts_remaining`           | Number of timeouts remaining for the possession team.                                                                                                                                                                                                                                                                                                 |
+| `defteam_timeouts_remaining`           | Number of timeouts remaining for the team on defense.                                                                                                                                                                                                                                                                                                 |
+| `total_home_score`                     | Score for the home team at the end of the play.                                                                                                                                                                                                                                                                                                       |
+| `total_away_score`                     | Score for the away team at the end of the play.                                                                                                                                                                                                                                                                                                       |
+| `posteam_score`                        | Score the posteam at the start of the play.                                                                                                                                                                                                                                                                                                           |
+| `defteam_score`                        | Score the defteam at the start of the play.                                                                                                                                                                                                                                                                                                           |
+| `score_differential`                   | Score differential between the posteam and defteam at the start of the play.                                                                                                                                                                                                                                                                          |
+| `posteam_score_post`                   | Score for the posteam at the end of the play.                                                                                                                                                                                                                                                                                                         |
+| `defteam_score_post`                   | Score for the defteam at the end of the play.                                                                                                                                                                                                                                                                                                         |
+| `score_differential_post`              | Score differential between the posteam and defteam at the end of the play.                                                                                                                                                                                                                                                                            |
+| `no_score_prob`                        | Predicted probability of no score occurring for the rest of the half based on the expected points model.                                                                                                                                                                                                                                              |
+| `opp_fg_prob`                          | Predicted probability of the defteam scoring a FG next.                                                                                                                                                                                                                                                                                               |
+| `opp_safety_prob`                      | Predicted probability of the defteam scoring a safety next.                                                                                                                                                                                                                                                                                           |
+| `opp_td_prob`                          | Predicted probability of the defteam scoring a TD next.                                                                                                                                                                                                                                                                                               |
+| `fg_prob`                              | Predicted probability of the posteam scoring a FG next.                                                                                                                                                                                                                                                                                               |
+| `safety_prob`                          | Predicted probability of the posteam scoring a safety next.                                                                                                                                                                                                                                                                                           |
+| `td_prob`                              | Predicted probability of the posteam scoring a TD next.                                                                                                                                                                                                                                                                                               |
+| `extra_point_prob`                     | Predicted probability of the posteam scoring an extra point.                                                                                                                                                                                                                                                                                          |
+| `two_point_conversion_prob`            | Predicted probability of the posteam scoring the two point conversion.                                                                                                                                                                                                                                                                                |
+| `ep`                                   | Using the scoring event probabilities, the estimated expected points with respect to the possession team for the given play.                                                                                                                                                                                                                          |
+| `total_home_epa`                       | Cumulative total EPA for the home team in the game so far.                                                                                                                                                                                                                                                                                            |
+| `total_away_epa`                       | Cumulative total EPA for the away team in the game so far.                                                                                                                                                                                                                                                                                            |
+| `total_home_rush_epa`                  | Cumulative total rushing EPA for the home team in the game so far.                                                                                                                                                                                                                                                                                    |
+| `total_away_rush_epa`                  | Cumulative total rushing EPA for the away team in the game so far.                                                                                                                                                                                                                                                                                    |
+| `total_home_pass_epa`                  | Cumulative total passing EPA for the home team in the game so far.                                                                                                                                                                                                                                                                                    |
+| `total_away_pass_epa`                  | Cumulative total passing EPA for the away team in the game so far.                                                                                                                                                                                                                                                                                    |
+| `air_epa`                              | EPA from the air yards alone. For completions this represents the actual value provided through the air. For incompletions this represents the hypothetical value that could've been added through the air if the pass was completed.                                                                                                                 |
+| `yac_epa`                              | EPA from the yards after catch alone. For completions this represents the actual value provided after the catch. For incompletions this represents the difference between the hypothetical air_epa and the play's raw observed EPA (how much the incomplete pass cost the posteam).                                                                   |
+| `comp_air_epa`                         | EPA from the air yards alone only for completions.                                                                                                                                                                                                                                                                                                    |
+| `comp_yac_epa`                         | EPA from the yards after catch alone only for completions.                                                                                                                                                                                                                                                                                            |
+| `total_home_comp_air_epa`              | Cumulative total completions air EPA for the home team in the game so far.                                                                                                                                                                                                                                                                            |
+| `total_away_comp_air_epa`              | Cumulative total completions air EPA for the away team in the game so far.                                                                                                                                                                                                                                                                            |
+| `total_home_comp_yac_epa`              | Cumulative total completions yac EPA for the home team in the game so far.                                                                                                                                                                                                                                                                            |
+| `total_away_comp_yac_epa`              | Cumulative total completions yac EPA for the away team in the game so far.                                                                                                                                                                                                                                                                            |
+| `total_home_raw_air_epa`               | Cumulative total raw air EPA for the home team in the game so far.                                                                                                                                                                                                                                                                                    |
+| `total_away_raw_air_epa`               | Cumulative total raw air EPA for the away team in the game so far.                                                                                                                                                                                                                                                                                    |
+| `total_home_raw_yac_epa`               | Cumulative total raw yac EPA for the home team in the game so far.                                                                                                                                                                                                                                                                                    |
+| `total_away_raw_yac_epa`               | Cumulative total raw yac EPA for the away team in the game so far.                                                                                                                                                                                                                                                                                    |
+| `wp`                                   | Estimated win probabiity for the posteam given the current situation at the start of the given play.                                                                                                                                                                                                                                                  |
+| `def_wp`                               | Estimated win probability for the defteam.                                                                                                                                                                                                                                                                                                            |
+| `home_wp`                              | Estimated win probability for the home team.                                                                                                                                                                                                                                                                                                          |
+| `away_wp`                              | Estimated win probability for the away team.                                                                                                                                                                                                                                                                                                          |
+| `vegas_wpa`                            | Win probability added (WPA) for the posteam: spread_adjusted model.                                                                                                                                                                                                                                                                                   |
+| `vegas_home_wpa`                       | Win probability added (WPA) for the home team: spread_adjusted model.                                                                                                                                                                                                                                                                                 |
+| `home_wp_post`                         | Estimated win probability for the home team at the end of the play.                                                                                                                                                                                                                                                                                   |
+| `away_wp_post`                         | Estimated win probability for the away team at the end of the play.                                                                                                                                                                                                                                                                                   |
+| `vegas_wp`                             | Estimated win probabiity for the posteam given the current situation at the start of the given play, incorporating pre-game Vegas line.                                                                                                                                                                                                               |
+| `vegas_home_wp`                        | Estimated win probability for the home team incorporating pre-game Vegas line.                                                                                                                                                                                                                                                                        |
+| `total_home_rush_wpa`                  | Cumulative total rushing WPA for the home team in the game so far.                                                                                                                                                                                                                                                                                    |
+| `total_away_rush_wpa`                  | Cumulative total rushing WPA for the away team in the game so far.                                                                                                                                                                                                                                                                                    |
+| `total_home_pass_wpa`                  | Cumulative total passing WPA for the home team in the game so far.                                                                                                                                                                                                                                                                                    |
+| `total_away_pass_wpa`                  | Cumulative total passing WPA for the away team in the game so far.                                                                                                                                                                                                                                                                                    |
+| `air_wpa`                              | WPA through the air (same logic as air_epa).                                                                                                                                                                                                                                                                                                          |
+| `yac_wpa`                              | WPA from yards after the catch (same logic as yac_epa).                                                                                                                                                                                                                                                                                               |
+| `comp_air_wpa`                         | The air_wpa for completions only.                                                                                                                                                                                                                                                                                                                     |
+| `comp_yac_wpa`                         | The yac_wpa for completions only.                                                                                                                                                                                                                                                                                                                     |
+| `total_home_comp_air_wpa`              | Cumulative total completions air WPA for the home team in the game so far.                                                                                                                                                                                                                                                                            |
+| `total_away_comp_air_wpa`              | Cumulative total completions air WPA for the away team in the game so far.                                                                                                                                                                                                                                                                            |
+| `total_home_comp_yac_wpa`              | Cumulative total completions yac WPA for the home team in the game so far.                                                                                                                                                                                                                                                                            |
+| `total_away_comp_yac_wpa`              | Cumulative total completions yac WPA for the away team in the game so far.                                                                                                                                                                                                                                                                            |
+| `total_home_raw_air_wpa`               | Cumulative total raw air WPA for the home team in the game so far.                                                                                                                                                                                                                                                                                    |
+| `total_away_raw_air_wpa`               | Cumulative total raw air WPA for the away team in the game so far.                                                                                                                                                                                                                                                                                    |
+| `total_home_raw_yac_wpa`               | Cumulative total raw yac WPA for the home team in the game so far.                                                                                                                                                                                                                                                                                    |
+| `total_away_raw_yac_wpa`               | Cumulative total raw yac WPA for the away team in the game so far.                                                                                                                                                                                                                                                                                    |
+| `first_down_rush`                      | Binary indicator for if a running play converted the first down.                                                                                                                                                                                                                                                                                      |
+| `first_down_pass`                      | Binary indicator for if a passing play converted the first down.                                                                                                                                                                                                                                                                                      |
+| `first_down_penalty`                   | Binary indicator for if a penalty converted the first down.                                                                                                                                                                                                                                                                                           |
+| `third_down_converted`                 | Binary indicator for if the first down was converted on third down.                                                                                                                                                                                                                                                                                   |
+| `third_down_failed`                    | Binary indicator for if the posteam failed to convert first down on third down.                                                                                                                                                                                                                                                                       |
+| `fourth_down_converted`                | Binary indicator for if the first down was converted on fourth down.                                                                                                                                                                                                                                                                                  |
+| `fourth_down_failed`                   | Binary indicator for if the posteam failed to convert first down on fourth down.                                                                                                                                                                                                                                                                      |
+| `incomplete_pass`                      | Binary indicator for if the pass was incomplete.                                                                                                                                                                                                                                                                                                      |
+| `touchback`                            | Binary indicator for if a touchback occurred on the play.                                                                                                                                                                                                                                                                                             |
+| `punt_inside_twenty`                   | Binary indicator for if the punt ended inside the twenty yard line.                                                                                                                                                                                                                                                                                   |
+| `punt_in_endzone`                      | Binary indicator for if the punt was in the endzone.                                                                                                                                                                                                                                                                                                  |
+| `punt_out_of_bounds`                   | Binary indicator for if the punt went out of bounds.                                                                                                                                                                                                                                                                                                  |
+| `punt_downed`                          | Binary indicator for if the punt was downed.                                                                                                                                                                                                                                                                                                          |
+| `punt_fair_catch`                      | Binary indicator for if the punt was caught with a fair catch.                                                                                                                                                                                                                                                                                        |
+| `kickoff_inside_twenty`                | Binary indicator for if the kickoff ended inside the twenty yard line.                                                                                                                                                                                                                                                                                |
+| `kickoff_in_endzone`                   | Binary indicator for if the kickoff was in the endzone.                                                                                                                                                                                                                                                                                               |
+| `kickoff_out_of_bounds`                | Binary indicator for if the kickoff went out of bounds.                                                                                                                                                                                                                                                                                               |
+| `kickoff_downed`                       | Binary indicator for if the kickoff was downed.                                                                                                                                                                                                                                                                                                       |
+| `kickoff_fair_catch`                   | Binary indicator for if the kickoff was caught with a fair catch.                                                                                                                                                                                                                                                                                     |
+| `fumble_forced`                        | Binary indicator for if the fumble was forced.                                                                                                                                                                                                                                                                                                        |
+| `fumble_not_forced`                    | Binary indicator for if the fumble was not forced.                                                                                                                                                                                                                                                                                                    |
+| `fumble_out_of_bounds`                 | Binary indicator for if the fumble went out of bounds.                                                                                                                                                                                                                                                                                                |
+| `solo_tackle`                          | Binary indicator if the play had a solo tackle (could be multiple due to fumbles).                                                                                                                                                                                                                                                                    |
+| `safety`                               | Binary indicator for whether or not a safety occurred.                                                                                                                                                                                                                                                                                                |
+| `tackled_for_loss`                     | Binary indicator for whether or not a tackle for loss on a run play occurred.                                                                                                                                                                                                                                                                         |
+| `fumble_lost`                          | Binary indicator for if the fumble was lost.                                                                                                                                                                                                                                                                                                          |
+| `own_kickoff_recovery`                 | Binary indicator for if the kicking team recovered the kickoff.                                                                                                                                                                                                                                                                                       |
+| `own_kickoff_recovery_td`              | Binary indicator for if the kicking team recovered the kickoff and scored a TD.                                                                                                                                                                                                                                                                       |
+| `qb_hit`                               | Binary indicator if the QB was hit on the play.                                                                                                                                                                                                                                                                                                       |
+| `rush_attempt`                         | Binary indicator for if the play was a run.                                                                                                                                                                                                                                                                                                           |
+| `pass_attempt`                         | Binary indicator for if the play was a pass attempt (includes sacks).                                                                                                                                                                                                                                                                                 |
+| `return_touchdown`                     | Binary indicator for if the play resulted in a return TD.                                                                                                                                                                                                                                                                                             |
+| `extra_point_attempt`                  | Binary indicator for extra point attempt.                                                                                                                                                                                                                                                                                                             |
+| `two_point_attempt`                    | Binary indicator for two point conversion attempt.                                                                                                                                                                                                                                                                                                    |
+| `field_goal_attempt`                   | Binary indicator for field goal attempt.                                                                                                                                                                                                                                                                                                              |
+| `kickoff_attempt`                      | Binary indicator for kickoff.                                                                                                                                                                                                                                                                                                                         |
+| `punt_attempt`                         | Binary indicator for punts.                                                                                                                                                                                                                                                                                                                           |
+| `assist_tackle`                        | Binary indicator for if an assist tackle occurred.                                                                                                                                                                                                                                                                                                    |
+| `lateral_reception`                    | Binary indicator for if a lateral occurred on the reception.                                                                                                                                                                                                                                                                                          |
+| `lateral_rush`                         | Binary indicator for if a lateral occurred on a run.                                                                                                                                                                                                                                                                                                  |
+| `lateral_return`                       | Binary indicator for if a lateral occurred on a return.                                                                                                                                                                                                                                                                                               |
+| `lateral_recovery`                     | Binary indicator for if a lateral occurred on a fumble recovery.                                                                                                                                                                                                                                                                                      |
+| `passing_yards`                        | Numeric yards by the passer_player_name, including yards gained in pass plays with laterals. This should equal official passing statistics.                                                                                                                                                                                                           |
+| `receiving_yards`                      | Numeric yards by the receiver_player_name, excluding yards gained in pass plays with laterals. This should equal official receiving statistics but could miss yards gained in pass plays with laterals. Please see the description of `lateral_receiver_player_name` for further information.                                                         |
+| `rushing_yards`                        | Numeric yards by the rusher_player_name, excluding yards gained in rush plays with laterals. This should equal official rushing statistics but could miss yards gained in rush plays with laterals. Please see the description of `lateral_rusher_player_name` for further information.                                                               |
+| `lateral_receiver_player_id`           | Unique identifier for the player that received the last(!) lateral on a pass play.                                                                                                                                                                                                                                                                    |
+| `lateral_receiver_player_name`         | String name for the player that received the last(!) lateral on a pass play. If there were multiple laterals in the same play, this will only be the last player who received a lateral. Please see <https://github.com/mrcaseb/nfl-data/tree/master/data/lateral_yards> for a list of plays where multiple players recorded lateral receiving yards. |
+| `lateral_receiving_yards`              | Numeric yards by the `lateral_receiver_player_name` in pass plays with laterals. Please see the description of `lateral_receiver_player_name` for further information.                                                                                                                                                                                |
+| `lateral_rusher_player_id`             | Unique identifier for the player that received the last(!) lateral on a run play.                                                                                                                                                                                                                                                                     |
+| `lateral_rusher_player_name`           | String name for the player that received the last(!) lateral on a run play. If there were multiple laterals in the same play, this will only be the last player who received a lateral. Please see <https://github.com/mrcaseb/nfl-data/tree/master/data/lateral_yards> for a list of plays where multiple players recorded lateral rushing yards.    |
+| `lateral_rushing_yards`                | Numeric yards by the `lateral_rusher_player_name` in run plays with laterals. Please see the description of `lateral_rusher_player_name` for further information.                                                                                                                                                                                     |
+| `lateral_sack_player_id`               | Unique identifier for the player that received the lateral on a sack.                                                                                                                                                                                                                                                                                 |
+| `lateral_sack_player_name`             | String name for the player that received the lateral on a sack.                                                                                                                                                                                                                                                                                       |
+| `interception_player_id`               | Unique identifier for the player that intercepted the pass.                                                                                                                                                                                                                                                                                           |
+| `interception_player_name`             | String name for the player that intercepted the pass.                                                                                                                                                                                                                                                                                                 |
+| `lateral_interception_player_id`       | Unique indentifier for the player that received the lateral on an interception.                                                                                                                                                                                                                                                                       |
+| `lateral_interception_player_name`     | String name for the player that received the lateral on an interception.                                                                                                                                                                                                                                                                              |
+| `punt_returner_player_id`              | Unique identifier for the punt returner.                                                                                                                                                                                                                                                                                                              |
+| `punt_returner_player_name`            | String name for the punt returner.                                                                                                                                                                                                                                                                                                                    |
+| `lateral_punt_returner_player_id`      | Unique identifier for the player that received the lateral on a punt return.                                                                                                                                                                                                                                                                          |
+| `lateral_punt_returner_player_name`    | String name for the player that received the lateral on a punt return.                                                                                                                                                                                                                                                                                |
+| `kickoff_returner_player_name`         | String name for the kickoff returner.                                                                                                                                                                                                                                                                                                                 |
+| `kickoff_returner_player_id`           | Unique identifier for the kickoff returner.                                                                                                                                                                                                                                                                                                           |
+| `lateral_kickoff_returner_player_id`   | Unique identifier for the player that received the lateral on a kickoff return.                                                                                                                                                                                                                                                                       |
+| `lateral_kickoff_returner_player_name` | String name for the player that received the lateral on a kickoff return.                                                                                                                                                                                                                                                                             |
+| `punter_player_id`                     | Unique identifier for the punter.                                                                                                                                                                                                                                                                                                                     |
+| `punter_player_name`                   | String name for the punter.                                                                                                                                                                                                                                                                                                                           |
+| `kicker_player_name`                   | String name for the kicker on FG or kickoff.                                                                                                                                                                                                                                                                                                          |
+| `kicker_player_id`                     | Unique identifier for the kicker on FG or kickoff.                                                                                                                                                                                                                                                                                                    |
+| `own_kickoff_recovery_player_id`       | Unique identifier for the player that recovered their own kickoff.                                                                                                                                                                                                                                                                                    |
+| `own_kickoff_recovery_player_name`     | String name for the player that recovered their own kickoff.                                                                                                                                                                                                                                                                                          |
+| `blocked_player_id`                    | Unique identifier for the player that blocked the punt or FG.                                                                                                                                                                                                                                                                                         |
+| `blocked_player_name`                  | String name for the player that blocked the punt or FG.                                                                                                                                                                                                                                                                                               |
+| `tackle_for_loss_1_player_id`          | Unique identifier for one of the potential players with the tackle for loss.                                                                                                                                                                                                                                                                          |
+| `tackle_for_loss_1_player_name`        | String name for one of the potential players with the tackle for loss.                                                                                                                                                                                                                                                                                |
+| `tackle_for_loss_2_player_id`          | Unique identifier for one of the potential players with the tackle for loss.                                                                                                                                                                                                                                                                          |
+| `tackle_for_loss_2_player_name`        | String name for one of the potential players with the tackle for loss.                                                                                                                                                                                                                                                                                |
+| `qb_hit_1_player_id`                   | Unique identifier for one of the potential players that hit the QB. No sack as the QB was not the ball carrier. For sacks please see `sack_player` or `half_sack_*_player`.                                                                                                                                                                           |
+| `qb_hit_1_player_name`                 | String name for one of the potential players that hit the QB. No sack as the QB was not the ball carrier. For sacks please see `sack_player` or `half_sack_*_player`.                                                                                                                                                                                 |
+| `qb_hit_2_player_id`                   | Unique identifier for one of the potential players that hit the QB. No sack as the QB was not the ball carrier. For sacks please see `sack_player` or `half_sack_*_player`.                                                                                                                                                                           |
+| `qb_hit_2_player_name`                 | String name for one of the potential players that hit the QB. No sack as the QB was not the ball carrier. For sacks please see `sack_player` or `half_sack_*_player`.                                                                                                                                                                                 |
+| `forced_fumble_player_1_team`          | Team of one of the players with a forced fumble.                                                                                                                                                                                                                                                                                                      |
+| `forced_fumble_player_1_player_id`     | Unique identifier of one of the players with a forced fumble.                                                                                                                                                                                                                                                                                         |
+| `forced_fumble_player_1_player_name`   | String name of one of the players with a forced fumble.                                                                                                                                                                                                                                                                                               |
+| `forced_fumble_player_2_team`          | Team of one of the players with a forced fumble.                                                                                                                                                                                                                                                                                                      |
+| `forced_fumble_player_2_player_id`     | Unique identifier of one of the players with a forced fumble.                                                                                                                                                                                                                                                                                         |
+| `forced_fumble_player_2_player_name`   | String name of one of the players with a forced fumble.                                                                                                                                                                                                                                                                                               |
+| `solo_tackle_1_team`                   | Team of one of the players with a solo tackle.                                                                                                                                                                                                                                                                                                        |
+| `solo_tackle_2_team`                   | Team of one of the players with a solo tackle.                                                                                                                                                                                                                                                                                                        |
+| `solo_tackle_1_player_id`              | Unique identifier of one of the players with a solo tackle.                                                                                                                                                                                                                                                                                           |
+| `solo_tackle_2_player_id`              | Unique identifier of one of the players with a solo tackle.                                                                                                                                                                                                                                                                                           |
+| `solo_tackle_1_player_name`            | String name of one of the players with a solo tackle.                                                                                                                                                                                                                                                                                                 |
+| `solo_tackle_2_player_name`            | String name of one of the players with a solo tackle.                                                                                                                                                                                                                                                                                                 |
+| `assist_tackle_1_player_id`            | Unique identifier of one of the players with a tackle assist.                                                                                                                                                                                                                                                                                         |
+| `assist_tackle_1_player_name`          | String name of one of the players with a tackle assist.                                                                                                                                                                                                                                                                                               |
+| `assist_tackle_1_team`                 | Team of one of the players with a tackle assist.                                                                                                                                                                                                                                                                                                      |
+| `assist_tackle_2_player_id`            | Unique identifier of one of the players with a tackle assist.                                                                                                                                                                                                                                                                                         |
+| `assist_tackle_2_player_name`          | String name of one of the players with a tackle assist.                                                                                                                                                                                                                                                                                               |
+| `assist_tackle_2_team`                 | Team of one of the players with a tackle assist.                                                                                                                                                                                                                                                                                                      |
+| `assist_tackle_3_player_id`            | Unique identifier of one of the players with a tackle assist.                                                                                                                                                                                                                                                                                         |
+| `assist_tackle_3_player_name`          | String name of one of the players with a tackle assist.                                                                                                                                                                                                                                                                                               |
+| `assist_tackle_3_team`                 | Team of one of the players with a tackle assist.                                                                                                                                                                                                                                                                                                      |
+| `assist_tackle_4_player_id`            | Unique identifier of one of the players with a tackle assist.                                                                                                                                                                                                                                                                                         |
+| `assist_tackle_4_player_name`          | String name of one of the players with a tackle assist.                                                                                                                                                                                                                                                                                               |
+| `assist_tackle_4_team`                 | Team of one of the players with a tackle assist.                                                                                                                                                                                                                                                                                                      |
+| `tackle_with_assist`                   | Binary indicator for if there has been a tackle with assist.                                                                                                                                                                                                                                                                                          |
+| `tackle_with_assist_1_player_id`       | Unique identifier of one of the players with a tackle with assist.                                                                                                                                                                                                                                                                                    |
+| `tackle_with_assist_1_player_name`     | String name of one of the players with a tackle with assist.                                                                                                                                                                                                                                                                                          |
+| `tackle_with_assist_1_team`            | Team of one of the players with a tackle with assist.                                                                                                                                                                                                                                                                                                 |
+| `tackle_with_assist_2_player_id`       | Unique identifier of one of the players with a tackle with assist.                                                                                                                                                                                                                                                                                    |
+| `tackle_with_assist_2_player_name`     | String name of one of the players with a tackle with assist.                                                                                                                                                                                                                                                                                          |
+| `tackle_with_assist_2_team`            | Team of one of the players with a tackle with assist.                                                                                                                                                                                                                                                                                                 |
+| `pass_defense_1_player_id`             | Unique identifier of one of the players with a pass defense.                                                                                                                                                                                                                                                                                          |
+| `pass_defense_1_player_name`           | String name of one of the players with a pass defense.                                                                                                                                                                                                                                                                                                |
+| `pass_defense_2_player_id`             | Unique identifier of one of the players with a pass defense.                                                                                                                                                                                                                                                                                          |
+| `pass_defense_2_player_name`           | String name of one of the players with a pass defense.                                                                                                                                                                                                                                                                                                |
+| `fumbled_1_team`                       | Team of one of the first player with a fumble.                                                                                                                                                                                                                                                                                                        |
+| `fumbled_1_player_id`                  | Unique identifier of the first player who fumbled on the play.                                                                                                                                                                                                                                                                                        |
+| `fumbled_1_player_name`                | String name of one of the first player who fumbled on the play.                                                                                                                                                                                                                                                                                       |
+| `fumbled_2_player_id`                  | Unique identifier of the second player who fumbled on the play.                                                                                                                                                                                                                                                                                       |
+| `fumbled_2_player_name`                | String name of one of the second player who fumbled on the play.                                                                                                                                                                                                                                                                                      |
+| `fumbled_2_team`                       | Team of one of the second player with a fumble.                                                                                                                                                                                                                                                                                                       |
+| `fumble_recovery_1_team`               | Team of one of the players with a fumble recovery.                                                                                                                                                                                                                                                                                                    |
+| `fumble_recovery_1_yards`              | Yards gained by one of the players with a fumble recovery.                                                                                                                                                                                                                                                                                            |
+| `fumble_recovery_1_player_id`          | Unique identifier of one of the players with a fumble recovery.                                                                                                                                                                                                                                                                                       |
+| `fumble_recovery_1_player_name`        | String name of one of the players with a fumble recovery.                                                                                                                                                                                                                                                                                             |
+| `fumble_recovery_2_team`               | Team of one of the players with a fumble recovery.                                                                                                                                                                                                                                                                                                    |
+| `fumble_recovery_2_yards`              | Yards gained by one of the players with a fumble recovery.                                                                                                                                                                                                                                                                                            |
+| `fumble_recovery_2_player_id`          | Unique identifier of one of the players with a fumble recovery.                                                                                                                                                                                                                                                                                       |
+| `fumble_recovery_2_player_name`        | String name of one of the players with a fumble recovery.                                                                                                                                                                                                                                                                                             |
+| `sack_player_id`                       | Unique identifier of the player who recorded a solo sack.                                                                                                                                                                                                                                                                                             |
+| `sack_player_name`                     | String name of the player who recorded a solo sack.                                                                                                                                                                                                                                                                                                   |
+| `half_sack_1_player_id`                | Unique identifier of the first player who recorded half a sack.                                                                                                                                                                                                                                                                                       |
+| `half_sack_1_player_name`              | String name of the first player who recorded half a sack.                                                                                                                                                                                                                                                                                             |
+| `half_sack_2_player_id`                | Unique identifier of the second player who recorded half a sack.                                                                                                                                                                                                                                                                                      |
+| `half_sack_2_player_name`              | String name of the second player who recorded half a sack.                                                                                                                                                                                                                                                                                            |
+| `return_team`                          | String abbreviation of the return team.                                                                                                                                                                                                                                                                                                               |
+| `return_yards`                         | Yards gained by the return team.                                                                                                                                                                                                                                                                                                                      |
+| `penalty_team`                         | String abbreviation of the team with the penalty.                                                                                                                                                                                                                                                                                                     |
+| `penalty_player_id`                    | Unique identifier for the player with the penalty.                                                                                                                                                                                                                                                                                                    |
+| `penalty_player_name`                  | String name for the player with the penalty.                                                                                                                                                                                                                                                                                                          |
+| `replay_or_challenge`                  | Binary indicator for whether or not a replay or challenge.                                                                                                                                                                                                                                                                                            |
+| `replay_or_challenge_result`           | String indicating the result of the replay or challenge.                                                                                                                                                                                                                                                                                              |
+| `defensive_two_point_attempt`          | Binary indicator whether or not the defense was able to have an attempt on a two point conversion, this results following a turnover.                                                                                                                                                                                                                 |
+| `defensive_two_point_conv`             | Binary indicator whether or not the defense successfully scored on the two point conversion.                                                                                                                                                                                                                                                          |
+| `defensive_extra_point_attempt`        | Binary indicator whether or not the defense was able to have an attempt on an extra point attempt, this results following a blocked attempt that the defense recovers the ball.                                                                                                                                                                       |
+| `defensive_extra_point_conv`           | Binary indicator whether or not the defense successfully scored on an extra point attempt.                                                                                                                                                                                                                                                            |
+| `safety_player_name`                   | String name for the player who scored a safety.                                                                                                                                                                                                                                                                                                       |
+| `safety_player_id`                     | Unique identifier for the player who scored a safety.                                                                                                                                                                                                                                                                                                 |
+| `season`                               | 4 digit number indicating to which season the game belongs to.                                                                                                                                                                                                                                                                                        |
+| `cp`                                   | Numeric value indicating the probability for a complete pass based on comparable game situations.                                                                                                                                                                                                                                                     |
+| `cpoe`                                 | For a single pass play this is 1 - cp when the pass was completed or 0 - cp when the pass was incomplete. Analyzed for a whole game or season an indicator for the passer how much over or under expectation his completion percentage was.                                                                                                           |
+| `series`                               | Starts at 1, each new first down increments, numbers shared across both teams NA: kickoffs, extra point/two point conversion attempts, non-plays, no posteam                                                                                                                                                                                          |
+| `series_success`                       | 1: scored touchdown, gained enough yards for first down.                                                                                                                                                                                                                                                                                              |
+| `series_result`                        | Possible values: First down, Touchdown, Opp touchdown, Field goal, Missed field goal, Safety, Turnover, Punt, Turnover on downs, QB kneel, End of half                                                                                                                                                                                                |
+| `order_sequence`                       | Column provided by NFL to fix out-of-order plays. Available 2011 and beyond with source "nfl".                                                                                                                                                                                                                                                        |
+| `start_time`                           | Kickoff time in eastern time zone.                                                                                                                                                                                                                                                                                                                    |
+| `time_of_day`                          | Time of day of play in UTC "HH:MM:SS" format. Available 2011 and beyond with source "nfl".                                                                                                                                                                                                                                                            |
+| `nfl_api_id`                           | UUID of the game in the new NFL API.                                                                                                                                                                                                                                                                                                                  |
+| `play_clock`                           | Time on the playclock when the ball was snapped.                                                                                                                                                                                                                                                                                                      |
+| `play_deleted`                         | Binary indicator for deleted plays.                                                                                                                                                                                                                                                                                                                   |
+| `play_type_nfl`                        | Play type as listed in the NFL source. Slightly different to the regular play_type variable.                                                                                                                                                                                                                                                          |
+| `special_teams_play`                   | Binary indicator for whether play is special teams play from NFL source. Available 2011 and beyond with source "nfl".                                                                                                                                                                                                                                 |
+| `st_play_type`                         | Type of special teams play from NFL source. Available 2011 and beyond with source "nfl".                                                                                                                                                                                                                                                              |
+| `end_clock_time`                       | Game time at the end of a given play.                                                                                                                                                                                                                                                                                                                 |
+| `end_yard_line`                        | String indicating the yardline at the end of the given play consisting of team half and yard line number.                                                                                                                                                                                                                                             |
+| `fixed_drive`                          | Manually created drive number in a game.                                                                                                                                                                                                                                                                                                              |
+| `fixed_drive_result`                   | Manually created drive result.                                                                                                                                                                                                                                                                                                                        |
+| `drive_real_start_time`                | Local day time when the drive started (currently not used by the NFL and therefore mostly 'NA').                                                                                                                                                                                                                                                      |
+| `drive_play_count`                     | Numeric value of how many regular plays happened in a given drive.                                                                                                                                                                                                                                                                                    |
+| `drive_time_of_possession`             | Time of possession in a given drive.                                                                                                                                                                                                                                                                                                                  |
+| `drive_first_downs`                    | Number of first downs in a given drive.                                                                                                                                                                                                                                                                                                               |
+| `drive_inside20`                       | Binary indicator if the offense was able to get inside the opponents 20 yard line.                                                                                                                                                                                                                                                                    |
+| `drive_ended_with_score`               | Binary indicator the drive ended with a score.                                                                                                                                                                                                                                                                                                        |
+| `drive_quarter_start`                  | Numeric value indicating in which quarter the given drive has started.                                                                                                                                                                                                                                                                                |
+| `drive_quarter_end`                    | Numeric value indicating in which quarter the given drive has ended.                                                                                                                                                                                                                                                                                  |
+| `drive_yards_penalized`                | Numeric value of how many yards the offense gained or lost through penalties in the given drive.                                                                                                                                                                                                                                                      |
+| `drive_start_transition`               | String indicating how the offense got the ball.                                                                                                                                                                                                                                                                                                       |
+| `drive_end_transition`                 | String indicating how the offense lost the ball.                                                                                                                                                                                                                                                                                                      |
+| `drive_game_clock_start`               | Game time at the beginning of a given drive.                                                                                                                                                                                                                                                                                                          |
+| `drive_game_clock_end`                 | Game time at the end of a given drive.                                                                                                                                                                                                                                                                                                                |
+| `drive_start_yard_line`                | String indicating where a given drive started consisting of team half and yard line number.                                                                                                                                                                                                                                                           |
+| `drive_end_yard_line`                  | String indicating where a given drive ended consisting of team half and yard line number.                                                                                                                                                                                                                                                             |
+| `drive_play_id_started`                | Play_id of the first play in the given drive.                                                                                                                                                                                                                                                                                                         |
+| `drive_play_id_ended`                  | Play_id of the last play in the given drive.                                                                                                                                                                                                                                                                                                          |
+| `away_score`                           | Total points scored by the away team.                                                                                                                                                                                                                                                                                                                 |
+| `home_score`                           | Total points scored by the home team.                                                                                                                                                                                                                                                                                                                 |
+| `location`                             | Either 'Home' o 'Neutral' indicating if the home team played at home or at a neutral site.                                                                                                                                                                                                                                                            |
+| `result`                               | Equals home_score - away_score and means the game outcome from the perspective of the home team.                                                                                                                                                                                                                                                      |
+| `total`                                | Equals home_score + away_score and means the total points scored in the given game.                                                                                                                                                                                                                                                                   |
+| `spread_line`                          | The closing spread line for the game. A positive number means the home team was favored by that many points, a negative number means the away team was favored by that many points. (Source: Pro-Football-Reference)                                                                                                                                  |
+| `total_line`                           | The closing total line for the game. (Source: Pro-Football-Reference)                                                                                                                                                                                                                                                                                 |
+| `div_game`                             | Binary indicator for if the given game was a division game.                                                                                                                                                                                                                                                                                           |
+| `temp`                                 | The temperature at the stadium only for 'roof' = 'outdoors' or 'open'.(Source: Pro-Football-Reference)                                                                                                                                                                                                                                                |
+| `wind`                                 | The speed of the wind in miles/hour only for 'roof' = 'outdoors' or 'open'. (Source: Pro-Football-Reference)                                                                                                                                                                                                                                          |
+| `home_coach`                           | First and last name of the home team coach. (Source: Pro-Football-Reference)                                                                                                                                                                                                                                                                          |
+| `away_coach`                           | First and last name of the away team coach. (Source: Pro-Football-Reference)                                                                                                                                                                                                                                                                          |
+| `stadium_id`                           | ID of the stadium the game was played in. (Source: Pro-Football-Reference)                                                                                                                                                                                                                                                                            |
+| `game_stadium`                         | Name of the stadium the game was played in. (Source: Pro-Football-Reference)                                                                                                                                                                                                                                                                          |
+| `passer`                               | Name of the dropback player (scrambles included) including plays with penalties.                                                                                                                                                                                                                                                                      |
+| `passer_jersey_number`                 | Jersey number of the passer.                                                                                                                                                                                                                                                                                                                          |
+| `rusher`                               | Name of the rusher (no scrambles) including plays with penalties.                                                                                                                                                                                                                                                                                     |
+| `rusher_jersey_number`                 | Jersey number of the rusher.                                                                                                                                                                                                                                                                                                                          |
+| `receiver`                             | Name of the receiver including plays with penalties.                                                                                                                                                                                                                                                                                                  |
+| `receiver_jersey_number`               | Jersey number of the receiver.                                                                                                                                                                                                                                                                                                                        |
+| `pass`                                 | Binary indicator if the play was a pass play (sacks and scrambles included).                                                                                                                                                                                                                                                                          |
+| `rush`                                 | Binary indicator if the play was a rushing play.                                                                                                                                                                                                                                                                                                      |
+| `first_down`                           | Binary indicator if the play ended in a first down.                                                                                                                                                                                                                                                                                                   |
+| `aborted_play`                         | Binary indicator if the play description indicates "Aborted".                                                                                                                                                                                                                                                                                         |
+| `special`                              | Binary indicator if the play was a special teams play.                                                                                                                                                                                                                                                                                                |
+| `play`                                 | Binary indicator: 1 if the play was a 'normal' play (including penalties), 0 otherwise.                                                                                                                                                                                                                                                               |
+| `passer_id`                            | ID of the player in the 'passer' column.                                                                                                                                                                                                                                                                                                              |
+| `rusher_id`                            | ID of the player in the 'rusher' column.                                                                                                                                                                                                                                                                                                              |
+| `receiver_id`                          | ID of the player in the 'receiver' column.                                                                                                                                                                                                                                                                                                            |
+| `name`                                 | Name of the 'passer' if it is not 'NA', or name of the 'rusher' otherwise.                                                                                                                                                                                                                                                                            |
+| `jersey_number`                        | Jersey number of the player listed in the 'name' column.                                                                                                                                                                                                                                                                                              |
+| `id`                                   | ID of the player in the 'name' column.                                                                                                                                                                                                                                                                                                                |
+| `fantasy_player_name`                  | Name of the rusher on rush plays or receiver on pass plays (from official stats).                                                                                                                                                                                                                                                                     |
+| `fantasy_player_id`                    | ID of the rusher on rush plays or receiver on pass plays (from official stats).                                                                                                                                                                                                                                                                       |
+| `fantasy`                              | Name of the rusher on rush plays or receiver on pass plays.                                                                                                                                                                                                                                                                                           |
+| `fantasy_id`                           | ID of the rusher on rush plays or receiver on pass plays.                                                                                                                                                                                                                                                                                             |
+| `out_of_bounds`                        | 1 if play description contains ran ob, pushed ob, or sacked ob; 0 otherwise.                                                                                                                                                                                                                                                                          |
+| `home_opening_kickoff`                 | = 1 if the home team received the opening kickoff, 0 otherwise.                                                                                                                                                                                                                                                                                       |
+| `qb_epa`                               | Gives QB credit for EPA for up to the point where a receiver lost a fumble after a completed catch and makes EPA work more like passing yards on plays with fumbles.                                                                                                                                                                                  |
+| `xyac_epa`                             | Expected value of EPA gained after the catch, starting from where the catch was made. Zero yards after the catch would be listed as zero EPA.                                                                                                                                                                                                         |
+| `xyac_mean_yardage`                    | Average expected yards after the catch based on where the ball was caught.                                                                                                                                                                                                                                                                            |
+| `xyac_median_yardage`                  | Median expected yards after the catch based on where the ball was caught.                                                                                                                                                                                                                                                                             |
+| `xyac_success`                         | Probability play earns positive EPA (relative to where play started) based on where ball was caught.                                                                                                                                                                                                                                                  |
+| `xyac_fd`                              | Probability play earns a first down based on where the ball was caught.                                                                                                                                                                                                                                                                               |
+| `xpass`                                | Probability of dropback scaled from 0 to 1.                                                                                                                                                                                                                                                                                                           |
+| `pass_oe`                              | Dropback percent over expected on a given play scaled from 0 to 100.                                                                                                                                                                                                                                                                                  |
 
 ## 2B) `nfldata` dataset-field gaps
 
 ### Dataset files discovered in `leesharpe/nfldata/data`
+
 - `airports.csv`
 - `closing_lines.csv`
 - `draft_picks.csv`
@@ -673,6 +691,7 @@ frontend heuristics or unlock new UI features. See the full table below for the 
 ### Missing fields by dataset (exact-name comparison to current DB columns)
 
 Caveat:
+
 - This section is **exact-name** matching against current schema column names.
 - Some concepts may exist under different names or be computed, but anything listed below is not directly represented by a same-named persisted column.
 
@@ -900,8 +919,8 @@ Caveat:
 - `over_odds`
 - `under_odds`
 
-
 ### Exhaustive dataset.field list currently not represented (exact-name)
+
 - `airports.csv.team`
 - `airports.csv.airport`
 - `airports.csv.time_zone`
@@ -1022,11 +1041,14 @@ Caveat:
 ## 2C) ESPN endpoint data gaps (`Public-ESPN-API` + live payload inspection)
 
 ### NFL endpoints in the referenced doc that are not fully exploited today
+
 Current implementation uses mostly scoreboard + summary + core plays:
+
 - `apps/api-django/gridstream/management/commands/sync_espn_games.py`
 - `apps/service-go/gridstream/internal/config/config.go`
 
 Additional endpoint families available:
+
 - Team detail / roster / schedule
 - Standings (core path)
 - Leaders v3 endpoint
@@ -1036,7 +1058,9 @@ Additional endpoint families available:
 - CDN scoreboard/boxscore/playbyplay/standings/schedule
 
 ### ESPN summary top-level keys currently unused by sync
+
 (From sample game summary payload; keys present but not consumed in `sync_espn_games.py`)
+
 - `againstTheSpread`
 - `boxscore`
 - `format`
@@ -1054,11 +1078,13 @@ Additional endpoint families available:
 ### ESPN summary fields not persisted (sample-derived inventories)
 
 #### `winprobability[]` missing fields
+
 - `homeWinPercentage`
 - `playId`
 - `tiePercentage`
 
 #### `pickcenter[]` missing fields
+
 - `awayTeamOdds`
 - `details`
 - `footer`
@@ -1074,11 +1100,13 @@ Additional endpoint families available:
 - `underOdds`
 
 #### `injuries[].injuries[]` missing fields
+
 - `athlete`
 - `details`
 - `type`
 
 #### `boxscore.teams[].statistics[].name` fields not mapped directly
+
 - `completionAttempts`
 - `defensiveTouchdowns`
 - `firstDowns`
@@ -1104,6 +1132,7 @@ Additional endpoint families available:
 - `yardsPerRushAttempt`
 
 #### `boxscore.players[].statistics[].descriptions[]` sample fields (currently not directly ingested)
+
 - `defensive.Passes`
 - `defensive.Quarterback`
 - `defensive.Sacks`
@@ -1159,6 +1188,7 @@ Additional endpoint families available:
 - `rushing.Yards`
 
 ### ESPN core probabilities fields not currently persisted
+
 - `$ref`
 - `awayTeam`
 - `awayWinPercentage`
@@ -1177,6 +1207,7 @@ Additional endpoint families available:
 - `totalPushProb`
 
 ### ESPN core standings stat fields not currently persisted as a standings table
+
 - `OTLosses`
 - `OTWins`
 - `avgPointsAgainst`
@@ -1210,6 +1241,7 @@ Additional endpoint families available:
 
 Rather than continuing to patch and enrich the v1 database in place, build a clean v2 database from scratch.
 Motivations:
+
 - The v1 0%-populated columns (odds, team stat subdomains, kicking stats) show the enrichment approach was
   never going to converge — schema existed but pipelines never wrote to it.
 - The v1 raw `plays` table at 52 fields will always create a ceiling on what downstream code can do.
@@ -1218,6 +1250,7 @@ Motivations:
 - Rebuilding later is inevitable as the data model grows; doing it now avoids paying migration debt twice.
 
 **Transition plan:**
+
 - Create `postgres-nfl-v2` alongside the current `postgres-nfl`.
 - All new import commands target v2 only.
 - v1 remains live and untouched as fallback during development.
@@ -1226,6 +1259,7 @@ Motivations:
 ## 3.1 Loader architecture changes (high priority)
 
 1. Replace the single reduced `plays` archive with layered raw datasets.
+
 - Keep a `raw_` schema with source-faithful tables (full field sets, no lossy transforms).
 - Suggested minimum raw tables:
   - `raw_nflverse_pbp` (full PBP, all fields)
@@ -1242,11 +1276,13 @@ Motivations:
   - `raw_espn_probabilities`
 
 2. Replace ad-hoc "multi command bootstrap" with one deterministic bootstrap command.
+
 - Introduce e.g. `python manage.py bootstrap_nfl_v2 --season-start 1999 --season-end <N>`.
 - Include idempotent stages: migrate -> raw ingest -> core transforms -> materialized views -> data QA.
 - Store source metadata (source URL, tag, checksum, loaded_at) per raw batch.
 
 3. Upgrade Rust ingest from reduced CSV projection to full schema ingest.
+
 - Current reduction source:
   - `apps/service-rust/nflreadrust/src/models.rs`
   - `apps/service-rust/nflreadrust/src/lib.rs`
@@ -1257,17 +1293,20 @@ Motivations:
 ## 3.2 Script-level refactors
 
 ### `import_games.py`
+
 - Current behavior derives games from raw PBP group-by and uses placeholders for missing IDs/metadata.
 - Upgrade to authoritative schedule/games source (nflverse games dataset + ESPN IDs join).
 - Populate fields now missing/partial: `is_division_game`, coaches, referees, proper game_type metadata,
   `away_rest`/`home_rest`, closing odds from pickcenter.
 
 ### `import_drives.py`
+
 - Current behavior infers drive result heuristically from last-play flags.
 - Upgrade to explicit drive result/first-down fields from full PBP (`fixed_drive_result`, etc.) when available.
 - Populate `drive_start_transition`/`drive_end_transition` from full PBP.
 
 ### `import_plays.py`
+
 - Current behavior imports only reduced 52-column projection.
 - Upgrade to full field mapping for all available PBP flags/probabilities/player IDs.
 - Remove null-heavy placeholders for known fields (`desc`, `first_down_*`, `fumble_lost`, `pass_location`, `run_location`, `run_gap`, etc.).
@@ -1275,18 +1314,22 @@ Motivations:
 - Add all timeout, win probability, score differential, expected points fields.
 
 ### `import_player_game_stats.py`
+
 - Current behavior derives from PBP because no player_stats raw table.
 - Replace with direct ingest from `player_stats` dataset.
 - Keep optional reconciliation against PBP-derived totals for QA only.
 
 ### `import_team_game_stats.py`
+
 - Current behavior derives with known approximations.
 - Replace with direct team stats dataset ingest.
 
 ### `sync_rosters.py`
+
 - Expand ingestion beyond team/status/jersey to include roster richness where available (position depth, injury flags, transaction context).
 
 ### `sync_espn_games.py`
+
 - Extend summary ingestion beyond drives/scoring/leaders:
   - injuries
   - boxscore team+player stat payloads
@@ -1312,6 +1355,7 @@ Motivations:
 ## 4.1 Backend (Django)
 
 1. Replace boxscore fallback derivation in `GameViewSet.boxscore`.
+
 - File: `apps/api-django/gridstream/views.py`
 - Functions/blocks:
   - `_derive_team_stats_from_plays` (play-derived fallback)
@@ -1323,6 +1367,7 @@ Motivations:
   - Prerequisite: `teamstats_points_scored_pct` and `playerstats_fg_made_pct` must be 100% in v2 before removing.
 
 2. Replace computed standings view with persisted standings table.
+
 - File: `apps/api-django/gridstream/views.py` (`StandingsViewSet`)
 - Current: computes from game results each request/cache cycle.
 - Upgrade: serve from imported standings dataset + tie-break metadata.
@@ -1331,27 +1376,28 @@ Motivations:
 
 ### Complete heuristic-to-canonical replacement map
 
-| Heuristic / derived function | Location | Replacement field(s) |
-|---|---|---|
-| `hasTurnoverLanguage()` — description text regex | `play-transforms.ts` | `play.interception`, `play.fumble_lost` |
-| `resolveAnimType()` — play category inference | `play-transforms.ts` | `pass_attempt`, `rush_attempt`, `kickoff_attempt`, `punt_attempt`, `extra_point_attempt`, `two_point_attempt`, `special_teams_play`, `st_play_type` |
-| `parseKickDetails()` — 80-line kick regex gauntlet | `play-transforms.ts` | `punt_returner_player_name/id`, `kickoff_returner_player_name/id`, `return_yards`, `return_team`, `touchback`, `out_of_bounds`, `punt_inside_twenty`, `punt_fair_catch`, `kickoff_in_endzone` |
-| `parseTurnoverDetails()` — description regex + spot projection | `play-transforms.ts` | `interception_player_name/id`, `fumble_recovery_1_player_name/team/yards`, `return_yards`, `return_team` |
-| `parsePenaltyDetails()` — description regex | `play-transforms.ts` | `penalty_player_name`, `penalty_player_id`, `penalty_team` |
-| `parseTimeoutUsage()` — text regex for team + ordinal | `play-transforms.ts` | `timeout`, `timeout_team` |
-| Timeout decrement counter (tracks remaining TOs by counting usage) | `page.tsx` replay loop | `home_timeouts_remaining`, `away_timeouts_remaining` per play |
-| `parseFieldGoalDistance()` fallback regex | `play-transforms.ts` | `kick_distance` (ensure 100% populated in v2) |
-| `estimateAwayWinPct()` — score/quarter/clock heuristic | `page.tsx` | `home_wp`/`away_wp` per play (ESPN `winprobability` or nflfastR) |
-| `isLikelyIndoor()` — venue name keyword list | `constants.ts` | `venue.is_indoor` from DB |
-| Rolling EPA accumulation in replay timeline | `page.tsx` | `total_home_epa`, `total_away_epa`, `total_home_rush_epa`, `total_home_pass_epa` per play |
-| Score differential manual accumulation | `page.tsx` | `score_differential` per play |
-| Drive possession time calculation from clock arithmetic | `page.tsx` | `drive_time_of_possession` from nflfastR (or `time_elapsed` on `gridstream_drive`) |
-| `mapLeadersFromRunningTotals()` — stat accumulation fallback | `transforms.ts` | Canonical `GameLeader` rows for current-state; running totals only for historical replay scrubbing |
-| `defenseFantasyPoints()` points-allowed band derivation | `transforms.ts` | Pre-computed from final `points_allowed` in `TeamGameStats` |
+| Heuristic / derived function                                       | Location               | Replacement field(s)                                                                                                                                                                          |
+| ------------------------------------------------------------------ | ---------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `hasTurnoverLanguage()` — description text regex                   | `play-transforms.ts`   | `play.interception`, `play.fumble_lost`                                                                                                                                                       |
+| `resolveAnimType()` — play category inference                      | `play-transforms.ts`   | `pass_attempt`, `rush_attempt`, `kickoff_attempt`, `punt_attempt`, `extra_point_attempt`, `two_point_attempt`, `special_teams_play`, `st_play_type`                                           |
+| `parseKickDetails()` — 80-line kick regex gauntlet                 | `play-transforms.ts`   | `punt_returner_player_name/id`, `kickoff_returner_player_name/id`, `return_yards`, `return_team`, `touchback`, `out_of_bounds`, `punt_inside_twenty`, `punt_fair_catch`, `kickoff_in_endzone` |
+| `parseTurnoverDetails()` — description regex + spot projection     | `play-transforms.ts`   | `interception_player_name/id`, `fumble_recovery_1_player_name/team/yards`, `return_yards`, `return_team`                                                                                      |
+| `parsePenaltyDetails()` — description regex                        | `play-transforms.ts`   | `penalty_player_name`, `penalty_player_id`, `penalty_team`                                                                                                                                    |
+| `parseTimeoutUsage()` — text regex for team + ordinal              | `play-transforms.ts`   | `timeout`, `timeout_team`                                                                                                                                                                     |
+| Timeout decrement counter (tracks remaining TOs by counting usage) | `page.tsx` replay loop | `home_timeouts_remaining`, `away_timeouts_remaining` per play                                                                                                                                 |
+| `parseFieldGoalDistance()` fallback regex                          | `play-transforms.ts`   | `kick_distance` (ensure 100% populated in v2)                                                                                                                                                 |
+| `estimateAwayWinPct()` — score/quarter/clock heuristic             | `page.tsx`             | `home_wp`/`away_wp` per play (ESPN `winprobability` or nflfastR)                                                                                                                              |
+| `isLikelyIndoor()` — venue name keyword list                       | `constants.ts`         | `venue.is_indoor` from DB                                                                                                                                                                     |
+| Rolling EPA accumulation in replay timeline                        | `page.tsx`             | `total_home_epa`, `total_away_epa`, `total_home_rush_epa`, `total_home_pass_epa` per play                                                                                                     |
+| Score differential manual accumulation                             | `page.tsx`             | `score_differential` per play                                                                                                                                                                 |
+| Drive possession time calculation from clock arithmetic            | `page.tsx`             | `drive_time_of_possession` from nflfastR (or `time_elapsed` on `gridstream_drive`)                                                                                                            |
+| `mapLeadersFromRunningTotals()` — stat accumulation fallback       | `transforms.ts`        | Canonical `GameLeader` rows for current-state; running totals only for historical replay scrubbing                                                                                            |
+| `defenseFantasyPoints()` points-allowed band derivation            | `transforms.ts`        | Pre-computed from final `points_allowed` in `TeamGameStats`                                                                                                                                   |
 
 ## 4.3 Go live service
 
 1. Extend transformer payload usage for richer live context.
+
 - Files:
   - `apps/service-go/gridstream/internal/espn/transformer.go`
   - `apps/service-go/gridstream/internal/config/config.go`
@@ -1364,15 +1410,15 @@ Motivations:
 
 Current state: game cards with teams, scores, status, records, QB names, weather, broadcast.
 
-| Feature | Data required | Source |
-|---|---|---|
-| Spread / total / moneyline on cards | `spread_line`, `total_line`, `away_spread_odds`, `home_spread_odds` | nflverse `games.csv` or ESPN `pickcenter` |
-| Rest advantage badge ("Short week") | `away_rest`, `home_rest` (days since last game) | nflverse `games.csv` |
-| Division game indicator | `div_game` / `is_division_game` | nflverse `games.csv` (currently 0% populated in v1) |
-| Injury flags on game cards | Game-day player status (out/questionable) | ESPN `injuries` endpoint |
-| Standings seed alongside team record | Persisted standings table | nflverse `standings.csv` or ESPN standings |
-| Vegas win total context (late season) | Pre-season O/U line per team | nflverse `win_totals.csv` |
-| Head referee | Official name + position | ESPN `gameInfo` or nfldata `officials.csv` |
+| Feature                               | Data required                                                       | Source                                              |
+| ------------------------------------- | ------------------------------------------------------------------- | --------------------------------------------------- |
+| Spread / total / moneyline on cards   | `spread_line`, `total_line`, `away_spread_odds`, `home_spread_odds` | nflverse `games.csv` or ESPN `pickcenter`           |
+| Rest advantage badge ("Short week")   | `away_rest`, `home_rest` (days since last game)                     | nflverse `games.csv`                                |
+| Division game indicator               | `div_game` / `is_division_game`                                     | nflverse `games.csv` (currently 0% populated in v1) |
+| Injury flags on game cards            | Game-day player status (out/questionable)                           | ESPN `injuries` endpoint                            |
+| Standings seed alongside team record  | Persisted standings table                                           | nflverse `standings.csv` or ESPN standings          |
+| Vegas win total context (late season) | Pre-season O/U line per team                                        | nflverse `win_totals.csv`                           |
+| Head referee                          | Official name + position                                            | ESPN `gameInfo` or nfldata `officials.csv`          |
 
 ## 4.5 Game view page — new capabilities unlocked
 
@@ -1380,26 +1426,26 @@ Current state: field visualization, play animation, score bug, drive tracker, mi
 
 ### Immediate upgrades (high leverage, low implementation cost)
 
-| Feature | Data required | Replaces |
-|---|---|---|
-| Accurate win probability sparkline | `home_wp`/`away_wp` per play | `estimateAwayWinPct()` heuristic |
-| Timeout bubbles accurate at every replay frame | `home_timeouts_remaining`/`away_timeouts_remaining` per play | Text-parsing decrement counter |
-| Defender/tackler name in MissionLog | `sack_player_name`, `tackle_for_loss_1_player_name`, `interception_player_name`, `pass_defense_1_player_name` | "sack" / "interception" (no player attribution) |
-| Penalty player name in MissionLog | `penalty_player_name`, `penalty_team` | Penalty type only |
-| Drive start transition in drive tracker | `drive_start_transition` (punt / kickoff / INT / fumble recovery / etc.) | Drive number only |
-| Kick animation without regex | `punt_returner_player_name/id`, `kickoff_returner_player_name/id`, `return_yards`, `return_team`, `touchback`, `kickoff_in_endzone`, `punt_fair_catch` | `parseKickDetails()` 80-line regex |
-| Turnover animation without regex | `interception_player_name/id`, `fumble_recovery_1_player_name/team/yards` | `parseTurnoverDetails()` regex + projection |
+| Feature                                        | Data required                                                                                                                                          | Replaces                                        |
+| ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------- |
+| Accurate win probability sparkline             | `home_wp`/`away_wp` per play                                                                                                                           | `estimateAwayWinPct()` heuristic                |
+| Timeout bubbles accurate at every replay frame | `home_timeouts_remaining`/`away_timeouts_remaining` per play                                                                                           | Text-parsing decrement counter                  |
+| Defender/tackler name in MissionLog            | `sack_player_name`, `tackle_for_loss_1_player_name`, `interception_player_name`, `pass_defense_1_player_name`                                          | "sack" / "interception" (no player attribution) |
+| Penalty player name in MissionLog              | `penalty_player_name`, `penalty_team`                                                                                                                  | Penalty type only                               |
+| Drive start transition in drive tracker        | `drive_start_transition` (punt / kickoff / INT / fumble recovery / etc.)                                                                               | Drive number only                               |
+| Kick animation without regex                   | `punt_returner_player_name/id`, `kickoff_returner_player_name/id`, `return_yards`, `return_team`, `touchback`, `kickoff_in_endzone`, `punt_fair_catch` | `parseKickDetails()` 80-line regex              |
+| Turnover animation without regex               | `interception_player_name/id`, `fumble_recovery_1_player_name/team/yards`                                                                              | `parseTurnoverDetails()` regex + projection     |
 
 ### New panels / overlays
 
-| Feature | Data required | Source |
-|---|---|---|
-| EPA flow chart | `total_home_epa`, `total_away_epa` per play (segmented by `total_home_pass_epa`, `total_home_rush_epa`) | nflfastR full PBP |
-| Pre-snap score probability context | `td_prob`, `fg_prob`, `no_score_prob` per play | nflfastR |
-| Completion % over expectation annotation | `cp`, `cpoe` per pass play | nflfastR |
-| Injury/availability panel | Game-day player status for both rosters | ESPN `injuries` endpoint |
-| Attendance + officials display | Attendance count, official names/positions | ESPN `gameInfo` |
-| Next Gen Stats player card | `metrics` from `gridstream_playernextgenstats` (26K rows already stored) | Already in DB — just needs UI surface |
+| Feature                                  | Data required                                                                                           | Source                                |
+| ---------------------------------------- | ------------------------------------------------------------------------------------------------------- | ------------------------------------- |
+| EPA flow chart                           | `total_home_epa`, `total_away_epa` per play (segmented by `total_home_pass_epa`, `total_home_rush_epa`) | nflfastR full PBP                     |
+| Pre-snap score probability context       | `td_prob`, `fg_prob`, `no_score_prob` per play                                                          | nflfastR                              |
+| Completion % over expectation annotation | `cp`, `cpoe` per pass play                                                                              | nflfastR                              |
+| Injury/availability panel                | Game-day player status for both rosters                                                                 | ESPN `injuries` endpoint              |
+| Attendance + officials display           | Attendance count, official names/positions                                                              | ESPN `gameInfo`                       |
+| Next Gen Stats player card               | `metrics` from `gridstream_playernextgenstats` (26K rows already stored)                                | Already in DB — just needs UI surface |
 
 ---
 
@@ -1433,6 +1479,7 @@ The TODO list in section 0 is the authoritative task list. The high-level phase 
 ## 7) Raw extraction artifacts used to build this document
 
 Generated during analysis (local `/tmp`):
+
 - `/tmp/local_nfl_table_counts.tsv`
 - `/tmp/local_nfl_table_inventory.tsv`
 - `/tmp/current_completeness_metrics.tsv`

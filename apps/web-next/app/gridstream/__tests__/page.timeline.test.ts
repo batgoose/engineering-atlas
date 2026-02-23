@@ -1,8 +1,17 @@
 import { describe, expect, it } from 'vitest';
 
+import type {
+  ApiBoxscore,
+  ApiGameDetailExtended,
+  ApiPlayDetail,
+  ApiPlayerGameStats,
+  RunningPlayerMeta,
+  RunningPlayerTotals,
+} from '@atlas/sdk/gridstream/api-transforms';
+
 import { __gridstreamTestUtils } from '../page';
 
-function makePlay(overrides: Record<string, unknown>): Record<string, unknown> {
+function makePlay(overrides: Record<string, unknown>): ApiPlayDetail {
   return {
     id: 1,
     drive_id: 1,
@@ -43,10 +52,10 @@ function makePlay(overrides: Record<string, unknown>): Record<string, unknown> {
     field_goal_result: '',
     kick_distance: null,
     ...overrides,
-  };
+  } as unknown as ApiPlayDetail;
 }
 
-function makeDetail(overrides: Record<string, unknown>): Record<string, unknown> {
+function makeDetail(overrides: Record<string, unknown>): ApiGameDetailExtended {
   return {
     id: 1,
     espn_event_id: '401772988',
@@ -114,10 +123,10 @@ function makeDetail(overrides: Record<string, unknown>): Record<string, unknown>
     leaders: [],
     scoring_plays: [],
     ...overrides,
-  };
+  } as unknown as ApiGameDetailExtended;
 }
 
-function makeTotals(overrides: Record<string, unknown> = {}): Record<string, unknown> {
+function makeTotals(overrides: Record<string, unknown> = {}): RunningPlayerTotals {
   return {
     passAtt: 0,
     passComp: 0,
@@ -142,7 +151,7 @@ function makeTotals(overrides: Record<string, unknown> = {}): Record<string, unk
     fumblesLost: 0,
     sacks: 0,
     ...overrides,
-  };
+  } as unknown as RunningPlayerTotals;
 }
 
 describe('Gridstream timeline derivation', () => {
@@ -177,13 +186,13 @@ describe('Gridstream timeline derivation', () => {
     });
 
     const animation = __gridstreamTestUtils.toPlayAnimation(
-      puntPlay as any,
-      nextSnap as any,
+      puntPlay,
+      nextSnap,
       'SEA',
       'NE',
-      new Map<string, any>(),
-      new Map<string, any>(),
-      new Map<string, any>()
+      new Map(),
+      new Map(),
+      new Map()
     );
 
     expect(animation?.type).toBe('kick');
@@ -225,13 +234,13 @@ describe('Gridstream timeline derivation', () => {
     });
 
     const animation = __gridstreamTestUtils.toPlayAnimation(
-      puntPlay as any,
-      nextSnap as any,
+      puntPlay,
+      nextSnap,
       'SEA',
       'NE',
-      new Map<string, any>(),
-      new Map<string, any>(),
-      new Map<string, any>()
+      new Map(),
+      new Map(),
+      new Map()
     );
 
     expect(animation?.type).toBe('kick');
@@ -278,13 +287,13 @@ describe('Gridstream timeline derivation', () => {
     });
 
     const animation = __gridstreamTestUtils.toPlayAnimation(
-      penaltyPlay as any,
-      nextSnap as any,
+      penaltyPlay,
+      nextSnap,
       'SEA',
       'NE',
-      new Map<string, any>(),
-      new Map<string, any>(),
-      new Map<string, any>()
+      new Map(),
+      new Map(),
+      new Map()
     );
 
     expect(animation).toBeTruthy();
@@ -331,18 +340,18 @@ describe('Gridstream timeline derivation', () => {
       complete_pass: true,
     });
 
-    const runningTotals = new Map<string, any>();
-    const runningMeta = new Map<string, any>();
-    __gridstreamTestUtils.updateRunningTotalsFromPlay(puntPlay as any, runningTotals, runningMeta);
+    const runningTotals = new Map<string, RunningPlayerTotals>();
+    const runningMeta = new Map<string, RunningPlayerMeta>();
+    __gridstreamTestUtils.updateRunningTotalsFromPlay(puntPlay, runningTotals, runningMeta);
 
     const animation = __gridstreamTestUtils.toPlayAnimation(
-      puntPlay as any,
-      nextSnap as any,
+      puntPlay,
+      nextSnap,
       'SEA',
       'NE',
-      new Map<string, any>(),
+      new Map(),
       runningTotals,
-      new Map<string, any>()
+      new Map()
     );
 
     expect(animation?.type).toBe('kick');
@@ -436,10 +445,10 @@ describe('Gridstream timeline derivation', () => {
     };
 
     const timeline = __gridstreamTestUtils.buildTimeline(
-      detail as any,
-      plays as any,
+      detail,
+      plays,
       [],
-      boxscore as any
+      boxscore as unknown as ApiBoxscore
     );
 
     const firstFrame = timeline.frames[0];
@@ -537,10 +546,10 @@ describe('Gridstream timeline derivation', () => {
     };
 
     const timeline = __gridstreamTestUtils.buildTimeline(
-      detail as any,
-      plays as any,
+      detail,
+      plays,
       [],
-      boxscore as any
+      boxscore as unknown as ApiBoxscore
     );
 
     const secondFrame = timeline.frames[1];
@@ -556,12 +565,12 @@ describe('Gridstream timeline derivation', () => {
   });
 
   it('scores kickers from made FG/XP attempts', () => {
-    const totals = new Map<string, any>();
+    const totals = new Map<string, RunningPlayerTotals>();
     // Use makeTotals to ensure all required fields (including fgMissed, fgMade0to39, etc.)
     // are present with default 0 values so the scoring formula doesn't produce NaN.
     totals.set('jmyers', makeTotals({ fgAtt: 3, fgMade: 3 }));
 
-    const meta = new Map<string, any>();
+    const meta = new Map<string, RunningPlayerMeta>();
     meta.set('jmyers', { name: 'J.Myers', teamAbbr: 'SEA', position: 'K' });
 
     const fantasy = __gridstreamTestUtils.mapFantasyFromRunningTotals(totals, meta, 'SEA', 'NE');
@@ -574,8 +583,8 @@ describe('Gridstream timeline derivation', () => {
   });
 
   it('adds DEF fantasy entry from team state when frame totals are available', () => {
-    const totals = new Map<string, any>();
-    const meta = new Map<string, any>();
+    const totals = new Map<string, RunningPlayerTotals>();
+    const meta = new Map<string, RunningPlayerMeta>();
 
     const fantasy = __gridstreamTestUtils.mapFantasyFromRunningTotals(
       totals,
@@ -610,8 +619,8 @@ describe('Gridstream timeline derivation', () => {
       { away: 9, home: 0 }
     );
 
-    const awayDef = fantasy.away.find((entry: any) => entry.position === 'DEF');
-    const homeDef = fantasy.home.find((entry: any) => entry.position === 'DEF');
+    const awayDef = fantasy.away.find((entry) => entry.position === 'DEF');
+    const homeDef = fantasy.home.find((entry) => entry.position === 'DEF');
 
     expect(awayDef).toBeTruthy();
     expect(homeDef).toBeTruthy();
@@ -620,7 +629,7 @@ describe('Gridstream timeline derivation', () => {
   });
 
   it('scores all fantasy positions using ESPN-style formulas (PPR/HALF/STD)', () => {
-    const totals = new Map<string, any>();
+    const totals = new Map<string, RunningPlayerTotals>();
     totals.set(
       'qb',
       makeTotals({
@@ -678,7 +687,7 @@ describe('Gridstream timeline derivation', () => {
       })
     );
 
-    const meta = new Map<string, any>();
+    const meta = new Map<string, RunningPlayerMeta>();
     meta.set('qb', { name: 'Q.Back', teamAbbr: 'SEA', position: 'QB' });
     meta.set('rb', { name: 'R.Back', teamAbbr: 'SEA', position: 'RB' });
     meta.set('wr', { name: 'W.Receiver', teamAbbr: 'SEA', position: 'WR' });
@@ -832,7 +841,7 @@ describe('Gridstream timeline derivation', () => {
     ];
 
     const defenseTotals = __gridstreamTestUtils.deriveDefenseFantasyTotalsFromPlays(
-      plays as any,
+      plays,
       'SEA',
       'NE',
       { away: 7, home: 0 }
@@ -848,8 +857,8 @@ describe('Gridstream timeline derivation', () => {
   });
 
   it('does not award offensive passing TD/completion/yards on interception return touchdown', () => {
-    const totals = new Map<string, any>();
-    const meta = new Map<string, any>();
+    const totals = new Map<string, RunningPlayerTotals>();
+    const meta = new Map<string, RunningPlayerMeta>();
 
     __gridstreamTestUtils.updateRunningTotalsFromPlay(
       makePlay({
@@ -872,7 +881,7 @@ describe('Gridstream timeline derivation', () => {
         yards_gained: 35,
         home_score_after: 7,
         away_score_after: 19,
-      }) as any,
+      }),
       totals,
       meta
     );
@@ -887,8 +896,8 @@ describe('Gridstream timeline derivation', () => {
   });
 
   it('increments passing TD only for offensive passing touchdowns', () => {
-    const totals = new Map<string, any>();
-    const meta = new Map<string, any>();
+    const totals = new Map<string, RunningPlayerTotals>();
+    const meta = new Map<string, RunningPlayerMeta>();
 
     __gridstreamTestUtils.updateRunningTotalsFromPlay(
       makePlay({
@@ -910,7 +919,7 @@ describe('Gridstream timeline derivation', () => {
         yards_gained: 7,
         home_score_after: 13,
         away_score_after: 29,
-      }) as any,
+      }),
       totals,
       meta
     );
@@ -935,7 +944,7 @@ describe('Gridstream timeline derivation', () => {
         yards_gained: 6,
         home_score_after: 13,
         away_score_after: 29,
-      }) as any,
+      }),
       totals,
       meta
     );

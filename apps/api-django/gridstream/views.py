@@ -392,13 +392,20 @@ class PlayerViewSet(viewsets.ReadOnlyModelViewSet):
         week = request.query_params.get("week")
 
         if not gsis_id:
-            return Response({"error": "gsis_id is required"}, status=status.HTTP_400_BAD_REQUEST)
+            return Response(
+                {"error": "gsis_id is required"}, status=status.HTTP_400_BAD_REQUEST
+            )
 
         try:
             player = Player.objects.using("nfl").get(gsis_id=gsis_id)
         except Player.DoesNotExist:
             return Response(
-                {"ecr": None, "ngs_passing": None, "ngs_rushing": None, "ngs_receiving": None}
+                {
+                    "ecr": None,
+                    "ngs_passing": None,
+                    "ngs_rushing": None,
+                    "ngs_receiving": None,
+                }
             )
 
         season_int = int(season) if season else None
@@ -431,14 +438,21 @@ class PlayerViewSet(viewsets.ReadOnlyModelViewSet):
             if season_int and week_int:
                 ngs = (
                     PlayerNextGenStats.objects.using("nfl")
-                    .filter(player=player, season=season_int, week=week_int, stat_type=stat_type)
+                    .filter(
+                        player=player,
+                        season=season_int,
+                        week=week_int,
+                        stat_type=stat_type,
+                    )
                     .first()
                 )
             if ngs is None and season_int:
                 # Fall back to season aggregate
                 ngs = (
                     PlayerNextGenStats.objects.using("nfl")
-                    .filter(player=player, season=season_int, week=0, stat_type=stat_type)
+                    .filter(
+                        player=player, season=season_int, week=0, stat_type=stat_type
+                    )
                     .first()
                 )
             ngs_result[f"ngs_{stat_type}"] = (

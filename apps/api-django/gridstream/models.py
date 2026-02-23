@@ -1554,10 +1554,16 @@ class PlayerFFRanking(models.Model):
     # Core ranking metrics
     rank = models.FloatField(help_text="Expert Consensus Rank (lower = better)")
     rank_sd = models.FloatField(
-        null=True, blank=True, help_text="Standard deviation — disagreement between experts"
+        null=True,
+        blank=True,
+        help_text="Standard deviation — disagreement between experts",
     )
-    rank_best = models.IntegerField(null=True, blank=True, help_text="Most optimistic rank")
-    rank_worst = models.IntegerField(null=True, blank=True, help_text="Most pessimistic rank")
+    rank_best = models.IntegerField(
+        null=True, blank=True, help_text="Most optimistic rank"
+    )
+    rank_worst = models.IntegerField(
+        null=True, blank=True, help_text="Most pessimistic rank"
+    )
 
     # Position rank (e.g., 8 → "WR8")
     position_rank = models.IntegerField(
@@ -1574,7 +1580,9 @@ class PlayerFFRanking(models.Model):
         app_label = "gridstream"
 
     def __str__(self):
-        pos_rank = f" ({self.position}{self.position_rank})" if self.position_rank else ""
+        pos_rank = (
+            f" ({self.position}{self.position_rank})" if self.position_rank else ""
+        )
         return (
             f"{self.player.display_name} ECR#{self.rank:.0f}{pos_rank} "
             f"Wk{self.week} {self.season}"

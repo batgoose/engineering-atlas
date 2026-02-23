@@ -14,7 +14,6 @@ import {
   cards,
   demos as demosStyles,
   codeWindow,
-  syntax,
 } from '@atlas/ui/styles';
 import { AtlasIcon } from '@/components/AtlasIcon';
 import type {
