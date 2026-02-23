@@ -9,9 +9,7 @@ import type { PositionGroup } from './types';
 
 // ─── Position Grouping ─────────────────────────────────────────
 
-export const POSITION_ORDER: PositionGroup[] = [
-  'QB', 'WR', 'RB', 'TE', 'K', 'DEF',
-];
+export const POSITION_ORDER: PositionGroup[] = ['QB', 'WR', 'RB', 'TE', 'K', 'DEF'];
 
 export const POSITION_LABELS: Record<PositionGroup, string> = {
   QB: 'QUARTERBACK',

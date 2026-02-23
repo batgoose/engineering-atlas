@@ -42,6 +42,8 @@ import {
   safeInt,
   safeNumber,
   normalizeAbbr,
+  normalizeNameKey,
+  abbreviatedNameKey,
   parsePositionGroup,
   inferFallbackPosition,
   totalsFromPlayerRow,
@@ -78,7 +80,7 @@ export { yardToFieldPct };
 export function classifyPlayAnimation(
   play: PlayEvent,
   awayAbbr: string,
-  homeAbbr = '',
+  homeAbbr = ''
 ): PlayAnimationData {
   const rawType = play.playType as keyof typeof PLAY_TYPE_TO_ANIM;
   let type: AnimPlayType = (PLAY_TYPE_TO_ANIM[rawType] as AnimPlayType) ?? 'pass';
@@ -106,9 +108,12 @@ export function classifyPlayAnimation(
   // Away drives in the positive direction; home drives in the negative direction.
   const fromPct = yardToFieldPct(fromYardline, fromSide, awayAbbr);
   const toPct = fromPct + play.yardsGained * (fromSide === awayAbbr ? 1 : -1);
-  const toSide = toPct > 50
-    ? (fromSide === awayAbbr ? getOpponent(fromSide, awayAbbr, homeAbbr) : fromSide)
-    : fromSide;
+  const toSide =
+    toPct > 50
+      ? fromSide === awayAbbr
+        ? getOpponent(fromSide, awayAbbr, homeAbbr)
+        : fromSide
+      : fromSide;
 
   // First down detection
   const isFirstDown = play.endDown === 1 && play.yardsGained >= play.distance;
@@ -164,11 +169,7 @@ function getOpponent(team: string, awayAbbr: string, homeAbbr: string): string {
  * Q2 8:30 remaining = 21.5 min elapsed
  * OT 5:00 remaining = 65 min elapsed
  */
-export function computeGameProgress(
-  quarter: number,
-  clock: string,
-  isOT: boolean,
-): GameTiming {
+export function computeGameProgress(quarter: number, clock: string, isOT: boolean): GameTiming {
   const [minStr, secStr] = clock.split(':');
   const clockMin = parseInt(minStr || '0', 10);
   const clockSec = parseInt(secStr || '0', 10);
@@ -243,7 +244,7 @@ export function computeWpSparklinePoints(
   isAway: boolean,
   width: number,
   height: number,
-  padding = 2,
+  padding = 2
 ): SparklinePoint[] {
   const usableW = width - padding * 2;
   const usableH = height - padding * 2;
@@ -268,10 +269,7 @@ export function sparklineToPath(points: SparklinePoint[]): string {
 /**
  * Build a closed area path (for the fill under the line).
  */
-export function sparklineToArea(
-  points: SparklinePoint[],
-  height: number,
-): string {
+export function sparklineToArea(points: SparklinePoint[], height: number): string {
   if (points.length === 0) return '';
   const linePath = sparklineToPath(points);
   const last = points[points.length - 1]!;
@@ -286,7 +284,7 @@ export function sparklineToArea(
  * Returns entries in canonical position order, skipping empty groups.
  */
 export function groupFantasyByPosition(
-  roster: FantasyRosterEntry[],
+  roster: FantasyRosterEntry[]
 ): Array<{ position: PositionGroup; label: string; players: FantasyRosterEntry[] }> {
   const grouped = new Map<PositionGroup, FantasyRosterEntry[]>();
 
@@ -296,13 +294,11 @@ export function groupFantasyByPosition(
     grouped.set(entry.position, list);
   }
 
-  return POSITION_ORDER
-    .filter((pos) => grouped.has(pos))
-    .map((pos) => ({
-      position: pos,
-      label: pos, // The UI layer maps this to the full label via POSITION_LABELS
-      players: grouped.get(pos)!,
-    }));
+  return POSITION_ORDER.filter((pos) => grouped.has(pos)).map((pos) => ({
+    position: pos,
+    label: pos, // The UI layer maps this to the full label via POSITION_LABELS
+    players: grouped.get(pos)!,
+  }));
 }
 
 // ─── Quarter Tick Positions ─────────────────────────────────────
@@ -327,7 +323,7 @@ export function getQuarterTicks(isOT: boolean): number[] {
 export function mapTeamStats(
   teamStats: ApiTeamGameStats[] | undefined,
   awayAbbr: string,
-  homeAbbr: string,
+  homeAbbr: string
 ): { away: TeamStatLine; home: TeamStatLine } | null {
   if (!teamStats || teamStats.length === 0) return null;
 
@@ -365,6 +361,7 @@ export function mapLeaders(
   leaders: ApiGameLeader[] | undefined,
   awayAbbr: string,
   homeAbbr: string,
+  headshotsByName?: Map<string, string>
 ): { away: LeaderSet; home: LeaderSet } | null {
   if (!leaders || leaders.length === 0) return null;
 
@@ -383,9 +380,14 @@ export function mapLeaders(
     const team = normalizeAbbr(leader.team_abbr);
     const side = team === awayAbbr ? 'away' : team === homeAbbr ? 'home' : null;
     const category = leader.category as keyof LeaderSet;
-    if (!side || (category !== 'passing' && category !== 'rushing' && category !== 'receiving')) continue;
+    if (!side || (category !== 'passing' && category !== 'rushing' && category !== 'receiving'))
+      continue;
     mapped[side][category] = {
       name: leader.athlete_name || '—',
+      headshotUrl:
+        leader.athlete_headshot_url?.trim() ||
+        lookupHeadshotByName(leader.athlete_name, headshotsByName) ||
+        undefined,
       line: leader.display_value || '—',
     };
   }
@@ -401,6 +403,7 @@ export function mapLeadersFromPlayerStats(
   playerStatsByTeam: Record<string, ApiPlayerGameStats[]> | undefined,
   awayAbbr: string,
   homeAbbr: string,
+  headshotsByName?: Map<string, string>
 ): { away: LeaderSet; home: LeaderSet } | null {
   const normalized = new Map<string, ApiPlayerGameStats[]>();
   for (const [teamAbbr, rows] of Object.entries(playerStatsByTeam ?? {})) {
@@ -414,14 +417,17 @@ export function mapLeadersFromPlayerStats(
   const pickBest = (
     rows: ApiPlayerGameStats[],
     isCandidate: (row: ApiPlayerGameStats) => boolean,
-    score: (row: ApiPlayerGameStats) => number,
+    score: (row: ApiPlayerGameStats) => number
   ): ApiPlayerGameStats | null => {
     let best: ApiPlayerGameStats | null = null;
     let bestScore = Number.NEGATIVE_INFINITY;
     for (const row of rows) {
       if (!isCandidate(row)) continue;
       const rowScore = score(row);
-      if (rowScore > bestScore) { best = row; bestScore = rowScore; }
+      if (rowScore > bestScore) {
+        best = row;
+        bestScore = rowScore;
+      }
     }
     return best;
   };
@@ -429,23 +435,66 @@ export function mapLeadersFromPlayerStats(
   const toSet = (rows: ApiPlayerGameStats[]): LeaderSet => {
     const passing = pickBest(
       rows,
-      (row) => safeInt(row.pass_attempts) > 0 || safeInt(row.passing_yards) !== 0 || safeInt(row.passing_tds) > 0,
-      (row) => safeInt(row.passing_yards) * 10000 + safeInt(row.passing_tds) * 100 + safeInt(row.pass_attempts),
+      (row) =>
+        safeInt(row.pass_attempts) > 0 ||
+        safeInt(row.passing_yards) !== 0 ||
+        safeInt(row.passing_tds) > 0,
+      (row) =>
+        safeInt(row.passing_yards) * 10000 +
+        safeInt(row.passing_tds) * 100 +
+        safeInt(row.pass_attempts)
     );
     const rushing = pickBest(
       rows,
-      (row) => safeInt(row.carries) > 0 || safeInt(row.rushing_yards) !== 0 || safeInt(row.rushing_tds) > 0,
-      (row) => safeInt(row.rushing_yards) * 10000 + safeInt(row.rushing_tds) * 100 + safeInt(row.carries),
+      (row) =>
+        safeInt(row.carries) > 0 ||
+        safeInt(row.rushing_yards) !== 0 ||
+        safeInt(row.rushing_tds) > 0,
+      (row) =>
+        safeInt(row.rushing_yards) * 10000 + safeInt(row.rushing_tds) * 100 + safeInt(row.carries)
     );
     const receiving = pickBest(
       rows,
-      (row) => safeInt(row.receptions) > 0 || safeInt(row.receiving_yards) !== 0 || safeInt(row.receiving_tds) > 0,
-      (row) => safeInt(row.receiving_yards) * 10000 + safeInt(row.receiving_tds) * 100 + safeInt(row.receptions),
+      (row) =>
+        safeInt(row.receptions) > 0 ||
+        safeInt(row.receiving_yards) !== 0 ||
+        safeInt(row.receiving_tds) > 0,
+      (row) =>
+        safeInt(row.receiving_yards) * 10000 +
+        safeInt(row.receiving_tds) * 100 +
+        safeInt(row.receptions)
     );
     return {
-      passing: passing ? { name: passing.player_name || '—', line: formatPassingLeaderLine(passing) } : { ...FALLBACK_LEADER },
-      rushing: rushing ? { name: rushing.player_name || '—', line: formatRushingLeaderLine(rushing) } : { ...FALLBACK_LEADER },
-      receiving: receiving ? { name: receiving.player_name || '—', line: formatReceivingLeaderLine(receiving) } : { ...FALLBACK_LEADER },
+      passing: passing
+        ? {
+            name: passing.player_name || '—',
+            headshotUrl:
+              passing.player_headshot?.trim() ||
+              lookupHeadshotByName(passing.player_name, headshotsByName) ||
+              undefined,
+            line: formatPassingLeaderLine(passing),
+          }
+        : { ...FALLBACK_LEADER },
+      rushing: rushing
+        ? {
+            name: rushing.player_name || '—',
+            headshotUrl:
+              rushing.player_headshot?.trim() ||
+              lookupHeadshotByName(rushing.player_name, headshotsByName) ||
+              undefined,
+            line: formatRushingLeaderLine(rushing),
+          }
+        : { ...FALLBACK_LEADER },
+      receiving: receiving
+        ? {
+            name: receiving.player_name || '—',
+            headshotUrl:
+              receiving.player_headshot?.trim() ||
+              lookupHeadshotByName(receiving.player_name, headshotsByName) ||
+              undefined,
+            line: formatReceivingLeaderLine(receiving),
+          }
+        : { ...FALLBACK_LEADER },
     };
   };
 
@@ -461,6 +510,7 @@ export function mapLeadersFromRunningTotals(
   metaByFullKey: Map<string, RunningPlayerMeta>,
   awayAbbr: string,
   homeAbbr: string,
+  headshotsByName?: Map<string, string>
 ): { away: LeaderSet; home: LeaderSet } | null {
   const initSet = (): LeaderSet => ({
     passing: { ...FALLBACK_LEADER },
@@ -471,21 +521,34 @@ export function mapLeadersFromRunningTotals(
   let hasData = false;
 
   const scores = {
-    away: { passing: Number.NEGATIVE_INFINITY, rushing: Number.NEGATIVE_INFINITY, receiving: Number.NEGATIVE_INFINITY },
-    home: { passing: Number.NEGATIVE_INFINITY, rushing: Number.NEGATIVE_INFINITY, receiving: Number.NEGATIVE_INFINITY },
+    away: {
+      passing: Number.NEGATIVE_INFINITY,
+      rushing: Number.NEGATIVE_INFINITY,
+      receiving: Number.NEGATIVE_INFINITY,
+    },
+    home: {
+      passing: Number.NEGATIVE_INFINITY,
+      rushing: Number.NEGATIVE_INFINITY,
+      receiving: Number.NEGATIVE_INFINITY,
+    },
   };
 
   for (const [fullKey, meta] of metaByFullKey.entries()) {
     const totals = totalsByKey.get(fullKey);
     if (!totals) continue;
-    const side: 'away' | 'home' | null = meta.teamAbbr === awayAbbr ? 'away' : meta.teamAbbr === homeAbbr ? 'home' : null;
+    const side: 'away' | 'home' | null =
+      meta.teamAbbr === awayAbbr ? 'away' : meta.teamAbbr === homeAbbr ? 'home' : null;
     if (!side) continue;
 
     if (totals.passAtt > 0) {
       const score = totals.passYds * 10000 + totals.passTd * 100 + totals.passComp;
       if (score > scores[side].passing) {
         scores[side].passing = score;
-        out[side].passing = { name: meta.name, line: formatPassingLeaderLineFromTotals(totals) };
+        out[side].passing = {
+          name: meta.name,
+          headshotUrl: lookupHeadshotByName(meta.name, headshotsByName) || undefined,
+          line: formatPassingLeaderLineFromTotals(totals),
+        };
         hasData = true;
       }
     }
@@ -493,7 +556,11 @@ export function mapLeadersFromRunningTotals(
       const score = totals.rushYds * 10000 + totals.rushTd * 100 + totals.rushAtt;
       if (score > scores[side].rushing) {
         scores[side].rushing = score;
-        out[side].rushing = { name: meta.name, line: formatRushingLeaderLineFromTotals(totals) };
+        out[side].rushing = {
+          name: meta.name,
+          headshotUrl: lookupHeadshotByName(meta.name, headshotsByName) || undefined,
+          line: formatRushingLeaderLineFromTotals(totals),
+        };
         hasData = true;
       }
     }
@@ -501,7 +568,11 @@ export function mapLeadersFromRunningTotals(
       const score = totals.recYds * 10000 + totals.recTd * 100 + totals.rec;
       if (score > scores[side].receiving) {
         scores[side].receiving = score;
-        out[side].receiving = { name: meta.name, line: formatReceivingLeaderLineFromTotals(totals) };
+        out[side].receiving = {
+          name: meta.name,
+          headshotUrl: lookupHeadshotByName(meta.name, headshotsByName) || undefined,
+          line: formatReceivingLeaderLineFromTotals(totals),
+        };
         hasData = true;
       }
     }
@@ -514,10 +585,24 @@ export function mapLeadersFromRunningTotals(
 export function hasLeaderData(leaders: { away: LeaderSet; home: LeaderSet } | null): boolean {
   if (!leaders) return false;
   const entries = [
-    leaders.away.passing, leaders.away.rushing, leaders.away.receiving,
-    leaders.home.passing, leaders.home.rushing, leaders.home.receiving,
+    leaders.away.passing,
+    leaders.away.rushing,
+    leaders.away.receiving,
+    leaders.home.passing,
+    leaders.home.rushing,
+    leaders.home.receiving,
   ];
   return entries.some((e) => e.name !== '—' || e.line !== '—');
+}
+
+function lookupHeadshotByName(
+  playerName: string | null | undefined,
+  headshotsByName?: Map<string, string>
+): string | null {
+  if (!playerName || !headshotsByName || headshotsByName.size === 0) return null;
+  const fullKey = normalizeNameKey(playerName);
+  const shortKey = abbreviatedNameKey(playerName);
+  return headshotsByName.get(fullKey) ?? headshotsByName.get(shortKey) ?? null;
 }
 
 // ─── Scoring Timeline ────────────────────────────────────────────
@@ -527,7 +612,7 @@ export function hasLeaderData(leaders: { away: LeaderSet; home: LeaderSet } | nu
  * Each entry is paired with its sequence number for replay-time filtering.
  */
 export function scoringTimeline(
-  scoringPlays: ApiScoringPlay[] | undefined,
+  scoringPlays: ApiScoringPlay[] | undefined
 ): Array<{ sequence: number; entry: ScoringEntry }> {
   if (!scoringPlays || scoringPlays.length === 0) return [];
   return [...scoringPlays]
@@ -551,14 +636,14 @@ export function scoringTimeline(
 export function scoringUpToState(
   timeline: Array<{ sequence: number; entry: ScoringEntry }>,
   awayScore: number,
-  homeScore: number,
+  homeScore: number
 ): ScoringEntry[] {
   return timeline
     .filter(
       (item) =>
         item.entry.awayScore <= awayScore &&
         item.entry.homeScore <= homeScore &&
-        item.entry.awayScore + item.entry.homeScore <= awayScore + homeScore,
+        item.entry.awayScore + item.entry.homeScore <= awayScore + homeScore
     )
     .map((item) => item.entry);
 }
@@ -573,7 +658,7 @@ export function scoringUpToState(
 export function mapFantasy(
   playerStatsByTeam: Record<string, ApiPlayerGameStats[]> | undefined,
   awayAbbr: string,
-  homeAbbr: string,
+  homeAbbr: string
 ): { away: FantasyRosterEntry[]; home: FantasyRosterEntry[] } {
   const normalized = new Map<string, ApiPlayerGameStats[]>();
   for (const [teamAbbr, players] of Object.entries(playerStatsByTeam ?? {})) {
@@ -590,9 +675,12 @@ export function mapFantasy(
       const pointsPpr = safeNumber(row.fantasy_points_ppr, derivedPoints.ppr);
       const pointsHalfPpr = safeNumber(row.fantasy_points_half_ppr, derivedPoints.halfPpr);
       const pointsStandard = safeNumber(row.fantasy_points_standard, derivedPoints.standard);
+      const headshotUrl = row.player_headshot?.trim() || undefined;
       roster.push({
         name: row.player_name,
+        gsisId: row.player_gsis_id ?? undefined,
         position,
+        headshotUrl,
         points: pointsPpr,
         pointsPpr,
         pointsHalfPpr,
@@ -612,7 +700,7 @@ export function mapFantasy(
 
 /** True if either team has at least one fantasy roster entry. */
 export function hasFantasyData(
-  fantasy: { away: FantasyRosterEntry[]; home: FantasyRosterEntry[] } | null | undefined,
+  fantasy: { away: FantasyRosterEntry[]; home: FantasyRosterEntry[] } | null | undefined
 ): boolean {
   return Boolean(fantasy && (fantasy.away.length > 0 || fantasy.home.length > 0));
 }
@@ -621,7 +709,16 @@ export function hasFantasyData(
 
 /** Return a zeroed-out DefenseFantasyTotals accumulator. */
 export function createDefenseFantasyTotals(): DefenseFantasyTotals {
-  return { pointsAllowed: 0, sacks: 0, takeaways: 0, interceptions: 0, fumbleRecoveries: 0, blockedKicks: 0, safeties: 0, defensiveTds: 0 };
+  return {
+    pointsAllowed: 0,
+    sacks: 0,
+    takeaways: 0,
+    interceptions: 0,
+    fumbleRecoveries: 0,
+    blockedKicks: 0,
+    safeties: 0,
+    defensiveTds: 0,
+  };
 }
 
 /**
@@ -652,12 +749,12 @@ export function defensePointsAllowedBand(pointsAllowed: number): number {
 /** Compute total D/ST fantasy points from accumulated defense totals. */
 export function defenseFantasyPoints(totals: DefenseFantasyTotals): number {
   return (
-    defensePointsAllowedBand(totals.pointsAllowed)
-    + totals.sacks
-    + totals.takeaways * 2
-    + totals.blockedKicks * 2
-    + totals.safeties * 2
-    + totals.defensiveTds * 6
+    defensePointsAllowedBand(totals.pointsAllowed) +
+    totals.sacks +
+    totals.takeaways * 2 +
+    totals.blockedKicks * 2 +
+    totals.safeties * 2 +
+    totals.defensiveTds * 6
   );
 }
 
@@ -668,7 +765,7 @@ export function defenseFantasyPoints(totals: DefenseFantasyTotals): number {
 export function ensureDefenseFantasyEntry(
   roster: FantasyRosterEntry[],
   teamAbbr: string,
-  totals: DefenseFantasyTotals,
+  totals: DefenseFantasyTotals
 ): void {
   if (roster.some((e) => e.position === 'DEF')) return;
   const points = defenseFantasyPoints(totals);
@@ -707,7 +804,7 @@ export function mapFantasyFromRunningTotals(
   playerStatsLookup?: Map<string, ApiPlayerGameStats>,
   teamStats?: { away: TeamStatLine; home: TeamStatLine } | null,
   scoreTotals?: { away: number; home: number },
-  defenseTotalsByTeam?: Record<string, DefenseFantasyTotals>,
+  defenseTotalsByTeam?: Record<string, DefenseFantasyTotals>
 ): { away: FantasyRosterEntry[]; home: FantasyRosterEntry[] } {
   const away: FantasyRosterEntry[] = [];
   const home: FantasyRosterEntry[] = [];
@@ -715,13 +812,19 @@ export function mapFantasyFromRunningTotals(
   for (const [fullKey, meta] of metaByFullKey.entries()) {
     const totals = totalsByKey.get(fullKey);
     if (!totals) continue;
-    const statsRow = playerStatsLookup ? playerStatsRowForPlayer(meta.name, playerStatsLookup) : null;
-    const position = meta.position ?? parsePositionGroup(statsRow?.player_position) ?? inferFallbackPosition(totals);
+    const statsRow = playerStatsLookup
+      ? playerStatsRowForPlayer(meta.name, playerStatsLookup)
+      : null;
+    const position =
+      meta.position ??
+      parsePositionGroup(statsRow?.player_position) ??
+      inferFallbackPosition(totals);
     if (!position) continue;
     const pointsByScoring = fantasyPointsByScoringFromTotals(totals);
     const entry: FantasyRosterEntry = {
       name: meta.name,
       position,
+      headshotUrl: statsRow?.player_headshot?.trim() || undefined,
       points: Number.parseFloat(pointsByScoring.ppr.toFixed(1)),
       pointsPpr: Number.parseFloat(pointsByScoring.ppr.toFixed(1)),
       pointsHalfPpr: Number.parseFloat(pointsByScoring.halfPpr.toFixed(1)),
@@ -748,13 +851,21 @@ export function mapFantasyFromRunningTotals(
       pointsAllowed: Math.max(0, safeInt(scoreTotals.home)),
       sacks: Math.max(0, safeInt(teamStats.away.sacks)),
       takeaways: Math.max(0, safeInt(teamStats.home.turnovers)),
-      interceptions: 0, fumbleRecoveries: 0, blockedKicks: 0, safeties: 0, defensiveTds: 0,
+      interceptions: 0,
+      fumbleRecoveries: 0,
+      blockedKicks: 0,
+      safeties: 0,
+      defensiveTds: 0,
     });
     ensureDefenseFantasyEntry(home, homeAbbr, {
       pointsAllowed: Math.max(0, safeInt(scoreTotals.away)),
       sacks: Math.max(0, safeInt(teamStats.home.sacks)),
       takeaways: Math.max(0, safeInt(teamStats.away.turnovers)),
-      interceptions: 0, fumbleRecoveries: 0, blockedKicks: 0, safeties: 0, defensiveTds: 0,
+      interceptions: 0,
+      fumbleRecoveries: 0,
+      blockedKicks: 0,
+      safeties: 0,
+      defensiveTds: 0,
     });
     away.sort((a, b) => b.points - a.points);
     home.sort((a, b) => b.points - a.points);
@@ -774,7 +885,7 @@ export function deriveDefenseFantasyTotalsFromPlays(
   plays: ApiPlayDetail[],
   awayAbbr: string,
   homeAbbr: string,
-  scoreTotals?: { away: number; home: number },
+  scoreTotals?: { away: number; home: number }
 ): Record<string, DefenseFantasyTotals> {
   const byTeam: Record<string, DefenseFantasyTotals> = {
     [awayAbbr]: createDefenseFantasyTotals(),
@@ -804,8 +915,10 @@ export function deriveDefenseFantasyTotalsFromPlays(
       const def = byTeam[defense]!;
       if (play.sack || /\bsacked\b/i.test(text)) def.sacks += 1;
       if (play.interception || /\bintercepted\b/i.test(text)) def.interceptions += 1;
-      if (play.fumble_lost || (/\bfumble(?:d)?\b/i.test(text) && /\brecovered by\b/i.test(text))) def.fumbleRecoveries += 1;
-      if (/\bblocked\b/i.test(text) && /\b(field goal|extra point|punt|kick)\b/i.test(text)) def.blockedKicks += 1;
+      if (play.fumble_lost || (/\bfumble(?:d)?\b/i.test(text) && /\brecovered by\b/i.test(text)))
+        def.fumbleRecoveries += 1;
+      if (/\bblocked\b/i.test(text) && /\b(field goal|extra point|punt|kick)\b/i.test(text))
+        def.blockedKicks += 1;
     }
 
     const isTdPlay = Boolean(play.touchdown) || /\btouchdown\b/i.test(text);
@@ -838,8 +951,10 @@ export function deriveDefenseFantasyTotalsFromPlays(
   const finalHome = scoreTotals?.home ?? prevHomeScore;
   byTeam[awayAbbr]!.pointsAllowed = Math.max(0, finalHome - excludedVsAway);
   byTeam[homeAbbr]!.pointsAllowed = Math.max(0, finalAway - excludedVsHome);
-  byTeam[awayAbbr]!.takeaways = byTeam[awayAbbr]!.interceptions + byTeam[awayAbbr]!.fumbleRecoveries;
-  byTeam[homeAbbr]!.takeaways = byTeam[homeAbbr]!.interceptions + byTeam[homeAbbr]!.fumbleRecoveries;
+  byTeam[awayAbbr]!.takeaways =
+    byTeam[awayAbbr]!.interceptions + byTeam[awayAbbr]!.fumbleRecoveries;
+  byTeam[homeAbbr]!.takeaways =
+    byTeam[homeAbbr]!.interceptions + byTeam[homeAbbr]!.fumbleRecoveries;
 
   return byTeam;
 }
@@ -861,7 +976,7 @@ export function estimateAwayWinPct(
   homeScore: number,
   quarter: number,
   clock: string,
-  isFinal: boolean,
+  isFinal: boolean
 ): number {
   if (isFinal) {
     if (awayScore > homeScore) return 100;

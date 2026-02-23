@@ -1526,3 +1526,112 @@ class PlaybookEntry(models.Model):
 
     def __str__(self):
         return f"{self.playbook.name} #{self.sequence}"
+
+
+# =============================================================================
+# ADVANCED ANALYTICS
+# =============================================================================
+
+
+class PlayerFFRanking(models.Model):
+    """
+    FantasyPros Expert Consensus Rankings (ECR) by week.
+
+    Sourced from DynastyProcess via nflreadr load_ff_rankings(type='week').
+    Populated by: sync_ff_rankings management command.
+    Available from ~2016 for weekly rankings.
+
+    Use `position_rank` for the "WR #8" display; `rank` is the overall ECR.
+    """
+
+    player = models.ForeignKey(
+        Player, on_delete=models.CASCADE, related_name="ff_rankings"
+    )
+    season = models.IntegerField()
+    week = models.IntegerField()
+    position = models.CharField(max_length=5, help_text="Position at time of ranking")
+
+    # Core ranking metrics
+    rank = models.FloatField(help_text="Expert Consensus Rank (lower = better)")
+    rank_sd = models.FloatField(
+        null=True, blank=True, help_text="Standard deviation — disagreement between experts"
+    )
+    rank_best = models.IntegerField(null=True, blank=True, help_text="Most optimistic rank")
+    rank_worst = models.IntegerField(null=True, blank=True, help_text="Most pessimistic rank")
+
+    # Position rank (e.g., 8 → "WR8")
+    position_rank = models.IntegerField(
+        null=True, blank=True, help_text="Rank within position group (WR8 = 8)"
+    )
+
+    class Meta:
+        unique_together = ["player", "season", "week"]
+        indexes = [
+            models.Index(fields=["season", "week", "position"]),
+            models.Index(fields=["player", "season"]),
+        ]
+        ordering = ["-season", "-week", "rank"]
+        app_label = "gridstream"
+
+    def __str__(self):
+        pos_rank = f" ({self.position}{self.position_rank})" if self.position_rank else ""
+        return (
+            f"{self.player.display_name} ECR#{self.rank:.0f}{pos_rank} "
+            f"Wk{self.week} {self.season}"
+        )
+
+
+class PlayerNextGenStats(models.Model):
+    """
+    NFL Next Gen Stats (NGS) — tracking-based advanced metrics from 2016+.
+
+    Separate rows per stat_type: 'passing' | 'rushing' | 'receiving'.
+    Week 0 = season aggregate; weeks 1–22 = individual game weeks.
+    Metrics stored in JSONField for forward compatibility across NGS releases.
+
+    Populated by: sync_nextgen_stats management command.
+    Source: nflverse-data releases (ngs_{type}.csv.gz).
+
+    Key metrics by type:
+      passing:   avg_time_to_throw, completion_percentage_above_expectation (CPOE),
+                 avg_intended_air_yards, aggressiveness, passer_rating
+      rushing:   efficiency (yards over expected per att), avg_time_to_los,
+                 rush_yards_over_expected_per_att, expected_rush_yards
+      receiving: avg_separation, avg_cushion, avg_intended_air_yards,
+                 percent_share_of_intended_air_yards, avg_yac_above_expectation
+    """
+
+    STAT_TYPE_CHOICES = [
+        ("passing", "Passing"),
+        ("rushing", "Rushing"),
+        ("receiving", "Receiving"),
+    ]
+
+    player = models.ForeignKey(
+        Player, on_delete=models.CASCADE, related_name="nextgen_stats"
+    )
+    season = models.IntegerField()
+    week = models.IntegerField(default=0, help_text="0 = season total; 1+ = game week")
+    season_type = models.CharField(max_length=4, default="REG")
+    stat_type = models.CharField(max_length=10, choices=STAT_TYPE_CHOICES)
+
+    metrics = models.JSONField(
+        default=dict,
+        help_text="Stat-type-specific NGS metrics (see class docstring)",
+    )
+
+    class Meta:
+        unique_together = ["player", "season", "week", "stat_type"]
+        indexes = [
+            models.Index(fields=["player", "season", "stat_type"]),
+            models.Index(fields=["season", "week", "stat_type"]),
+        ]
+        ordering = ["-season", "-week"]
+        app_label = "gridstream"
+
+    def __str__(self):
+        week_label = "season" if self.week == 0 else f"Wk{self.week}"
+        return (
+            f"{self.player.display_name} NGS-{self.stat_type} "
+            f"{week_label} {self.season}"
+        )

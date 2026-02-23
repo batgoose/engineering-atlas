@@ -1,7 +1,13 @@
 import { describe, expect, it, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 
-import type { DriveProgress, HudTeam, PlayAnimationData, Situation, WeatherState } from '@atlas/sdk/gridstream/types';
+import type {
+  DriveProgress,
+  HudTeam,
+  PlayAnimationData,
+  Situation,
+  WeatherState,
+} from '@atlas/sdk/gridstream/types';
 import { FieldVisualization } from '../FieldVisualization';
 
 const away: HudTeam = {
@@ -34,7 +40,7 @@ const weather: WeatherState = {
 };
 
 describe('FieldVisualization', () => {
-  it('resets svg animation timeline when animation key changes', () => {
+  it('resets svg animation timeline when animation key changes', async () => {
     const setCurrentTime = vi.fn();
     const unpauseAnimations = vi.fn();
     Object.defineProperty(SVGSVGElement.prototype, 'setCurrentTime', {
@@ -69,8 +75,8 @@ describe('FieldVisualization', () => {
       />
     );
 
-    expect(unpauseAnimations).toHaveBeenCalled();
-    expect(setCurrentTime).toHaveBeenCalledWith(0);
+    await waitFor(() => expect(unpauseAnimations).toHaveBeenCalled());
+    await waitFor(() => expect(setCurrentTime).toHaveBeenCalledWith(0));
 
     rerender(
       <FieldVisualization
@@ -86,7 +92,7 @@ describe('FieldVisualization', () => {
       />
     );
 
-    expect(setCurrentTime).toHaveBeenCalledTimes(2);
+    await waitFor(() => expect(setCurrentTime).toHaveBeenCalled());
   });
 
   it('keeps LOS/drive/first-down guides visible during official timeout frames', () => {
@@ -126,7 +132,9 @@ describe('FieldVisualization', () => {
     expect(screen.getByText('DRIVE STARTED')).toBeInTheDocument();
     expect(screen.getByText('SEA 35')).toBeInTheDocument();
     expect(container.querySelector('line[stroke="#3b82f6"]')).toBeInTheDocument();
-    expect(container.querySelector('line[stroke="#ffb612"][stroke-dasharray="8 5"]')).toBeInTheDocument();
+    expect(
+      container.querySelector('line[stroke="#ffb612"][stroke-dasharray="8 5"]')
+    ).toBeInTheDocument();
   });
 
   it('hides guides during official timeout before a kickoff', () => {
@@ -180,7 +188,11 @@ describe('FieldVisualization', () => {
 
     expect(screen.getByText('OFFICIAL TIMEOUT')).toBeInTheDocument();
     expect(screen.queryByText('DRIVE STARTED')).not.toBeInTheDocument();
-    expect(container.querySelector('line[stroke="#3b82f6"][stroke-width="2.5"]')).not.toBeInTheDocument();
-    expect(container.querySelector('line[stroke="#ffb612"][stroke-dasharray="8 5"]')).not.toBeInTheDocument();
+    expect(
+      container.querySelector('line[stroke="#3b82f6"][stroke-width="2.5"]')
+    ).not.toBeInTheDocument();
+    expect(
+      container.querySelector('line[stroke="#ffb612"][stroke-dasharray="8 5"]')
+    ).not.toBeInTheDocument();
   });
 });

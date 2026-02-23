@@ -17,80 +17,85 @@
  */
 
 import { useSearchParams } from 'next/navigation';
+import Link from 'next/link';
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import type {
   LiveGameState,
   ScoreByQuarter,
   GameStatus,
   TeamStatLine,
-  LeaderSet,
-  ScoringEntry,
-  FantasyRosterEntry,
-  PositionGroup,
   MissionLogEntry,
-  PlayAnimationData,
 } from '@atlas/sdk/gridstream/types';
-import { apiGameToContext, type ApiGameDetail } from '@atlas/sdk/gridstream/api-transforms';
+import { apiGameToContext, resolveGridstreamApiBase } from '@atlas/sdk/gridstream/api-transforms';
 import type {
   RunningPlayerTotals,
   RunningPlayerMeta,
-  DefenseFantasyTotals,
-  ApiGameLeader,
-  ApiScoringPlay,
   ApiGameDetailExtended,
   ApiCursorPage,
   ApiPlayDetail,
   ApiDrive,
-  ApiTeamGameStats,
-  ApiPlayerGameStats,
   ApiBoxscore,
 } from '@atlas/sdk/gridstream/api-transforms';
 import {
-  mapTeamStats, mapLeaders, mapLeadersFromPlayerStats, mapLeadersFromRunningTotals,
-  hasLeaderData, scoringTimeline, scoringUpToState, mapFantasy, hasFantasyData,
-  mapFantasyFromRunningTotals, createDefenseFantasyTotals, ensureDefenseFantasyEntry,
-  defensePointsAllowedBand, defenseFantasyPoints, deriveDefenseFantasyTotalsFromPlays,
+  mapTeamStats,
+  mapLeaders,
+  mapLeadersFromPlayerStats,
+  mapLeadersFromRunningTotals,
+  hasLeaderData,
+  scoringTimeline,
+  scoringUpToState,
+  mapFantasy,
+  hasFantasyData,
+  mapFantasyFromRunningTotals,
+  defensePointsAllowedBand,
+  defenseFantasyPoints,
+  deriveDefenseFantasyTotalsFromPlays,
   estimateAwayWinPct,
-  computeGameProgress, yardToFieldPct,
+  computeGameProgress,
 } from '@atlas/sdk/gridstream/transforms';
 import {
-  safeNumber, safeInt, normalizeAbbr, normalizeHex, normalizeClock,
-  getOpponent, parsePositionGroup, inferFallbackPosition,
-  totalsFromPlayerRow, kickerFantasyPointsFromTotals, fantasyPointsByScoringFromTotals,
-  fantasyBreakdownFromTotals, normalizeNameKey, lastNameKey, abbreviatedNameKey,
-  emptyRunningTotals, buildPlayerGameStatsLookup, formatActorStatLines, formatActorStatLinesFromRow,
-  formatKickerStatLines, formatKickerStatLinesFromRow, formatQuarterbackStatLines,
-  formatQuarterbackStatLinesFromRow, formatPassingLeaderLineFromTotals,
-  formatRushingLeaderLineFromTotals, formatReceivingLeaderLineFromTotals,
-  formatPassingLeaderLine, formatRushingLeaderLine, formatReceivingLeaderLine,
-  runningTotalsForPlayer, cloneRunningTotalsMap, playerStatsRowForPlayer,
-  updateRunningPlayerTotals, updateRunningTotalsFromPlay, isTurnoverPlay, isSnapPlay,
-  isTimeoutPlay, resolveDirection, compactPlayText, primaryActionText, parseDisplaySpot,
-  displaySpotToFieldPct, fieldPctToDisplaySpot, extractNameAfterTo, actionSentences,
-  normalizeActionSentence, extractPrimaryBallCarrier, extractKickerName, extractTurnoverReturner,
-  parseKickDetails, parseTurnoverDetails, parsePenaltyDetails, parseTimeoutUsage,
-  resolveAnimType, resolveFieldGoalResult, resolvePossessionAfter, toMissionLogEntry, toPlayAnimation,
-  yardline100ToDisplay, normalizeDriveStart, parseClockSeconds, gameElapsedSeconds,
-  driveElapsedAtPlay, FALLBACK_LEADER, formatDownDistance, formatClockFromSeconds,
+  safeInt,
+  normalizeAbbr,
+  normalizeNameKey,
+  abbreviatedNameKey,
+  normalizeHex,
+  normalizeClock,
+  buildPlayerGameStatsLookup,
+  cloneRunningTotalsMap,
+  updateRunningTotalsFromPlay,
+  isSnapPlay,
+  isTimeoutPlay,
+  parseKickDetails,
+  parseTimeoutUsage,
+  resolvePossessionAfter,
+  toMissionLogEntry,
+  toPlayAnimation,
+  yardline100ToDisplay,
+  normalizeDriveStart,
+  parseClockSeconds,
+  gameElapsedSeconds,
+  driveElapsedAtPlay,
+  formatDownDistance,
+  formatClockFromSeconds,
 } from '@atlas/sdk/gridstream/play-transforms';
 import { ENDZONE_NAMES } from '@atlas/sdk/gridstream/constants';
 import { LiveGameView } from '@/components/gridstream/LiveGameView';
 
-function resolveGridstreamApiBase(base: string): string {
-  const normalized = base.replace(/\/$/, '');
-  if (normalized.endsWith('/api/gridstream')) return normalized;
-  if (normalized.endsWith('/api/redzone')) return normalized.replace(/\/api\/redzone$/, '/api/gridstream');
-  if (normalized.endsWith('/api')) return `${normalized}/gridstream`;
-  if (normalized.endsWith('/gridstream')) return normalized;
-  return `${normalized}/api/gridstream`;
-}
-
-const API_BASE = resolveGridstreamApiBase(process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000/api/gridstream');
+const API_BASE = resolveGridstreamApiBase(
+  process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000/api/gridstream'
+);
 
 interface ReplayTimeline {
   liveState: LiveGameState;
   frames: LiveGameState[];
   playSequences: number[];
+}
+
+interface TeamRosterPlayer {
+  display_name?: string;
+  first_name?: string;
+  last_name?: string;
+  headshot_url?: string;
 }
 
 export interface QuarterJump {
@@ -158,7 +163,11 @@ function isFinalStatus(status: GameStatus): boolean {
   return status === 'final' || status === 'final_ot';
 }
 
-function toPossessionSide(team: string | null | undefined, awayAbbr: string, homeAbbr: string): 'away' | 'home' | null {
+function toPossessionSide(
+  team: string | null | undefined,
+  awayAbbr: string,
+  homeAbbr: string
+): 'away' | 'home' | null {
   const abbr = normalizeAbbr(team);
   if (abbr === awayAbbr) return 'away';
   if (abbr === homeAbbr) return 'home';
@@ -167,8 +176,10 @@ function toPossessionSide(team: string | null | undefined, awayAbbr: string, hom
 
 function teamAbbrFromPossessionId(detail: ApiGameDetailExtended): string {
   if (detail.possession_team == null) return '';
-  if (detail.possession_team === detail.away_team_detail.id) return normalizeAbbr(detail.away_team_detail.abbreviation);
-  if (detail.possession_team === detail.home_team_detail.id) return normalizeAbbr(detail.home_team_detail.abbreviation);
+  if (detail.possession_team === detail.away_team_detail.id)
+    return normalizeAbbr(detail.away_team_detail.abbreviation);
+  if (detail.possession_team === detail.home_team_detail.id)
+    return normalizeAbbr(detail.home_team_detail.abbreviation);
   return '';
 }
 
@@ -176,7 +187,7 @@ function mapTeamStatsFromPlays(
   plays: ApiPlayDetail[],
   drives: ApiDrive[],
   awayAbbr: string,
-  homeAbbr: string,
+  homeAbbr: string
 ): { away: TeamStatLine; home: TeamStatLine } | null {
   if (plays.length === 0) return null;
 
@@ -311,15 +322,8 @@ function mapTeamStatsFromPlays(
   };
 }
 function applyScoreDelta(score: ScoreByQuarter, quarter: number, delta: number) {
-  const key: keyof ScoreByQuarter = quarter <= 1
-    ? 'q1'
-    : quarter === 2
-      ? 'q2'
-      : quarter === 3
-        ? 'q3'
-        : quarter === 4
-          ? 'q4'
-          : 'ot';
+  const key: keyof ScoreByQuarter =
+    quarter <= 1 ? 'q1' : quarter === 2 ? 'q2' : quarter === 3 ? 'q3' : quarter === 4 ? 'q4' : 'ot';
 
   const next = safeInt((score[key] as number) + delta, 0);
   score[key] = Math.max(0, next) as never;
@@ -330,7 +334,7 @@ function resolveInitialPlayIndex(
   playParam: string | null,
   playSeqParam: string | null,
   playSequences: number[],
-  totalFrames: number,
+  totalFrames: number
 ): number {
   if (totalFrames <= 0) return -1;
 
@@ -384,10 +388,13 @@ function toResultsArray<T>(payload: ApiCursorPage<T> | { results?: T[] } | T[]):
 
 async function fetchGameDetailWithFallback(
   requestedGameId: string,
-  signal: AbortSignal,
+  signal: AbortSignal
 ): Promise<{ detail: ApiGameDetailExtended; resolvedGameId: string }> {
   try {
-    const detail = await fetchJson<ApiGameDetailExtended>(`${API_BASE}/games/${requestedGameId}/`, signal);
+    const detail = await fetchJson<ApiGameDetailExtended>(
+      `${API_BASE}/games/${requestedGameId}/`,
+      signal
+    );
     return { detail, resolvedGameId: String(detail.id ?? requestedGameId) };
   } catch (error) {
     if (!isHttp404(error)) throw error;
@@ -397,10 +404,11 @@ async function fetchGameDetailWithFallback(
   for (const field of lookupFields) {
     try {
       const encoded = encodeURIComponent(requestedGameId);
-      const payload = await fetchJson<ApiCursorPage<ApiGameDetailExtended> | { results?: ApiGameDetailExtended[] } | ApiGameDetailExtended[]>(
-        `${API_BASE}/games/?${field}=${encoded}&page_size=1`,
-        signal,
-      );
+      const payload = await fetchJson<
+        | ApiCursorPage<ApiGameDetailExtended>
+        | { results?: ApiGameDetailExtended[] }
+        | ApiGameDetailExtended[]
+      >(`${API_BASE}/games/?${field}=${encoded}&page_size=1`, signal);
       const match = toResultsArray(payload)[0];
       if (match) {
         return { detail: match, resolvedGameId: String(match.id) };
@@ -418,7 +426,10 @@ async function fetchAllPlays(gameId: string, signal: AbortSignal): Promise<ApiPl
   let nextUrl: string | null = `${API_BASE}/games/${gameId}/plays/?detail=true&page_size=200`;
 
   for (let pageCount = 0; nextUrl && pageCount < 50; pageCount += 1) {
-    const pageData: ApiCursorPage<ApiPlayDetail> = await fetchJson<ApiCursorPage<ApiPlayDetail>>(nextUrl, signal);
+    const pageData: ApiCursorPage<ApiPlayDetail> = await fetchJson<ApiCursorPage<ApiPlayDetail>>(
+      nextUrl,
+      signal
+    );
     for (const play of pageData.results) {
       pages.push(play);
     }
@@ -431,6 +442,77 @@ async function fetchAllPlays(gameId: string, signal: AbortSignal): Promise<ApiPl
   }
 
   return [...bySequence.values()].sort((a, b) => a.sequence - b.sequence);
+}
+
+async function fetchTeamRosterHeadshots(
+  detail: ApiGameDetailExtended,
+  signal: AbortSignal
+): Promise<Map<string, string>> {
+  const teamAbbrs = Array.from(
+    new Set([
+      normalizeAbbr(detail.away_team_detail?.abbreviation),
+      normalizeAbbr(detail.home_team_detail?.abbreviation),
+    ])
+  ).filter(Boolean);
+  const byName = new Map<string, string>();
+
+  const registerName = (name: string, headshotUrl: string) => {
+    const fullKey = normalizeNameKey(name);
+    const shortKey = abbreviatedNameKey(name);
+    if (fullKey && !byName.has(fullKey)) byName.set(fullKey, headshotUrl);
+    if (shortKey && !byName.has(shortKey)) byName.set(shortKey, headshotUrl);
+  };
+
+  await Promise.all(
+    teamAbbrs.map(async (abbr) => {
+      const payload = await fetchJson<TeamRosterPlayer[] | { results?: TeamRosterPlayer[] }>(
+        `${API_BASE}/teams/${abbr}/roster/`,
+        signal
+      );
+      const roster = toResultsArray(payload);
+      for (const player of roster) {
+        const headshotUrl = player.headshot_url?.trim();
+        if (!headshotUrl) continue;
+        const displayName = (player.display_name ?? '').trim();
+        const fullName = `${player.first_name ?? ''} ${player.last_name ?? ''}`.trim();
+        if (displayName) registerName(displayName, headshotUrl);
+        if (fullName) registerName(fullName, headshotUrl);
+      }
+    })
+  );
+
+  return byName;
+}
+
+function applyFantasyHeadshots(
+  entries: LiveGameState['fantasyAway'],
+  headshotsByName: Map<string, string>
+): LiveGameState['fantasyAway'] {
+  return entries.map((entry) => {
+    if (entry.position === 'DEF' || entry.headshotUrl) return entry;
+    const fullKey = normalizeNameKey(entry.name);
+    const shortKey = abbreviatedNameKey(entry.name);
+    const headshotUrl = headshotsByName.get(fullKey) ?? headshotsByName.get(shortKey);
+    if (!headshotUrl) return entry;
+    return { ...entry, headshotUrl };
+  });
+}
+
+function hydrateTimelineFantasyHeadshots(
+  timeline: ReplayTimeline,
+  headshotsByName: Map<string, string>
+): ReplayTimeline {
+  if (headshotsByName.size === 0) return timeline;
+  const hydrateState = (state: LiveGameState): LiveGameState => ({
+    ...state,
+    fantasyAway: applyFantasyHeadshots(state.fantasyAway, headshotsByName),
+    fantasyHome: applyFantasyHeadshots(state.fantasyHome, headshotsByName),
+  });
+  return {
+    ...timeline,
+    liveState: hydrateState(timeline.liveState),
+    frames: timeline.frames.map((frame) => hydrateState(frame)),
+  };
 }
 
 /**
@@ -446,6 +528,7 @@ function buildTimeline(
   plays: ApiPlayDetail[],
   drives: ApiDrive[],
   boxscore: ApiBoxscore | null,
+  headshotsByName?: Map<string, string>
 ): ReplayTimeline {
   const ctx = apiGameToContext(detail);
 
@@ -456,10 +539,20 @@ function buildTimeline(
   const finalGame = isFinalStatus(status);
 
   const awayScoreFinal: ScoreByQuarter = ctx.awayScoreByQuarter ?? {
-    q1: 0, q2: 0, q3: 0, q4: 0, ot: 0, total: ctx.awayScore,
+    q1: 0,
+    q2: 0,
+    q3: 0,
+    q4: 0,
+    ot: 0,
+    total: ctx.awayScore,
   };
   const homeScoreFinal: ScoreByQuarter = ctx.homeScoreByQuarter ?? {
-    q1: 0, q2: 0, q3: 0, q4: 0, ot: 0, total: ctx.homeScore,
+    q1: 0,
+    q2: 0,
+    q3: 0,
+    q4: 0,
+    ot: 0,
+    total: ctx.homeScore,
   };
 
   const quarter = ctx.quarter || (finalGame ? 4 : 0);
@@ -472,19 +565,29 @@ function buildTimeline(
     updateRunningTotalsFromPlay(play, derivedTotalsByKey, derivedPlayerMetaByFullKey);
   }
   const playerStatsLookup = buildPlayerGameStatsLookup(boxscore?.player_stats);
-  const defenseFantasyTotalsFinal = deriveDefenseFantasyTotalsFromPlays(
-    plays,
+  const defenseFantasyTotalsFinal = deriveDefenseFantasyTotalsFromPlays(plays, awayAbbr, homeAbbr, {
+    away: awayScoreFinal.total,
+    home: homeScoreFinal.total,
+  });
+
+  const teamStats =
+    mapTeamStats(boxscore?.team_stats, awayAbbr, homeAbbr) ??
+    mapTeamStatsFromPlays(plays, drives, awayAbbr, homeAbbr);
+  const leadersFromDetail = mapLeaders(detail.leaders, awayAbbr, homeAbbr, headshotsByName);
+  const leadersFromBoxscore = mapLeaders(boxscore?.leaders, awayAbbr, homeAbbr, headshotsByName);
+  const leadersFromPlayers = mapLeadersFromPlayerStats(
+    boxscore?.player_stats,
     awayAbbr,
     homeAbbr,
-    { away: awayScoreFinal.total, home: homeScoreFinal.total },
+    headshotsByName
   );
-
-  const teamStats = mapTeamStats(boxscore?.team_stats, awayAbbr, homeAbbr)
-    ?? mapTeamStatsFromPlays(plays, drives, awayAbbr, homeAbbr);
-  const leadersFromDetail = mapLeaders(detail.leaders, awayAbbr, homeAbbr);
-  const leadersFromBoxscore = mapLeaders(boxscore?.leaders, awayAbbr, homeAbbr);
-  const leadersFromPlayers = mapLeadersFromPlayerStats(boxscore?.player_stats, awayAbbr, homeAbbr);
-  const leadersFromPlays = mapLeadersFromRunningTotals(derivedTotalsByKey, derivedPlayerMetaByFullKey, awayAbbr, homeAbbr);
+  const leadersFromPlays = mapLeadersFromRunningTotals(
+    derivedTotalsByKey,
+    derivedPlayerMetaByFullKey,
+    awayAbbr,
+    homeAbbr,
+    headshotsByName
+  );
   const leaders = hasLeaderData(leadersFromDetail)
     ? leadersFromDetail
     : hasLeaderData(leadersFromBoxscore)
@@ -505,7 +608,7 @@ function buildTimeline(
     playerStatsLookup,
     teamStats,
     { away: awayScoreFinal.total, home: homeScoreFinal.total },
-    defenseFantasyTotalsFinal,
+    defenseFantasyTotalsFinal
   );
   const fantasy = hasFantasyData(fantasyFromBoxscore) ? fantasyFromBoxscore : fantasyFromPlays;
 
@@ -521,7 +624,13 @@ function buildTimeline(
   });
 
   const detailPossession = teamAbbrFromPossessionId(detail);
-  const baseWp = estimateAwayWinPct(awayScoreFinal.total, homeScoreFinal.total, quarter, clock, finalGame);
+  const baseWp = estimateAwayWinPct(
+    awayScoreFinal.total,
+    homeScoreFinal.total,
+    quarter,
+    clock,
+    finalGame
+  );
 
   const baseState: LiveGameState = {
     connected: false,
@@ -661,20 +770,21 @@ function buildTimeline(
     const timingNow = computeGameProgress(
       Math.max(playQuarter, 1),
       normalizeClock(play.clock, '0:00'),
-      playQuarter > 4,
+      playQuarter > 4
     );
 
     const possessionAfter = resolvePossessionAfter(play, nextSnapPlay, awayAbbr, homeAbbr);
     const possessionAtSnap = normalizeAbbr(play.possession_team_abbr) || possessionAfter;
     const situationSource = timeoutFrame && nextSnapPlay ? nextSnapPlay : play;
-    const situationPossession = timeoutFrame && nextSnapPlay
-      ? (normalizeAbbr(nextSnapPlay.possession_team_abbr) || possessionAfter)
-      : possessionAtSnap;
+    const situationPossession =
+      timeoutFrame && nextSnapPlay
+        ? normalizeAbbr(nextSnapPlay.possession_team_abbr) || possessionAfter
+        : possessionAtSnap;
     const situationSpot = yardline100ToDisplay(
       situationSource.yard_line,
       situationPossession,
       awayAbbr,
-      homeAbbr,
+      homeAbbr
     );
     const situationDown = safeInt(situationSource.down, 0);
     const situationDistance = safeInt(situationSource.distance, 0);
@@ -700,14 +810,15 @@ function buildTimeline(
       const timeoutDriveId = nextSnapPlay.drive_id;
       const previous = driveProgress.get(timeoutDriveId) ?? { plays: 0, yards: 0 };
       const driveMeta = drivesById.get(timeoutDriveId);
-      const driveTeam = normalizeAbbr(driveMeta?.team_abbr) || normalizeAbbr(nextSnapPlay.possession_team_abbr);
+      const driveTeam =
+        normalizeAbbr(driveMeta?.team_abbr) || normalizeAbbr(nextSnapPlay.possession_team_abbr);
       const driveStartPlay = driveStartById.get(timeoutDriveId);
       const start = driveStartPlay
         ? yardline100ToDisplay(
             driveStartPlay.yard_line,
             driveStartPlay.possession_team_abbr ?? driveTeam,
             awayAbbr,
-            homeAbbr,
+            homeAbbr
           )
         : driveMeta
           ? normalizeDriveStart(driveMeta.start_yardline, driveTeam, awayAbbr, homeAbbr)
@@ -728,18 +839,35 @@ function buildTimeline(
     if (!timeoutFrame && play.drive_id != null) {
       const previous = driveProgress.get(play.drive_id) ?? { plays: 0, yards: 0 };
       const shouldCountPlay = isSnapPlay(play);
+      const driveStartPlay = driveStartById.get(play.drive_id);
+
+      // Cumulative yards: add yards_gained for each counted play so that
+      // plays and yards are both post-play values for the same frame.
+      const yards = shouldCountPlay
+        ? previous.yards + safeInt(play.yards_gained, 0)
+        : previous.yards;
+
       const updated = {
         plays: previous.plays + (shouldCountPlay ? 1 : 0),
-        yards: previous.yards + (shouldCountPlay ? safeInt(play.yards_gained, 0) : 0),
+        yards,
       };
       driveProgress.set(play.drive_id, updated);
 
       const driveMeta = drivesById.get(play.drive_id);
-      const driveTeam = normalizeAbbr(driveMeta?.team_abbr) || normalizeAbbr(play.possession_team_abbr);
-      const driveStartPlay = driveStartById.get(play.drive_id);
-      const elapsedDriveTime = driveElapsedAtPlay(driveStartPlay, play);
+      const driveTeam =
+        normalizeAbbr(driveMeta?.team_abbr) || normalizeAbbr(play.possession_team_abbr);
+      // Use next snap play's clock if it's in the same drive to get post-play
+      // elapsed time (consistent with plays/yards also being post-play values).
+      const timeRefPlay =
+        nextSnapPlay && nextSnapPlay.drive_id === play.drive_id ? nextSnapPlay : play;
+      const elapsedDriveTime = driveElapsedAtPlay(driveStartPlay, timeRefPlay);
       const start = driveStartPlay
-        ? yardline100ToDisplay(driveStartPlay.yard_line, driveStartPlay.possession_team_abbr ?? driveTeam, awayAbbr, homeAbbr)
+        ? yardline100ToDisplay(
+            driveStartPlay.yard_line,
+            driveStartPlay.possession_team_abbr ?? driveTeam,
+            awayAbbr,
+            homeAbbr
+          )
         : driveMeta
           ? normalizeDriveStart(driveMeta.start_yardline, driveTeam, awayAbbr, homeAbbr)
           : yardline100ToDisplay(play.yard_line, driveTeam, awayAbbr, homeAbbr);
@@ -754,7 +882,13 @@ function buildTimeline(
       };
     }
 
-    const awayWinPct = estimateAwayWinPct(awayAfter, homeAfter, playQuarter, normalizeClock(play.clock, '0:00'), false);
+    const awayWinPct = estimateAwayWinPct(
+      awayAfter,
+      homeAfter,
+      playQuarter,
+      normalizeClock(play.clock, '0:00'),
+      false
+    );
     const previousPoint = wpTimelinePoints[wpTimelinePoints.length - 1];
     const elapsedMin = Math.max(previousPoint?.gameMin ?? 0, timingNow.elapsedMin);
     if (!previousPoint || previousPoint.gameMin !== elapsedMin || previousPoint.wp !== awayWinPct) {
@@ -763,17 +897,13 @@ function buildTimeline(
 
     const frameStatus: GameStatus = play.play_type === 'end_of_half' ? 'halftime' : 'in_progress';
     const frameScoring = scoringUpToState(scoringBySequence, awayAfter, homeAfter);
-    const frameTeamStats = mapTeamStatsFromPlays(
-      plays.slice(0, index + 1),
-      [],
-      awayAbbr,
-      homeAbbr,
-    );
+    const frameTeamStats = mapTeamStatsFromPlays(plays.slice(0, index + 1), [], awayAbbr, homeAbbr);
     const frameLeaders = mapLeadersFromRunningTotals(
       runningTotalsByKey,
       playerMetaByFullKey,
       awayAbbr,
       homeAbbr,
+      headshotsByName
     );
     const frameFantasy = mapFantasyFromRunningTotals(
       runningTotalsByKey,
@@ -783,12 +913,10 @@ function buildTimeline(
       playerStatsLookup,
       frameTeamStats,
       { away: awayAfter, home: homeAfter },
-      deriveDefenseFantasyTotalsFromPlays(
-        plays.slice(0, index + 1),
-        awayAbbr,
-        homeAbbr,
-        { away: awayAfter, home: homeAfter },
-      ),
+      deriveDefenseFantasyTotalsFromPlays(plays.slice(0, index + 1), awayAbbr, homeAbbr, {
+        away: awayAfter,
+        home: homeAfter,
+      })
     );
     const playAnimation = toPlayAnimation(
       play,
@@ -798,6 +926,7 @@ function buildTimeline(
       playerStatsLookup,
       runningTotalsByKey,
       runningTotalsBeforeByKey,
+      headshotsByName
     );
 
     if (!timeoutFrame && playAnimation == null && (situation.yardLine <= 0 || !situation.side)) {
@@ -808,7 +937,8 @@ function buildTimeline(
     }
 
     const framePossession = timeoutFrame
-      ? (frames[frames.length - 1]?.possession ?? toPossessionSide(possessionAfter, awayAbbr, homeAbbr))
+      ? (frames[frames.length - 1]?.possession ??
+        toPossessionSide(possessionAfter, awayAbbr, homeAbbr))
       : toPossessionSide(situation.possessionTeam, awayAbbr, homeAbbr);
 
     const frame: LiveGameState = {
@@ -840,10 +970,19 @@ function buildTimeline(
     playSequences.push(play.sequence);
   }
 
-  const lastFrame = [...frames].reverse().find((frame) =>
-    frame.situation.yardLine > 0 || frame.lastPlay !== null
-  ) ?? frames[frames.length - 1] ?? baseState;
-  const finalAwayWinPct = estimateAwayWinPct(awayScoreFinal.total, homeScoreFinal.total, quarter, clock, finalGame);
+  const lastFrame =
+    [...frames]
+      .reverse()
+      .find((frame) => frame.situation.yardLine > 0 || frame.lastPlay !== null) ??
+    frames[frames.length - 1] ??
+    baseState;
+  const finalAwayWinPct = estimateAwayWinPct(
+    awayScoreFinal.total,
+    homeScoreFinal.total,
+    quarter,
+    clock,
+    finalGame
+  );
 
   const liveState: LiveGameState = {
     ...lastFrame,
@@ -870,7 +1009,10 @@ function buildTimeline(
     };
     if (liveState.wpTimeline.length > 0) {
       const finalMinute = liveState.timing.totalMin;
-      liveState.wpTimeline = [...liveState.wpTimeline, { wp: finalAwayWinPct, gameMin: finalMinute }];
+      liveState.wpTimeline = [
+        ...liveState.wpTimeline,
+        { wp: finalAwayWinPct, gameMin: finalMinute },
+      ];
     }
   }
 
@@ -894,7 +1036,8 @@ export default function GridstreamPage() {
   const searchParams = useSearchParams();
   const gameId = searchParams.get('game');
   const playParam = searchParams.get('play');
-  const playSeqParam = searchParams.get('play_seq') ?? searchParams.get('seq') ?? searchParams.get('sequence');
+  const playSeqParam =
+    searchParams.get('play_seq') ?? searchParams.get('seq') ?? searchParams.get('sequence');
 
   const [timeline, setTimeline] = useState<ReplayTimeline | null>(null);
   const [state, setState] = useState<LiveGameState | null>(null);
@@ -904,7 +1047,7 @@ export default function GridstreamPage() {
   const [error, setError] = useState<string | null>(null);
   const quarterJumps = useMemo(
     () => (timeline ? buildQuarterJumps(timeline.frames) : buildQuarterJumps([])),
-    [timeline],
+    [timeline]
   );
 
   useEffect(() => {
@@ -921,28 +1064,71 @@ export default function GridstreamPage() {
 
     async function load() {
       try {
-        const { detail, resolvedGameId } = await fetchGameDetailWithFallback(requestedGameId, controller.signal);
+        const { detail, resolvedGameId } = await fetchGameDetailWithFallback(
+          requestedGameId,
+          controller.signal
+        );
 
-        const [plays, drives, boxscore] = await Promise.all([
+        const [plays, drives, boxscore, rosterHeadshots] = await Promise.all([
           fetchAllPlays(resolvedGameId, controller.signal).catch((err) => {
             if (isAbortError(err)) throw err;
             console.warn('[gridstream] plays hydration failed, continuing with empty plays:', err);
             return [];
           }),
-          fetchJson<ApiDrive[]>(`${API_BASE}/games/${resolvedGameId}/drives/`, controller.signal).catch((err) => {
+          fetchJson<ApiDrive[]>(
+            `${API_BASE}/games/${resolvedGameId}/drives/`,
+            controller.signal
+          ).catch((err) => {
             if (isAbortError(err)) throw err;
-            console.warn('[gridstream] drives hydration failed, continuing without drive data:', err);
+            console.warn(
+              '[gridstream] drives hydration failed, continuing without drive data:',
+              err
+            );
             return [];
           }),
-          fetchJson<ApiBoxscore>(`${API_BASE}/games/${resolvedGameId}/boxscore/`, controller.signal).catch((err) => {
+          fetchJson<ApiBoxscore>(
+            `${API_BASE}/games/${resolvedGameId}/boxscore/`,
+            controller.signal
+          ).catch((err) => {
             if (isAbortError(err)) throw err;
-            console.warn('[gridstream] boxscore hydration failed, continuing without boxscore:', err);
+            console.warn(
+              '[gridstream] boxscore hydration failed, continuing without boxscore:',
+              err
+            );
             return null;
+          }),
+          fetchTeamRosterHeadshots(detail, controller.signal).catch((err) => {
+            if (isAbortError(err)) throw err;
+            console.warn(
+              '[gridstream] roster headshot hydration failed, continuing without fallback headshots:',
+              err
+            );
+            return new Map<string, string>();
           }),
         ]);
 
-        const builtTimeline = buildTimeline(detail, plays, drives, boxscore);
-        setTimeline(builtTimeline);
+        // Supplement rosterHeadshots with game-specific data — catches historical
+        // players no longer on the current roster (e.g. traded players, free agents).
+        const addHeadshot = (name: string, url: string) => {
+          const fk = normalizeNameKey(name);
+          const sk = abbreviatedNameKey(name);
+          if (fk && !rosterHeadshots.has(fk)) rosterHeadshots.set(fk, url);
+          if (sk && !rosterHeadshots.has(sk)) rosterHeadshots.set(sk, url);
+        };
+        for (const teamPlayers of Object.values(boxscore?.player_stats ?? {})) {
+          for (const p of teamPlayers) {
+            const url = p.player_headshot?.trim();
+            if (url) addHeadshot(p.player_name, url);
+          }
+        }
+        for (const leader of detail.leaders ?? []) {
+          const url = leader.athlete_headshot_url?.trim();
+          if (url) addHeadshot(leader.athlete_name, url);
+        }
+
+        const builtTimeline = buildTimeline(detail, plays, drives, boxscore, rosterHeadshots);
+        const withHeadshots = hydrateTimelineFantasyHeadshots(builtTimeline, rosterHeadshots);
+        setTimeline(withHeadshots);
         setSeason(detail.season_id);
         setWeek(detail.week);
       } catch (err) {
@@ -966,7 +1152,12 @@ export default function GridstreamPage() {
       return;
     }
 
-    const initialIndex = resolveInitialPlayIndex(playParam, playSeqParam, timeline.playSequences, timeline.frames.length);
+    const initialIndex = resolveInitialPlayIndex(
+      playParam,
+      playSeqParam,
+      timeline.playSequences,
+      timeline.frames.length
+    );
     if (initialIndex === -1) {
       setState(cloneState(timeline.liveState));
       return;
@@ -1004,21 +1195,32 @@ export default function GridstreamPage() {
     setState(cloneState(timeline.liveState));
   }, [timeline]);
 
-  const onJumpToPlayIndex = useCallback((index: number) => {
-    if (!timeline || timeline.frames.length === 0) return;
-    if (index < 0 || index >= timeline.frames.length) return;
-    setState(cloneState(timeline.frames[index]!));
-  }, [timeline]);
+  const onJumpToPlayIndex = useCallback(
+    (index: number) => {
+      if (!timeline || timeline.frames.length === 0) return;
+      if (index < 0 || index >= timeline.frames.length) return;
+      setState(cloneState(timeline.frames[index]!));
+    },
+    [timeline]
+  );
 
   if (!gameId) return <GamePicker />;
 
   if (loading) {
     return (
-      <div style={{
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        minHeight: '100vh', background: '#070b14', color: '#5a7a90',
-        fontFamily: "'Orbitron', monospace", fontSize: 14, letterSpacing: '.15em',
-      }}>
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          minHeight: '100vh',
+          background: '#070b14',
+          color: '#5a7a90',
+          fontFamily: "'Orbitron', monospace",
+          fontSize: 14,
+          letterSpacing: '.15em',
+        }}
+      >
         LOADING GAME DATA...
       </div>
     );
@@ -1026,24 +1228,34 @@ export default function GridstreamPage() {
 
   if (error) {
     return (
-      <div style={{
-        display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-        gap: 16, minHeight: '100vh', background: '#070b14', color: '#ff3b4f',
-        fontFamily: "'Orbitron', monospace", fontSize: 14, letterSpacing: '.1em',
-      }}>
+      <div
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: 16,
+          minHeight: '100vh',
+          background: '#070b14',
+          color: '#ff3b4f',
+          fontFamily: "'Orbitron', monospace",
+          fontSize: 14,
+          letterSpacing: '.1em',
+        }}
+      >
         <span>ERROR: {error}</span>
-        <a href="/gridstream" style={{ color: '#5a7a90', fontSize: 12 }}>← BACK TO GAME SELECT</a>
+        <a href="/gridstream/games" style={{ color: '#5a7a90', fontSize: 12 }}>
+          ← BACK TO GAME SELECT
+        </a>
       </div>
     );
   }
 
   if (!state) return null;
   const currentPlaySequence = timeline?.playSequences.length
-    ? (
-      state.playIndex >= 0
-        ? (timeline.playSequences[state.playIndex] ?? null)
-        : (timeline.playSequences[timeline.playSequences.length - 1] ?? null)
-    )
+    ? state.playIndex >= 0
+      ? (timeline.playSequences[state.playIndex] ?? null)
+      : (timeline.playSequences[timeline.playSequences.length - 1] ?? null)
     : null;
 
   return (
@@ -1067,28 +1279,231 @@ export default function GridstreamPage() {
 }
 
 function GamePicker() {
+  const navCards = [
+    {
+      title: 'Games Database',
+      href: '/gridstream/games',
+      description: 'Browse full schedules by season and week, then jump straight into replay view.',
+      status: 'Live',
+    },
+    {
+      title: 'Players Database',
+      href: '/gridstream/players',
+      description: 'Track players across seasons with weekly and season-level stat splits.',
+      status: 'Scaffolded',
+    },
+    {
+      title: 'Teams',
+      href: '/gridstream/teams',
+      description: 'Check franchise trends, team metrics, and year-over-year snapshots.',
+      status: 'Scaffolded',
+    },
+    {
+      title: 'Fantasy',
+      href: '/gridstream/fantasy',
+      description: 'Follow fantasy scoring views and prep for future Yahoo/league integrations.',
+      status: 'Scaffolded',
+    },
+  ];
+
+  const quickStats = [
+    { label: 'Season Range', value: '1999–2025' },
+    { label: 'Game Browser', value: 'Regular + Postseason' },
+    { label: 'Replay Mode', value: 'Play-by-play timeline' },
+    { label: 'Live View', value: 'Game context + tabs' },
+  ];
+
   return (
-    <div style={{
-      display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-      gap: 24, minHeight: '100vh', background: '#070b14', color: '#b0c8d8',
-      fontFamily: "'Orbitron', monospace",
-    }}>
-      <div style={{ fontSize: 24, fontWeight: 800, color: '#ffb612', letterSpacing: '.1em' }}>GRIDSTREAM</div>
-      <div style={{ fontSize: 12, color: '#5a7a90', letterSpacing: '.15em' }}>SELECT A GAME TO VIEW</div>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 12, fontSize: 13, color: '#5a7a90', textAlign: 'center' }}>
-        <span>Append a game ID to the URL:</span>
-        <code style={{ background: 'rgba(0,229,255,.05)', padding: '8px 16px', border: '1px solid rgba(0,229,255,.12)', color: '#00e5ff', fontSize: 12 }}>
+    <div
+      style={{
+        display: 'grid',
+        gap: 22,
+        minHeight: '100vh',
+        background: '#070b14',
+        color: '#c7d8e6',
+        fontFamily: "'Orbitron', monospace",
+        padding: '40px 20px 52px',
+      }}
+    >
+      <div style={{ width: '100%', maxWidth: 1180, margin: '0 auto' }}>
+        <div
+          style={{
+            fontSize: 13,
+            letterSpacing: '.14em',
+            color: '#00e5ff',
+            fontWeight: 700,
+            marginBottom: 10,
+          }}
+        >
+          GRIDSTREAM / COMMAND
+        </div>
+        <div
+          style={{
+            fontSize: 'clamp(28px, 4.2vw, 52px)',
+            fontWeight: 800,
+            letterSpacing: '.05em',
+            color: '#f3fbff',
+            lineHeight: 1.04,
+            textTransform: 'uppercase',
+          }}
+        >
+          NFL Data Hub + Replay Engine
+        </div>
+        <p
+          style={{
+            marginTop: 12,
+            marginBottom: 0,
+            maxWidth: 760,
+            color: '#88a8c1',
+            fontFamily: "'Rajdhani', sans-serif",
+            fontSize: 'clamp(16px, 2vw, 20px)',
+            lineHeight: 1.35,
+          }}
+        >
+          Use Gridstream as the front door for game replay, player and team research, and fantasy
+          workflows. Start with a module below or jump directly into a game ID.
+        </p>
+      </div>
+
+      <div
+        style={{
+          width: '100%',
+          maxWidth: 1180,
+          margin: '0 auto',
+          display: 'grid',
+          gap: 12,
+          gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))',
+        }}
+      >
+        {quickStats.map((stat) => (
+          <div
+            key={stat.label}
+            style={{
+              border: '1px solid rgba(0,229,255,.2)',
+              background: 'rgba(0,25,45,.55)',
+              padding: '12px 14px',
+            }}
+          >
+            <div style={{ color: '#5f84a0', fontSize: 10, letterSpacing: '.1em' }}>
+              {stat.label}
+            </div>
+            <div style={{ marginTop: 6, color: '#d9f3ff', fontSize: 13, fontWeight: 700 }}>
+              {stat.value}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div
+        style={{
+          width: '100%',
+          maxWidth: 1180,
+          margin: '0 auto',
+          display: 'grid',
+          gap: 12,
+          gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))',
+        }}
+      >
+        {navCards.map((card) => (
+          <Link
+            key={card.href}
+            href={card.href}
+            style={{
+              border: '1px solid rgba(0,229,255,.2)',
+              background: 'linear-gradient(180deg, rgba(0,30,55,.62), rgba(0,14,30,.78))',
+              padding: '14px 16px',
+              textDecoration: 'none',
+              color: 'inherit',
+              minHeight: 140,
+              display: 'grid',
+              gap: 10,
+              transition: 'border-color 120ms ease, background 120ms ease',
+            }}
+          >
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: 8,
+              }}
+            >
+              <div
+                style={{ color: '#eff8ff', fontSize: 15, fontWeight: 700, letterSpacing: '.05em' }}
+              >
+                {card.title}
+              </div>
+              <span
+                style={{
+                  fontSize: 10,
+                  color: card.status === 'Live' ? '#00e5ff' : '#ffb612',
+                  border: `1px solid ${card.status === 'Live' ? 'rgba(0,229,255,.35)' : 'rgba(255,182,18,.35)'}`,
+                  padding: '3px 6px',
+                  letterSpacing: '.08em',
+                }}
+              >
+                {card.status}
+              </span>
+            </div>
+            <div
+              style={{
+                color: '#7ea3bc',
+                fontFamily: "'Rajdhani', sans-serif",
+                fontSize: 16,
+                lineHeight: 1.3,
+              }}
+            >
+              {card.description}
+            </div>
+            <div style={{ fontSize: 11, color: '#63dfff', letterSpacing: '.08em' }}>
+              OPEN MODULE →
+            </div>
+          </Link>
+        ))}
+      </div>
+
+      <div
+        style={{
+          width: '100%',
+          maxWidth: 1180,
+          margin: '0 auto',
+          border: '1px solid rgba(0,229,255,.16)',
+          background: 'rgba(0,16,34,.6)',
+          padding: '14px 16px',
+          color: '#7ea3bc',
+          fontSize: 13,
+        }}
+      >
+        <div style={{ color: '#d7eaf8', fontSize: 12, letterSpacing: '.1em', marginBottom: 8 }}>
+          DIRECT GAME LINK
+        </div>
+        <div style={{ marginBottom: 8 }}>
+          If you already have a game ID, jump straight into replay:
+        </div>
+        <code
+          style={{
+            background: 'rgba(0,229,255,.05)',
+            padding: '8px 16px',
+            border: '1px solid rgba(0,229,255,.12)',
+            color: '#00e5ff',
+            fontSize: 12,
+            display: 'inline-block',
+          }}
+        >
           /gridstream?game=123
         </code>
-        <span style={{ fontSize: 11, marginTop: 8 }}>
-          Optional replay index: <code style={{ color: '#00e5ff' }}>&amp;play=0</code> (start), <code style={{ color: '#00e5ff' }}>&amp;play=live</code> (latest)
+        <div style={{ fontSize: 11, marginTop: 10 }}>
+          Optional replay index: <code style={{ color: '#00e5ff' }}>&amp;play=0</code> (start),{' '}
+          <code style={{ color: '#00e5ff' }}>&amp;play=live</code> (latest)
           <br />
           Direct play sequence: <code style={{ color: '#00e5ff' }}>&amp;play_seq=123</code>
-        </span>
-        <span style={{ fontSize: 11 }}>
+        </div>
+        <div style={{ fontSize: 11, marginTop: 8 }}>
           Find game IDs at{' '}
-          <a href={`${API_BASE}/games/?season=2024&week=1`} style={{ color: '#00e5ff' }}>/api/gridstream/games/</a>
-        </span>
+          <a href={`${API_BASE}/games/?season=2024&week=1`} style={{ color: '#00e5ff' }}>
+            /api/gridstream/games/
+          </a>
+        </div>
       </div>
     </div>
   );

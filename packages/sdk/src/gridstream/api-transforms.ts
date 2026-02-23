@@ -45,6 +45,8 @@ export interface RunningPlayerTotals {
   fgMade50to59: number;
   fgMade60plus: number;
   fgMissed: number;
+  punts: number;
+  puntYds: number;
   xpAtt: number;
   xpMade: number;
   fumblesLost: number;
@@ -248,6 +250,7 @@ export interface ApiPlayerGameStats {
   player_name: string;
   player_headshot: string | null;
   player_position: string;
+  player_gsis_id: string | null;
   team_abbr: string;
   completions: number | null;
   pass_attempts: number | null;
@@ -280,6 +283,7 @@ export interface ApiGameLeader {
   /** 'passing' | 'rushing' | 'receiving' */
   category: string;
   athlete_name: string;
+  athlete_headshot_url?: string | null;
   display_value: string;
 }
 
@@ -308,6 +312,190 @@ export interface ApiBoxscore {
   };
 }
 
+/**
+ * Scoreboard-list item — returned by GET /api/gridstream/games/?season=&week=
+ * (GameListSerializer). A subset of the full game detail shape.
+ */
+export interface ApiGameListItem {
+  id: number;
+  espn_event_id: string;
+  season_id: number;
+  week: number;
+  game_date: string;
+  game_time: string | null;
+  season_type: 'REG' | 'POST' | 'PRE';
+  home_team: number;
+  away_team: number;
+  home_team_detail: ApiTeamMinimal;
+  away_team_detail: ApiTeamMinimal;
+  venue_name: string | null;
+  is_division_game: boolean;
+  game_note: string | null;
+  status: string;
+  quarter: number | null;
+  clock: string | null;
+  home_score: number;
+  away_score: number;
+  home_score_q1: number;
+  home_score_q2: number;
+  home_score_q3: number;
+  home_score_q4: number;
+  home_score_ot: number | null;
+  away_score_q1: number;
+  away_score_q2: number;
+  away_score_q3: number;
+  away_score_q4: number;
+  away_score_ot: number | null;
+  possession_team: number | null;
+  spread: number | null;
+  total: number | null;
+  home_moneyline: number | null;
+  away_moneyline: number | null;
+  broadcast_network: string | null;
+  broadcast_names: string | null;
+  home_record: string;
+  away_record: string;
+  home_qb_name: string | null;
+  away_qb_name: string | null;
+  weather_temp: number | null;
+  weather_condition: string | null;
+  weather_wind: string | null;
+  leaders: ApiGameLeader[];
+}
+
+// ─── Games-list display helpers ──────────────────────────────────────────────
+
+/** Human-readable week label. Weeks 19–22 are postseason rounds. */
+export function weekLabel(week: number): string {
+  if (week <= 18) return `Week ${week}`;
+  const postNames: Record<number, string> = {
+    19: 'Wild Card',
+    20: 'Divisional',
+    21: 'Conf Championships',
+    22: 'Super Bowl',
+  };
+  return postNames[week] ?? `Playoff Wk ${week}`;
+}
+
+/** Returns true for weeks that belong to the postseason (weeks ≥ 19). */
+export function isPostseasonWeek(week: number): boolean {
+  return week >= 19;
+}
+
+export interface GameStatusDisplay {
+  text: string;
+  variant: 'final' | 'live' | 'scheduled';
+}
+
+/**
+ * Returns a display label and variant for a game's current status.
+ * Covers live, final, and scheduled states.
+ */
+export function gameStatusDisplay(
+  status: string,
+  quarter: number | null,
+  clock: string | null
+): GameStatusDisplay {
+  if (status === 'final') return { text: 'FINAL', variant: 'final' };
+  if (status === 'final_ot') return { text: 'FINAL/OT', variant: 'final' };
+  if (status === 'halftime') return { text: 'HALFTIME', variant: 'live' };
+  if ((status === 'in_progress' || status === 'end_period') && quarter && clock)
+    return { text: `Q${quarter} ${clock}`, variant: 'live' };
+  if (status === 'in_progress' || status === 'end_period') return { text: 'LIVE', variant: 'live' };
+  if (status === 'postponed') return { text: 'POSTPONED', variant: 'final' };
+  if (status === 'cancelled') return { text: 'CANCELLED', variant: 'final' };
+  return { text: 'SCHEDULED', variant: 'scheduled' };
+}
+
+/**
+ * Format a scheduled game's date/time into a readable label.
+ * Times are stored in ET; `gameTime` is "HH:MM:SS" or null.
+ * Uses UTC date construction for day-of-week to avoid local-timezone drift.
+ */
+export function formatScheduledTime(gameDate: string, gameTime: string | null): string {
+  const parts = gameDate.split('-');
+  const year = Number(parts[0]);
+  const month = Number(parts[1]);
+  const day = Number(parts[2]);
+  const d = new Date(Date.UTC(year, month - 1, day));
+  const dayNames = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
+  const dayName = dayNames[d.getUTCDay()] ?? '';
+  if (!gameTime) {
+    const monthNames = [
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
+    ];
+    return `${dayName}, ${monthNames[month - 1] ?? ''} ${day}`;
+  }
+  const timeParts = gameTime.split(':');
+  const hour = parseInt(timeParts[0] ?? '0', 10);
+  const minute = parseInt(timeParts[1] ?? '0', 10);
+  const ampm = hour >= 12 ? 'PM' : 'AM';
+  const h12 = hour % 12 || 12;
+  return `${dayName} ${h12}:${minute.toString().padStart(2, '0')} ${ampm} ET`;
+}
+
+/**
+ * Returns which side won a final game, or null if the game isn't final.
+ * Returns 'tie' only if scores are exactly equal at final (rare in NFL).
+ */
+export function gameWinner(
+  homeScore: number,
+  awayScore: number,
+  status: string
+): 'home' | 'away' | 'tie' | null {
+  if (status !== 'final' && status !== 'final_ot') return null;
+  if (homeScore > awayScore) return 'home';
+  if (awayScore > homeScore) return 'away';
+  return 'tie';
+}
+
+/**
+ * Return the top leader for each requested category (first occurrence wins).
+ * Leaders from both teams are considered together; the API returns them in
+ * order of stat value within each category.
+ */
+export function topLeadersForDisplay(
+  leaders: ApiGameLeader[],
+  categories: string[] = ['passing', 'rushing']
+): ApiGameLeader[] {
+  const seen = new Set<string>();
+  const result: ApiGameLeader[] = [];
+  for (const cat of categories) {
+    const leader = leaders.find((l) => l.category === cat && !seen.has(cat));
+    if (leader) {
+      seen.add(cat);
+      result.push(leader);
+    }
+  }
+  return result;
+}
+
+/**
+ * Resolve whatever API URL the environment gives us into a clean
+ * /api/gridstream base. Shared between all Gridstream pages so they
+ * all derive from the same env var regardless of how it's configured.
+ */
+export function resolveGridstreamApiBase(base: string): string {
+  const normalized = base.replace(/\/$/, '');
+  if (normalized.endsWith('/api/gridstream')) return normalized;
+  if (normalized.endsWith('/api/redzone'))
+    return normalized.replace(/\/api\/redzone$/, '/api/gridstream');
+  if (normalized.endsWith('/api')) return `${normalized}/gridstream`;
+  if (normalized.endsWith('/gridstream')) return normalized;
+  return `${normalized}/api/gridstream`;
+}
+
 // ─── Transforms ─────────────────────────────────────────────────────────────
 
 /**
@@ -321,6 +509,21 @@ function normalizeSeasonType(raw: string | null | undefined): 'REG' | 'POST' | '
   if (upper === 'POST') return 'POST';
   if (upper === 'PRE') return 'PRE';
   return 'REG'; // default: covers 'reg', 'regular', '', and unknown values
+}
+
+/**
+ * Extract a brief condition label from a nflverse-style weather_detail string.
+ *
+ * weather_detail format: "Light Snow Temp: 31° F, Humidity: 100%, Wind: 5 mph"
+ * Returns everything before "Temp:" as the condition, trimmed of trailing punctuation.
+ * Returns undefined if nothing useful is found.
+ */
+function extractWeatherCondition(detail: string | null | undefined): string | undefined {
+  if (!detail) return undefined;
+  const tempIdx = detail.search(/\btemp:/i);
+  const raw = tempIdx > 0 ? detail.slice(0, tempIdx) : detail;
+  const condition = raw.replace(/[,.\s]+$/, '').trim();
+  return condition || undefined;
 }
 
 /**
@@ -383,7 +586,8 @@ export function apiGameToContext(game: ApiGameDetail): GameContext {
     surface: game.venue_detail?.surface,
 
     temperature: game.weather_temp ?? undefined,
-    weatherDesc: game.weather_condition || undefined,
+    weatherDesc:
+      game.weather_condition || extractWeatherCondition(game.weather_detail) || undefined,
     weatherWind: game.weather_wind || undefined,
     conditionId: game.weather_condition_id ?? undefined,
 

@@ -7,9 +7,23 @@
 
 import React from 'react';
 import Link from 'next/link';
-import { layout, typography, badges, cards, demos as demosStyles, codeWindow, syntax } from '@atlas/ui/styles';
+import {
+  layout,
+  typography,
+  badges,
+  cards,
+  demos as demosStyles,
+  codeWindow,
+  syntax,
+} from '@atlas/ui/styles';
 import { AtlasIcon } from '@/components/AtlasIcon';
-import type { DeepDiveProps, DeepDiveCard as CardData, SpecItem, CodeSnippet, DeepDiveFooter as FooterData } from '@atlas/sdk/contracts';
+import type {
+  DeepDiveProps,
+  DeepDiveCard as CardData,
+  SpecItem,
+  CodeSnippet,
+  DeepDiveFooter as FooterData,
+} from '@atlas/sdk/contracts';
 
 interface Props {
   data: DeepDiveProps;

@@ -10,11 +10,7 @@
  */
 
 import { useMemo, useState } from 'react';
-import type {
-  FantasyRosterEntry,
-  PlayerSeasonLine,
-  HudTeam,
-} from '@atlas/sdk/gridstream/types';
+import type { FantasyRosterEntry, PlayerSeasonLine, HudTeam } from '@atlas/sdk/gridstream/types';
 import { groupFantasyByPosition } from '@atlas/sdk/gridstream/transforms';
 import { POSITION_LABELS } from '@atlas/sdk/gridstream/constants';
 import { gridstreamColors as C, gridstreamFonts as F } from '@atlas/sdk/gridstream/theme';
@@ -31,26 +27,34 @@ interface FantasyPanelProps {
 }
 
 export function FantasyPanel({
-  away, home, fantasyAway, fantasyHome, playerSeasonStats,
+  away,
+  home,
+  fantasyAway,
+  fantasyHome,
+  playerSeasonStats,
 }: FantasyPanelProps) {
   const [selectedPlayer, setSelectedPlayer] = useState<string | null>(null);
   const [scoringView, setScoringView] = useState<FantasyScoringView>('PPR');
 
   const togglePlayer = (name: string) => {
-    setSelectedPlayer((prev) => prev === name ? null : name);
+    setSelectedPlayer((prev) => (prev === name ? null : name));
   };
 
   return (
     <div>
-      <div style={{
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        padding: '12px 16px 10px',
-        borderBottom: `1px solid ${C.panelBorder}`,
-        background: 'rgba(0,229,255,.02)',
-      }}>
-        <span className="hud-label" style={{ color: C.text, fontSize: 11 }}>FANTASY SCORING</span>
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          padding: '12px 16px 10px',
+          borderBottom: `1px solid ${C.panelBorder}`,
+          background: 'rgba(0,229,255,.02)',
+        }}
+      >
+        <span className="hud-label" style={{ color: C.text, fontSize: 11 }}>
+          FANTASY SCORING
+        </span>
         <div style={{ display: 'flex', gap: 6 }}>
           {(['PPR', 'HALF', 'STD'] as const).map((label) => {
             const active = scoringView === label;
@@ -104,7 +108,15 @@ export function FantasyPanel({
   );
 }
 
-function TeamColumn({ side, team, roster, seasonStats, scoringView, selectedPlayer, onToggle }: {
+function TeamColumn({
+  side,
+  team,
+  roster,
+  seasonStats,
+  scoringView,
+  selectedPlayer,
+  onToggle,
+}: {
   side: 'left' | 'right';
   team: HudTeam;
   roster: FantasyRosterEntry[];
@@ -115,28 +127,40 @@ function TeamColumn({ side, team, roster, seasonStats, scoringView, selectedPlay
 }) {
   const pointsFor = useMemo(
     () => (player: FantasyRosterEntry) => getFantasyPointsForScoring(player, scoringView),
-    [scoringView],
+    [scoringView]
   );
   const groups = useMemo(
-    () => groupFantasyByPosition(roster).map((group) => ({
-      ...group,
-      players: [...group.players].sort((a, b) => pointsFor(b) - pointsFor(a)),
-    })),
-    [roster, pointsFor],
+    () =>
+      groupFantasyByPosition(roster).map((group) => ({
+        ...group,
+        players: [...group.players].sort((a, b) => pointsFor(b) - pointsFor(a)),
+      })),
+    [roster, pointsFor]
   );
   const topPoints = useMemo(
-    () => roster.reduce((max, player) => Math.max(max, pointsFor(player)), Number.NEGATIVE_INFINITY),
-    [roster, pointsFor],
+    () =>
+      roster.reduce((max, player) => Math.max(max, pointsFor(player)), Number.NEGATIVE_INFINITY),
+    [roster, pointsFor]
   );
 
   return (
-    <div style={{
-      padding: '14px 18px 18px',
-      borderRight: side === 'left' ? `1px solid ${C.panelBorder}` : 'none',
-    }}>
+    <div
+      style={{
+        padding: '14px 18px 18px',
+        borderRight: side === 'left' ? `1px solid ${C.panelBorder}` : 'none',
+      }}
+    >
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
         <TeamBadge team={team} size={30} hasPossession={false} />
-        <span style={{ fontFamily: F.body, fontWeight: 700, fontSize: 20, color: C.textBright, lineHeight: 1 }}>
+        <span
+          style={{
+            fontFamily: F.body,
+            fontWeight: 700,
+            fontSize: 20,
+            color: C.textBright,
+            lineHeight: 1,
+          }}
+        >
           {team.name}
         </span>
       </div>
@@ -149,15 +173,17 @@ function TeamColumn({ side, team, roster, seasonStats, scoringView, selectedPlay
 
       {groups.map(({ position, players }) => (
         <div key={position} style={{ marginBottom: 8 }}>
-          <div style={{
-            fontFamily: F.display,
-            fontSize: 10,
-            fontWeight: 700,
-            letterSpacing: '.14em',
-            color: C.cyan,
-            padding: '10px 0 8px',
-            borderBottom: `1px solid rgba(0,229,255,.08)`,
-          }}>
+          <div
+            style={{
+              fontFamily: F.display,
+              fontSize: 10,
+              fontWeight: 700,
+              letterSpacing: '.14em',
+              color: C.cyan,
+              padding: '10px 0 8px',
+              borderBottom: `1px solid rgba(0,229,255,.08)`,
+            }}
+          >
             {POSITION_LABELS[position]}
           </div>
 
@@ -182,64 +208,89 @@ function TeamColumn({ side, team, roster, seasonStats, scoringView, selectedPlay
                     borderBottom: `1px solid rgba(0,229,255,.03)`,
                   }}
                 >
-                  <div style={{ minWidth: 0, flex: 1 }}>
-                    <div style={{
+                  <div
+                    style={{
+                      minWidth: 0,
+                      flex: 1,
                       display: 'flex',
                       alignItems: 'center',
-                      gap: 6,
-                      marginBottom: 4,
-                    }}>
-                      <span style={{
-                        fontFamily: F.body,
-                        fontSize: 18,
-                        fontWeight: 600,
-                        color: C.textBright,
-                        lineHeight: 1.1,
-                      }}>
-                        {player.name}
-                      </span>
-                      {season && (
-                        <span style={{
-                          fontFamily: F.display,
-                          fontSize: 10,
-                          color: isExpanded ? C.cyan : C.textMuted,
-                          letterSpacing: '.06em',
-                        }}>
-                          {isExpanded ? '▾' : '▸'}
+                      gap: 12,
+                    }}
+                  >
+                    <PlayerHeadshot name={player.name} headshotUrl={player.headshotUrl} size={44} />
+                    <div
+                      style={{
+                        minWidth: 0,
+                        flex: 1,
+                      }}
+                    >
+                      <div
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 6,
+                          marginBottom: 4,
+                        }}
+                      >
+                        <span
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: 8,
+                            fontFamily: F.body,
+                            fontSize: 18,
+                            fontWeight: 600,
+                            color: C.textBright,
+                            lineHeight: 1.1,
+                          }}
+                        >
+                          {player.name}
                         </span>
-                      )}
-                    </div>
-                    <div style={{
-                      fontFamily: F.mono,
-                      fontSize: 14,
-                      color: C.textDim,
-                      letterSpacing: '.04em',
-                      lineHeight: 1.35,
-                      whiteSpace: 'normal',
-                    }}>
-                      {player.breakdown}
+                        {season && (
+                          <span
+                            style={{
+                              fontFamily: F.display,
+                              fontSize: 10,
+                              color: isExpanded ? C.cyan : C.textMuted,
+                              letterSpacing: '.06em',
+                            }}
+                          >
+                            {isExpanded ? '▾' : '▸'}
+                          </span>
+                        )}
+                      </div>
+                      <div
+                        style={{
+                          fontFamily: F.mono,
+                          fontSize: 14,
+                          color: C.textDim,
+                          letterSpacing: '.04em',
+                          lineHeight: 1.35,
+                          whiteSpace: 'normal',
+                        }}
+                      >
+                        {player.breakdown}
+                      </div>
                     </div>
                   </div>
-                  <span style={{
-                    fontFamily: F.body,
-                    fontSize: 28,
-                    fontWeight: 700,
-                    minWidth: 56,
-                    textAlign: 'right',
-                    lineHeight: 1,
-                    color: isTop ? C.amber : C.textBright,
-                    textShadow: isTop ? `0 0 8px ${C.amberGlow}` : 'none',
-                  }}>
+                  <span
+                    style={{
+                      fontFamily: F.body,
+                      fontSize: 28,
+                      fontWeight: 700,
+                      minWidth: 56,
+                      textAlign: 'right',
+                      lineHeight: 1,
+                      color: isTop ? C.amber : C.textBright,
+                      textShadow: isTop ? `0 0 8px ${C.amberGlow}` : 'none',
+                    }}
+                  >
                     {formatPoints(playerPoints)}
                   </span>
                 </div>
 
                 {isExpanded && season && (
-                  <PlayerDrillDown
-                    season={season}
-                    todayPts={playerPoints}
-                    teamColor={team.color}
-                  />
+                  <PlayerDrillDown season={season} todayPts={playerPoints} teamColor={team.color} />
                 )}
               </div>
             );
@@ -250,7 +301,11 @@ function TeamColumn({ side, team, roster, seasonStats, scoringView, selectedPlay
   );
 }
 
-function PlayerDrillDown({ season, todayPts, teamColor }: {
+function PlayerDrillDown({
+  season,
+  todayPts,
+  teamColor,
+}: {
   season: PlayerSeasonLine;
   todayPts: number;
   teamColor: string;
@@ -268,39 +323,46 @@ function PlayerDrillDown({ season, todayPts, teamColor }: {
     y: sparkH - (pt / maxPt) * (sparkH - 4),
   }));
 
-  const pathD = pathPoints.map((p, i) =>
-    `${i === 0 ? 'M' : 'L'} ${p.x.toFixed(1)},${p.y.toFixed(1)}`
-  ).join(' ');
+  const pathD = pathPoints
+    .map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x.toFixed(1)},${p.y.toFixed(1)}`)
+    .join(' ');
 
   const todayDot = pathPoints[pathPoints.length - 1];
 
   return (
-    <div style={{
-      padding: '10px 8px 12px 12px',
-      marginBottom: 8,
-      border: `1px solid ${C.panelBorder}`,
-      background: 'rgba(0,229,255,.02)',
-      animation: 'slideUp 0.25s ease',
-    }}>
-      <div style={{
-        display: 'flex',
-        gap: 14,
-        marginBottom: 6,
-        fontFamily: F.mono,
-        fontSize: 11,
-      }}>
+    <div
+      style={{
+        padding: '10px 8px 12px 12px',
+        marginBottom: 8,
+        border: `1px solid ${C.panelBorder}`,
+        background: 'rgba(0,229,255,.02)',
+        animation: 'slideUp 0.25s ease',
+      }}
+    >
+      <div
+        style={{
+          display: 'flex',
+          gap: 14,
+          marginBottom: 6,
+          fontFamily: F.mono,
+          fontSize: 11,
+        }}
+      >
         <span style={{ color: C.cyan, fontWeight: 700 }}>{season.positionRank}</span>
         <span style={{ color: C.textDim }}>{season.gamesPlayed} GP</span>
         <span style={{ color: C.textDim }}>{season.avgPoints.toFixed(1)} PPG</span>
         <span style={{ color: C.textDim }}>{season.totalPoints.toFixed(0)} TOT</span>
       </div>
 
-      <div style={{
-        fontFamily: F.mono,
-        fontSize: 10,
-        color: C.textDim,
-        marginBottom: 8, letterSpacing: '.04em',
-      }}>
+      <div
+        style={{
+          fontFamily: F.mono,
+          fontSize: 10,
+          color: C.textDim,
+          marginBottom: 8,
+          letterSpacing: '.04em',
+        }}
+      >
         {season.statLine}
       </div>
 
@@ -320,19 +382,32 @@ function PlayerDrillDown({ season, todayPts, teamColor }: {
           {/* Today dot */}
           {todayDot && (
             <circle
-              cx={todayDot.x} cy={todayDot.y} r={3}
-              fill={C.amber} stroke={C.bg} strokeWidth={1}
+              cx={todayDot.x}
+              cy={todayDot.y}
+              r={3}
+              fill={C.amber}
+              stroke={C.bg}
+              strokeWidth={1}
             />
           )}
         </svg>
-        <div style={{
-          display: 'flex', flexDirection: 'column', gap: 1,
-          fontFamily: F.mono, fontSize: 9, color: C.textDim,
-        }}>
+        <div
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 1,
+            fontFamily: F.mono,
+            fontSize: 9,
+            color: C.textDim,
+          }}
+        >
           {allPts.map((pt, i) => (
-            <span key={i} style={{
-              color: i === allPts.length - 1 ? C.amber : C.textDim,
-            }}>
+            <span
+              key={i}
+              style={{
+                color: i === allPts.length - 1 ? C.amber : C.textDim,
+              }}
+            >
               {pt.toFixed(1)}
             </span>
           ))}
@@ -348,7 +423,10 @@ function formatPoints(points: number): string {
   return rounded.toFixed(1);
 }
 
-function getFantasyPointsForScoring(player: FantasyRosterEntry, scoringView: FantasyScoringView): number {
+function getFantasyPointsForScoring(
+  player: FantasyRosterEntry,
+  scoringView: FantasyScoringView
+): number {
   if (scoringView === 'PPR') {
     return player.pointsPpr ?? player.pointsHalfPpr ?? player.pointsStandard ?? player.points;
   }
@@ -356,4 +434,61 @@ function getFantasyPointsForScoring(player: FantasyRosterEntry, scoringView: Fan
     return player.pointsHalfPpr ?? player.pointsPpr ?? player.pointsStandard ?? player.points;
   }
   return player.pointsStandard ?? player.pointsHalfPpr ?? player.pointsPpr ?? player.points;
+}
+
+function PlayerHeadshot({
+  name,
+  headshotUrl,
+  size = 22,
+}: {
+  name: string;
+  headshotUrl?: string;
+  size?: number;
+}) {
+  const initial = name.trim().charAt(0).toUpperCase() || '?';
+  return (
+    <span
+      style={{
+        width: size,
+        height: size,
+        borderRadius: '50%',
+        border: `1px solid ${C.panelBorder}`,
+        background: 'rgba(0,229,255,.05)',
+        display: 'inline-flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        overflow: 'hidden',
+        flexShrink: 0,
+        boxShadow: '0 0 10px rgba(0,229,255,.22)',
+      }}
+      aria-hidden="true"
+    >
+      {headshotUrl ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={headshotUrl}
+          alt=""
+          loading="lazy"
+          decoding="async"
+          style={{
+            width: '100%',
+            height: '100%',
+            objectFit: 'cover',
+          }}
+        />
+      ) : (
+        <span
+          style={{
+            fontFamily: F.display,
+            fontSize: Math.max(10, Math.floor(size * 0.42)),
+            fontWeight: 700,
+            color: C.textMuted,
+            lineHeight: 1,
+          }}
+        >
+          {initial}
+        </span>
+      )}
+    </span>
+  );
 }

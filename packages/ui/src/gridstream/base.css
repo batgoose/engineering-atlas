@@ -82,7 +82,23 @@
   position: relative;
 }
 
+/* Indicator pip before each tab label */
+.tab-btn::before {
+  content: '■';
+  font-size: 5px;
+  margin-right: 6px;
+  color: var(--gs-text-muted);
+  vertical-align: middle;
+  transition:
+    color 0.15s,
+    text-shadow 0.15s;
+}
+
 .tab-btn:hover {
+  color: var(--gs-cyan-dim);
+}
+
+.tab-btn:hover::before {
   color: var(--gs-cyan-dim);
 }
 
@@ -90,6 +106,13 @@
   color: var(--gs-cyan);
   background: var(--gs-panel);
   border-color: var(--gs-panel-border);
+}
+
+/* Active pip glows */
+.tab-btn.active::before {
+  color: var(--gs-cyan);
+  text-shadow: 0 0 8px rgba(0, 229, 255, 0.9);
+  animation: possGlow 2s ease-in-out infinite;
 }
 
 /* Covers the bottom border of the active tab so it bleeds into the panel */
@@ -154,13 +177,93 @@
   left: 0;
   right: 0;
   height: 60px;
-  background: linear-gradient(
-    180deg,
-    transparent,
-    rgba(0, 229, 255, 0.02),
-    transparent
-  );
+  background: linear-gradient(180deg, transparent, rgba(0, 229, 255, 0.02), transparent);
   animation: scanPulse 6s linear infinite;
+}
+
+/* ── Play transmission sweep ─────────────────────────────────────
+ *
+ * .play-sweep — one-shot sweep fired on each play change.
+ * Keyed by animationKey in React so it remounts (replaying the
+ * animation) on every new play.
+ */
+
+.play-sweep {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 48px;
+  pointer-events: none;
+  z-index: 5;
+  background: linear-gradient(180deg, transparent, rgba(0, 229, 255, 0.22), transparent);
+  animation: playSweepAnim 0.65s ease-out forwards;
+}
+
+/* ── Game card ────────────────────────────────────────────────────
+ *
+ * .game-card — a scoreboard card linking to a game view.
+ * Extends .hud-panel with hover state and pointer cursor.
+ * .team-row — one team row inside the card (logo + abbr + score).
+ * .quarter-scores — Q1-Q4 breakdown grid below the team rows.
+ * .leader-item — a single stat-leader line in the card footer.
+ */
+
+.game-card {
+  cursor: pointer;
+  transition:
+    border-color 0.2s,
+    box-shadow 0.2s;
+}
+
+.game-card:hover {
+  border-color: rgba(0, 229, 255, 0.3);
+  box-shadow: 0 0 24px rgba(0, 229, 255, 0.06);
+}
+
+.team-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 11px 16px;
+  border-left: 3px solid transparent;
+}
+
+.quarter-scores {
+  display: grid;
+  padding: 6px 16px 8px;
+  border-top: 1px solid rgba(0, 229, 255, 0.07);
+  font-family: var(--gs-font-mono);
+  font-size: 11px;
+  color: var(--gs-text-dim);
+  gap: 3px 0;
+  align-items: center;
+}
+
+.quarter-scores > span {
+  padding: 2px 6px;
+  text-align: center;
+}
+
+.quarter-scores > span:first-of-type {
+  text-align: left;
+  padding-left: 0;
+}
+
+.leader-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 16px;
+  font-family: var(--gs-font-body);
+  font-size: 12px;
+  color: var(--gs-text-dim);
+  border-top: 1px solid rgba(0, 229, 255, 0.04);
+}
+
+.leader-item:first-child {
+  border-top: 1px solid rgba(0, 229, 255, 0.1);
+  margin-top: 2px;
 }
 
 /* ── Replay button ────────────────────────────────────────────────

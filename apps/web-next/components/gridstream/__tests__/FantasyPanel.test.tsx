@@ -47,7 +47,7 @@ describe('FantasyPanel scoring views', () => {
         fantasyAway={fantasyAway}
         fantasyHome={[]}
         playerSeasonStats={{}}
-      />,
+      />
     );
 
     expect(screen.getByText('10.4')).toBeInTheDocument();
@@ -59,4 +59,3 @@ describe('FantasyPanel scoring views', () => {
     expect(screen.getByText('7.1')).toBeInTheDocument();
   });
 });
-

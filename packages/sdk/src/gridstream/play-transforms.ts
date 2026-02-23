@@ -20,11 +20,7 @@ import type {
   ApiPlayDetail,
   ApiPlayerGameStats,
 } from './api-transforms';
-import type {
-  PlayAnimationData,
-  MissionLogEntry,
-  PositionGroup,
-} from './types';
+import type { PlayAnimationData, MissionLogEntry, PositionGroup } from './types';
 
 // ─── Primitive coercion helpers ──────────────────────────────────────────────
 
@@ -59,10 +55,7 @@ const DEFAULT_CLOCK = '15:00';
  * Normalize a game-clock string to M:SS format.
  * Returns `fallback` for missing, malformed, or zero-length values.
  */
-export function normalizeClock(
-  clock: string | null | undefined,
-  fallback = DEFAULT_CLOCK,
-): string {
+export function normalizeClock(clock: string | null | undefined, fallback = DEFAULT_CLOCK): string {
   const value = (clock ?? '').trim();
   if (!value) return fallback;
   const match = value.match(/^(\d{1,2}):(\d{2})$/);
@@ -116,7 +109,10 @@ export function abbreviatedNameKey(value: string | null | undefined): string {
   if (core.length === 0) return normalizeNameKey(cleaned);
   const first = core[0] ?? '';
   const last = core[core.length - 1] ?? '';
-  const firstInitial = first.replace(/[^A-Za-z]/g, '').slice(0, 1).toLowerCase();
+  const firstInitial = first
+    .replace(/[^A-Za-z]/g, '')
+    .slice(0, 1)
+    .toLowerCase();
   const lastName = last.replace(/[^A-Za-z]/g, '').toLowerCase();
   return `${firstInitial}${lastName}`;
 }
@@ -133,10 +129,12 @@ export function compactPlayText(play: ApiPlayDetail): string {
  * Stat credit belongs only to the primary play action.
  */
 export function primaryActionText(text: string): string {
-  return text
-    .split(/PENALTY on/i)[0]
-    ?.split(/TWO-POINT CONVERSION ATTEMPT/i)[0]
-    ?.trim() ?? text;
+  return (
+    text
+      .split(/PENALTY on/i)[0]
+      ?.split(/TWO-POINT CONVERSION ATTEMPT/i)[0]
+      ?.trim() ?? text
+  );
 }
 
 /** Split play text into individual sentences at ". " boundaries. */
@@ -221,35 +219,43 @@ export function resolveAnimType(play: ApiPlayDetail): PlayAnimationData['type'] 
     text.includes('end of half') ||
     text.includes('end of game') ||
     text.includes('two-minute warning')
-  ) return null;
+  )
+    return null;
   if (isTimeoutPlay(play) && !/two-point conversion attempt/i.test(text)) return null;
   if (isTurnoverPlay(play)) return 'turnover';
   if (type === 'field_goal' || type === 'extra_point') return 'fieldgoal';
   if (type === 'punt' || type === 'kickoff') return 'kick';
   if (type === 'pass') return 'pass';
-  if (
-    type === 'run' ||
-    type === 'rush' ||
-    type === 'qb_kneel' ||
-    type === 'qb_scramble'
-  ) return 'rush';
+  if (type === 'run' || type === 'rush' || type === 'qb_kneel' || type === 'qb_scramble')
+    return 'rush';
   if (type === 'no_play') {
     if (play.sack || /\bsacked\b/i.test(text)) return 'pass';
     if (/\bpass|incomplete\b/i.test(text)) return 'pass';
     if (
-      /\bscramble|rush|up the|left tackle|right tackle|left guard|right guard|left end|right end\b/i.test(text)
-    ) return 'rush';
-    if (play.penalty && safeInt(play.down, 0) > 0) {
+      /\bscramble|rush|up the|left tackle|right tackle|left guard|right guard|left end|right end\b/i.test(
+        text
+      )
+    )
+      return 'rush';
+    // Check for kick types BEFORE the generic penalty fallback so a nullified
+    // FG (e.g. "J.Slye 51 yard field goal is GOOD, NULLIFIED by Penalty — No Play")
+    // keeps its 'fieldgoal' animation instead of being mis-typed as 'rush'.
+    if (text.includes('field goal') || text.includes('extra point')) return 'fieldgoal';
+    if (/\b(?:punts?|kicks? off)\b/i.test(text)) return 'kick';
+    // Some feeds publish pre-snap penalties as `no_play` with down=0.
+    // Keep these animatable so enforcement overlays can render.
+    if (play.penalty || /penalty on/i.test(text)) {
       if (safeInt(play.yards_gained, 0) > 0) return 'rush';
       return 'pass';
     }
   }
   if (/\b(pass|sacked)\b/i.test(text)) return 'pass';
-  if (
-    /\b(up the|left tackle|right tackle|left end|right end|rush|kneel|scramble)\b/i.test(text)
-  ) return 'rush';
+  if (/\b(up the|left tackle|right tackle|left end|right end|rush|kneel|scramble)\b/i.test(text))
+    return 'rush';
   if (text.includes('field goal') || text.includes('extra point')) return 'fieldgoal';
   if (/\b(?:punts?|kicks?)\b/i.test(text)) return 'kick';
+  // Safety plays from ESPN-sourced games often have an empty play_type with "safety" in the description.
+  if (/\bsafety\b/i.test(text) && !/(extra point|safety kick)/i.test(text)) return 'rush';
   if (!type || type === 'no_play') return null;
   return 'pass';
 }
@@ -284,7 +290,7 @@ export function resolveFieldGoalResult(play: ApiPlayDetail): PlayAnimationData['
 export function resolveDirectionFromText(source: string): 'left' | 'middle' | 'right' {
   const text = source.toLowerCase();
   const passPhrase = text.match(
-    /\b(?:pass(?:es|ed)?|incomplete)(?:\s+\w+){0,3}\s+(left|right|middle)\b/i,
+    /\b(?:pass(?:es|ed)?|incomplete)(?:\s+\w+){0,3}\s+(left|right|middle)\b/i
   );
   if (passPhrase?.[1]) return passPhrase[1].toLowerCase() as 'left' | 'middle' | 'right';
   if (/\bleft\s+(?:guard|tackle|end)\b/i.test(text)) return 'left';
@@ -353,7 +359,7 @@ export function parseDisplaySpot(
   sideToken: string | null | undefined,
   yardToken: string | number | null | undefined,
   awayAbbr: string,
-  homeAbbr: string,
+  homeAbbr: string
 ): ParsedDisplaySpot | null {
   const side = normalizeAbbr(sideToken);
   if (side !== awayAbbr && side !== homeAbbr) return null;
@@ -381,7 +387,7 @@ export function displaySpotToFieldPct(spot: ParsedDisplaySpot, awayAbbr: string)
 export function fieldPctToDisplaySpot(
   pct: number,
   awayAbbr: string,
-  homeAbbr: string,
+  homeAbbr: string
 ): ParsedDisplaySpot {
   const clamped = Math.max(0, Math.min(100, Math.round(pct)));
   if (clamped <= 50) return { side: awayAbbr, yardLine: clamped };
@@ -400,7 +406,7 @@ export function yardline100ToDisplay(
   yardline100: number | null | undefined,
   possessionTeam: string | null | undefined,
   awayAbbr: string,
-  homeAbbr: string,
+  homeAbbr: string
 ): { side: string; yardLine: number } {
   if (yardline100 == null || !Number.isFinite(yardline100)) {
     return { side: '', yardLine: 0 };
@@ -423,7 +429,7 @@ export function normalizeDriveStart(
   startYardline: number | null | undefined,
   teamAbbr: string,
   awayAbbr: string,
-  homeAbbr: string,
+  homeAbbr: string
 ): { side: string; yardLine: number } {
   const y = safeInt(startYardline, 0);
   if (y > 50) return yardline100ToDisplay(y, teamAbbr, awayAbbr, homeAbbr);
@@ -449,7 +455,7 @@ export function parseClockSeconds(clock: string | null | undefined): number {
  */
 export function gameElapsedSeconds(
   quarter: number | null | undefined,
-  clock: string | null | undefined,
+  clock: string | null | undefined
 ): number {
   const q = Math.max(1, safeInt(quarter, 1));
   const remaining = Math.max(0, Math.min(900, parseClockSeconds(clock)));
@@ -476,7 +482,7 @@ export function formatElapsedSeconds(seconds: number): string {
  */
 export function driveElapsedAtPlay(
   driveStartPlay: ApiPlayDetail | undefined,
-  play: ApiPlayDetail,
+  play: ApiPlayDetail
 ): string {
   if (!driveStartPlay) return '';
   const start = gameElapsedSeconds(driveStartPlay.quarter, driveStartPlay.clock);
@@ -492,7 +498,7 @@ export function driveElapsedAtPlay(
  */
 export function extractPrimaryBallCarrier(
   text: string,
-  playType: 'pass' | 'rush' | 'turnover' | 'kick' | 'fieldgoal' | '' = '',
+  playType: 'pass' | 'rush' | 'turnover' | 'kick' | 'fieldgoal' | '' = ''
 ): string | null {
   const sentences = actionSentences(text);
   let chosen = normalizeActionSentence(text);
@@ -500,13 +506,10 @@ export function extractPrimaryBallCarrier(
   if (sentences.length > 0) {
     const passPattern = /\b(pass|sacked|scramble|intercepted)\b/i;
     const rushPattern = /\b(up the|left|right|guard|tackle|end|rush|scramble|kneel)\b/i;
-    const pattern =
-      playType === 'pass' ? passPattern : playType === 'rush' ? rushPattern : null;
+    const pattern = playType === 'pass' ? passPattern : playType === 'rush' ? rushPattern : null;
     if (pattern) {
       const sentenceMatch = sentences.find((sentence) => pattern.test(sentence));
-      chosen = normalizeActionSentence(
-        sentenceMatch ?? sentences[sentences.length - 1] ?? text,
-      );
+      chosen = normalizeActionSentence(sentenceMatch ?? sentences[sentences.length - 1] ?? text);
     } else {
       chosen = normalizeActionSentence(sentences[sentences.length - 1] ?? text);
     }
@@ -514,9 +517,7 @@ export function extractPrimaryBallCarrier(
 
   if (!chosen) return null;
   const cleaned = chosen.replace(/^[^A-Z]*?(?=[A-Z]\.)/, '');
-  const match = cleaned.match(
-    /^([A-Z]\.[A-Za-z][A-Za-z.'-]*(?:\s(?:Jr\.|Sr\.|II|III))?)/,
-  );
+  const match = cleaned.match(/^([A-Z]\.[A-Za-z][A-Za-z.'-]*(?:\s(?:Jr\.|Sr\.|II|III))?)/);
   return match?.[1] ?? null;
 }
 
@@ -524,9 +525,7 @@ export function extractPrimaryBallCarrier(
  * Extract the receiver name from "pass … to T.Hill" in play text.
  */
 export function extractNameAfterTo(text: string): string | null {
-  const match = text.match(
-    /\bto\s+([A-Z]\.[A-Za-z][A-Za-z.'-]*(?:\s(?:Jr\.|Sr\.|II|III))?)/,
-  );
+  const match = text.match(/\bto\s+([A-Z]\.[A-Za-z][A-Za-z.'-]*(?:\s(?:Jr\.|Sr\.|II|III))?)/);
   return match?.[1] ?? null;
 }
 
@@ -552,11 +551,11 @@ export function extractKickerName(text: string): string | null {
  */
 export function extractTurnoverReturner(text: string): string | null {
   const pick = text.match(
-    /intercepted by\s+([A-Z]\.[A-Za-z][A-Za-z.'-]*(?:\s(?:Jr\.|Sr\.|II|III))?)/i,
+    /intercepted by\s+([A-Z]\.[A-Za-z][A-Za-z.'-]*(?:\s(?:Jr\.|Sr\.|II|III))?)/i
   );
   if (pick?.[1]) return pick[1];
   const recover = text.match(
-    /recovered by\s+(?:[A-Z]{2,3}\s+)?([A-Z]\.[A-Za-z][A-Za-z.'-]*(?:\s(?:Jr\.|Sr\.|II|III))?)/i,
+    /recovered by\s+(?:[A-Z]{2,3}\s+)?([A-Z]\.[A-Za-z][A-Za-z.'-]*(?:\s(?:Jr\.|Sr\.|II|III))?)/i
   );
   return recover?.[1] ?? null;
 }
@@ -609,13 +608,13 @@ export function parseFieldGoalDistance(play: ApiPlayDetail, text: string): numbe
 export function parseKickDetails(
   play: ApiPlayDetail,
   awayAbbr: string,
-  homeAbbr: string,
+  homeAbbr: string
 ): ParsedKickDetails {
   const text = compactPlayText(play);
   const parsed: ParsedKickDetails = {};
 
   const fromTo = text.match(
-    /from\s+([A-Z]{2,3})\s+(\d{1,2})\s+to\s+(?:the\s+)?(end zone|[A-Z]{2,3})\b\s*(\d{1,2})?/i,
+    /from\s+([A-Z]{2,3})\s+(\d{1,2})\s+to\s+(?:the\s+)?(end zone|[A-Z]{2,3})\b\s*(\d{1,2})?/i
   );
   if (fromTo) {
     parsed.start = parseDisplaySpot(fromTo[1], fromTo[2], awayAbbr, homeAbbr) ?? undefined;
@@ -631,7 +630,9 @@ export function parseKickDetails(
   }
 
   if (!parsed.landing) {
-    const kickTo = text.match(/\b(?:punts?|kicks?)\s+(\d+)\s+yards\s+to\s+([A-Z]{2,3})\s+(\d{1,2})/i);
+    const kickTo = text.match(
+      /\b(?:punts?|kicks?)\s+(\d+)\s+yards\s+to\s+([A-Z]{2,3})\s+(\d{1,2})/i
+    );
     if (kickTo) {
       const ky = Number.parseInt(kickTo[1] ?? '', 10);
       if (!Number.isNaN(ky) && ky > 0) parsed.kickYards = ky;
@@ -641,14 +642,15 @@ export function parseKickDetails(
 
   const touchback = text.match(/touchback\s+to\s+(?:the\s+)?([A-Z]{2,3})\s+(\d{1,2})/i);
   if (touchback) {
-    parsed.returnSpot = parseDisplaySpot(touchback[1], touchback[2], awayAbbr, homeAbbr) ?? undefined;
+    parsed.returnSpot =
+      parseDisplaySpot(touchback[1], touchback[2], awayAbbr, homeAbbr) ?? undefined;
     if (!parsed.landing && parsed.returnSpot) {
       parsed.landing = { side: parsed.returnSpot.side, yardLine: 0 };
     }
   }
 
   const returnMatch = text.match(
-    /\.\s*([A-Z]\.[A-Za-z][A-Za-z.'-]*(?:\s(?:Jr\.|Sr\.|II|III))?)\s+to\s+([A-Z]{2,3})\s+(\d{1,2})(?:\s+for\s+(-?\d+)\s+yards|\s+for\s+no\s+gain)?/i,
+    /\.\s*([A-Z]\.[A-Za-z][A-Za-z.'-]*(?:\s(?:Jr\.|Sr\.|II|III))?)\s+to\s+([A-Z]{2,3})\s+(\d{1,2})(?:\s+for\s+(-?\d+)\s+yards|\s+for\s+no\s+gain)?/i
   );
   if (returnMatch) {
     parsed.returner = returnMatch[1] ?? undefined;
@@ -664,14 +666,15 @@ export function parseKickDetails(
 
   const ranOb =
     text.match(
-      /([A-Z]\.[A-Za-z][A-Za-z.'-]*(?:\s(?:Jr\.|Sr\.|II|III))?)\s+ran\s+ob\s+at\s+([A-Z]{2,3})\s+(\d{1,2})(?:\s+for\s+(-?\d+)\s+yards|\s+for\s+no\s+gain)?/i,
+      /([A-Z]\.[A-Za-z][A-Za-z.'-]*(?:\s(?:Jr\.|Sr\.|II|III))?)\s+(?:ran|pushed)\s+ob\s+at\s+([A-Z]{2,3})\s+(\d{1,2})(?:\s+for\s+(-?\d+)\s+yards|\s+for\s+no\s+gain)?/i
     ) ??
     text.match(
-      /([A-Z]\.[A-Za-z][A-Za-z.'-]*(?:\s(?:Jr\.|Sr\.|II|III))?)\s+ran\s+out\s+of\s+bounds\s+at\s+([A-Z]{2,3})\s+(\d{1,2})(?:\s+for\s+(-?\d+)\s+yards|\s+for\s+no\s+gain)?/i,
+      /([A-Z]\.[A-Za-z][A-Za-z.'-]*(?:\s(?:Jr\.|Sr\.|II|III))?)\s+(?:ran|pushed)\s+out\s+of\s+bounds\s+at\s+([A-Z]{2,3})\s+(\d{1,2})(?:\s+for\s+(-?\d+)\s+yards|\s+for\s+no\s+gain)?/i
     );
   if (ranOb) {
     parsed.returner = parsed.returner ?? ranOb[1] ?? undefined;
-    parsed.returnSpot = parseDisplaySpot(ranOb[2], ranOb[3], awayAbbr, homeAbbr) ?? parsed.returnSpot;
+    parsed.returnSpot =
+      parseDisplaySpot(ranOb[2], ranOb[3], awayAbbr, homeAbbr) ?? parsed.returnSpot;
     if (ranOb[4] != null) {
       const y = Number.parseInt(ranOb[4], 10);
       if (!Number.isNaN(y)) parsed.returnYards = y;
@@ -689,7 +692,7 @@ export function parseTurnoverDetails(
   play: ApiPlayDetail,
   awayAbbr: string,
   homeAbbr: string,
-  returnTeam: string,
+  returnTeam: string
 ): ParsedTurnoverDetails {
   const text = compactPlayText(play);
   const parsed: ParsedTurnoverDetails = {};
@@ -718,16 +721,14 @@ export function parseTurnoverDetails(
 
   parsed.returner = extractTurnoverReturner(text) ?? undefined;
 
-  const returnYards = text.match(
-    /(?:intercepted by|recovered by).+?\sfor\s+(-?\d+)\s+yards/i,
-  );
+  const returnYards = text.match(/(?:intercepted by|recovered by).+?\sfor\s+(-?\d+)\s+yards/i);
   if (returnYards?.[1]) {
     const y = Number.parseInt(returnYards[1], 10);
     if (!Number.isNaN(y)) parsed.returnYards = y;
   }
 
   const explicitReturnSpot = text.match(
-    /(?:for|to)\s+([A-Z]{2,3})\s+(\d{1,2})(?:\s+for\s+(-?\d+)\s+yards)?/i,
+    /(?:for|to)\s+([A-Z]{2,3})\s+(\d{1,2})(?:\s+for\s+(-?\d+)\s+yards)?/i
   );
   if (explicitReturnSpot) {
     parsed.returnSpot =
@@ -744,7 +745,9 @@ export function parseTurnoverDetails(
     const takePct = displaySpotToFieldPct(parsed.takeawaySpot, awayAbbr);
     const isDefensiveTd = /\btouchdown\b/i.test(text);
     const projectedPct = isDefensiveTd
-      ? (returnerIsAway ? 100 : 0)
+      ? returnerIsAway
+        ? 100
+        : 0
       : takePct + (returnerIsAway ? parsed.returnYards : -parsed.returnYards);
     parsed.returnSpot = fieldPctToDisplaySpot(projectedPct, awayAbbr, homeAbbr);
   }
@@ -757,15 +760,13 @@ export function parseTurnoverDetails(
 export function parsePenaltyDetails(
   play: ApiPlayDetail,
   awayAbbr: string,
-  homeAbbr: string,
+  homeAbbr: string
 ): ParsedPenaltyDetails | null {
   const text = compactPlayText(play);
   const explicit = text.match(
-    /PENALTY on\s+([A-Z]{2,3})-([^,]+),\s*([^,]+),\s*(\d+)\s+yards?(?:,\s*enforced at\s+([A-Z]{2,3})\s+(\d{1,2}))?/i,
+    /PENALTY on\s+([A-Z]{2,3})-([^,]+),\s*([^,]+),\s*(\d+)\s+yards?(?:,\s*enforced at\s+([A-Z]{2,3})\s+(\d{1,2}))?/i
   );
-  const generic = text.match(
-    /PENALTY on\s+([A-Z]{2,3})[^,]*,\s*([^,]+),\s*(\d+)\s+yards?/i,
-  );
+  const generic = text.match(/PENALTY on\s+([A-Z]{2,3})[^,]*,\s*([^,]+),\s*(\d+)\s+yards?/i);
   if (!explicit && !generic && !play.penalty && !/penalty on/i.test(text)) return null;
 
   if (explicit) {
@@ -774,10 +775,8 @@ export function parsePenaltyDetails(
       player: explicit[2]?.trim(),
       kind: explicit[3]?.trim(),
       yards: Number.parseInt(explicit[4] ?? '0', 10) || 0,
-      enforcedSpot:
-        parseDisplaySpot(explicit[5], explicit[6], awayAbbr, homeAbbr) ?? undefined,
-      isNoPlay:
-        /no play/i.test(text) || (play.play_type ?? '').toLowerCase() === 'no_play',
+      enforcedSpot: parseDisplaySpot(explicit[5], explicit[6], awayAbbr, homeAbbr) ?? undefined,
+      isNoPlay: /no play/i.test(text) || (play.play_type ?? '').toLowerCase() === 'no_play',
     };
   }
 
@@ -801,7 +800,7 @@ export function parsePenaltyDetails(
 export function parseTimeoutUsage(
   play: ApiPlayDetail,
   awayAbbr: string,
-  homeAbbr: string,
+  homeAbbr: string
 ): { team: string; ordinal: number | null } | null {
   const text = compactPlayText(play);
   if (!/timeout/i.test(text) || /official timeout/i.test(text)) return null;
@@ -835,7 +834,7 @@ export function parseTimeoutUsage(
 export function resolveActionYards(
   play: ApiPlayDetail,
   type: PlayAnimationData['type'],
-  text: string,
+  text: string
 ): number {
   const actionText = primaryActionText(text);
   if (type === 'kick') {
@@ -865,7 +864,7 @@ export function resolvePossessionAfter(
   play: ApiPlayDetail,
   nextSnapPlay: ApiPlayDetail | undefined,
   awayAbbr: string,
-  homeAbbr: string,
+  homeAbbr: string
 ): string {
   const nextPoss = normalizeAbbr(nextSnapPlay?.possession_team_abbr);
   if (nextPoss) return nextPoss;
@@ -889,7 +888,7 @@ export function resolvePossessionAfter(
  */
 export function resolveYardlineAfter(
   play: ApiPlayDetail,
-  nextSnapPlay: ApiPlayDetail | undefined,
+  nextSnapPlay: ApiPlayDetail | undefined
 ): number {
   const text = compactPlayText(play).toLowerCase();
   if (
@@ -918,15 +917,12 @@ export function toMissionLogEntry(play: ApiPlayDetail): MissionLogEntry {
     ? 'turnover'
     : play.is_scoring_play
       ? 'score'
-      : !play.play_type ||
-          play.play_type === 'end_of_half' ||
-          play.play_type === 'no_play'
+      : !play.play_type || play.play_type === 'end_of_half' || play.play_type === 'no_play'
         ? 'info'
         : 'play';
 
   const down =
-    play.down_distance_text ||
-    formatDownDistance(safeInt(play.down), safeInt(play.distance));
+    play.down_distance_text || formatDownDistance(safeInt(play.down), safeInt(play.distance));
 
   return {
     id: `play-${play.id}-${play.sequence}`,
@@ -944,12 +940,30 @@ export function toMissionLogEntry(play: ApiPlayDetail): MissionLogEntry {
 
 export function emptyRunningTotals(): RunningPlayerTotals {
   return {
-    passAtt: 0, passComp: 0, passYds: 0, passTd: 0, passInt: 0,
-    rushAtt: 0, rushYds: 0, rushTd: 0,
-    rec: 0, recYds: 0, recTd: 0,
-    fgAtt: 0, fgMade: 0,
-    fgMade0to39: 0, fgMade40to49: 0, fgMade50to59: 0, fgMade60plus: 0,
-    fgMissed: 0, xpAtt: 0, xpMade: 0, fumblesLost: 0, sacks: 0,
+    passAtt: 0,
+    passComp: 0,
+    passYds: 0,
+    passTd: 0,
+    passInt: 0,
+    rushAtt: 0,
+    rushYds: 0,
+    rushTd: 0,
+    rec: 0,
+    recYds: 0,
+    recTd: 0,
+    fgAtt: 0,
+    fgMade: 0,
+    fgMade0to39: 0,
+    fgMade40to49: 0,
+    fgMade50to59: 0,
+    fgMade60plus: 0,
+    fgMissed: 0,
+    punts: 0,
+    puntYds: 0,
+    xpAtt: 0,
+    xpMade: 0,
+    fumblesLost: 0,
+    sacks: 0,
   };
 }
 
@@ -965,12 +979,11 @@ export function updateRunningPlayerTotals(
   totalsByKey: Map<string, RunningPlayerTotals>,
   teamAbbr?: string,
   metaByFullKey?: Map<string, RunningPlayerMeta>,
-  position?: PositionGroup,
+  position?: PositionGroup
 ): void {
   const fullKey = normalizeNameKey(playerName);
   const shortKey = abbreviatedNameKey(playerName);
-  const current =
-    totalsByKey.get(fullKey) ?? totalsByKey.get(shortKey) ?? emptyRunningTotals();
+  const current = totalsByKey.get(fullKey) ?? totalsByKey.get(shortKey) ?? emptyRunningTotals();
   update(current);
   if (fullKey) totalsByKey.set(fullKey, current);
   if (shortKey) totalsByKey.set(shortKey, current);
@@ -986,7 +999,7 @@ export function updateRunningPlayerTotals(
 
 export function runningTotalsForPlayer(
   playerName: string,
-  totalsByKey: Map<string, RunningPlayerTotals>,
+  totalsByKey: Map<string, RunningPlayerTotals>
 ): RunningPlayerTotals | null {
   const fullKey = normalizeNameKey(playerName);
   const shortKey = abbreviatedNameKey(playerName);
@@ -997,7 +1010,7 @@ export function runningTotalsForPlayer(
  * Shallow-clone a totals map so each frame gets an independent snapshot.
  */
 export function cloneRunningTotalsMap(
-  source: Map<string, RunningPlayerTotals>,
+  source: Map<string, RunningPlayerTotals>
 ): Map<string, RunningPlayerTotals> {
   const cloned = new Map<string, RunningPlayerTotals>();
   for (const [key, value] of source.entries()) {
@@ -1014,7 +1027,7 @@ export function cloneRunningTotalsMap(
  * Keys: full normalized name, abbreviated name, and "ln:<last>" when unique.
  */
 export function buildPlayerGameStatsLookup(
-  playerStatsByTeam: Record<string, ApiPlayerGameStats[]> | undefined,
+  playerStatsByTeam: Record<string, ApiPlayerGameStats[]> | undefined
 ): Map<string, ApiPlayerGameStats> {
   const lookup = new Map<string, ApiPlayerGameStats>();
   const byLastName = new Map<string, ApiPlayerGameStats[]>();
@@ -1040,7 +1053,7 @@ export function buildPlayerGameStatsLookup(
 
 export function playerStatsRowForPlayer(
   playerName: string,
-  statsLookup: Map<string, ApiPlayerGameStats>,
+  statsLookup: Map<string, ApiPlayerGameStats>
 ): ApiPlayerGameStats | null {
   const fullKey = normalizeNameKey(playerName);
   const shortKey = abbreviatedNameKey(playerName);
@@ -1057,13 +1070,19 @@ export function playerStatsRowForPlayer(
 
 export function formatActorStatLines(totals: RunningPlayerTotals): string[] {
   const lines: string[] = [];
-  if (totals.rec > 0) lines.push(`${totals.rec} ${totals.rec === 1 ? 'Catch' : 'Catches'} - ${totals.recYds} Yards`);
-  if (totals.rushAtt > 0) lines.push(`${totals.rushAtt} ${totals.rushAtt === 1 ? 'Rush' : 'Rushes'} - ${totals.rushYds} Yards`);
-  if (totals.passAtt > 0) lines.push(`${totals.passComp}/${totals.passAtt} Passing - ${totals.passYds} Yards`);
+  if (totals.rec > 0)
+    lines.push(`${totals.rec} ${totals.rec === 1 ? 'Catch' : 'Catches'} - ${totals.recYds} Yards`);
+  if (totals.rushAtt > 0)
+    lines.push(
+      `${totals.rushAtt} ${totals.rushAtt === 1 ? 'Rush' : 'Rushes'} - ${totals.rushYds} Yards`
+    );
+  if (totals.passAtt > 0)
+    lines.push(`${totals.passComp}/${totals.passAtt} Passing - ${totals.passYds} Yards`);
   const extras: string[] = [];
   const totalTds = totals.passTd + totals.rushTd + totals.recTd;
   if (totalTds > 0) extras.push(`${totalTds} ${totalTds === 1 ? 'TD' : 'TDs'}`);
-  if (totals.fumblesLost > 0) extras.push(`${totals.fumblesLost} ${totals.fumblesLost === 1 ? 'Fumble' : 'Fumbles'}`);
+  if (totals.fumblesLost > 0)
+    extras.push(`${totals.fumblesLost} ${totals.fumblesLost === 1 ? 'Fumble' : 'Fumbles'}`);
   if (totals.passInt > 0) extras.push(`${totals.passInt} ${totals.passInt === 1 ? 'INT' : 'INTs'}`);
   if (extras.length > 0) lines.push(extras.join(' - '));
   return lines;
@@ -1075,6 +1094,15 @@ export function formatActorStatLinesFromRow(row: ApiPlayerGameStats): string[] {
 
 export function formatKickerStatLines(totals: RunningPlayerTotals): string[] {
   const parts: string[] = [];
+  if (totals.punts > 0) {
+    if (totals.punts > 1) {
+      const avg = totals.puntYds / totals.punts;
+      const avgText = Number.isInteger(avg) ? `${avg}` : avg.toFixed(1);
+      parts.push(`${totals.punts} Punts - ${avgText} Yards Avg`);
+    } else {
+      parts.push('1 Punt');
+    }
+  }
   if (totals.xpAtt > 0) parts.push(`${totals.xpMade}/${totals.xpAtt} XP`);
   if (totals.fgAtt > 0) {
     const fgParts = [`${totals.fgMade}/${totals.fgAtt} FG`];
@@ -1090,7 +1118,8 @@ export function formatKickerStatLinesFromRow(row: ApiPlayerGameStats): string[] 
 
 export function formatQuarterbackStatLines(totals: RunningPlayerTotals): string[] {
   const lines: string[] = [];
-  if (totals.passAtt > 0) lines.push(`${totals.passComp}/${totals.passAtt} Passing - ${totals.passYds} Yards`);
+  if (totals.passAtt > 0)
+    lines.push(`${totals.passComp}/${totals.passAtt} Passing - ${totals.passYds} Yards`);
   if (totals.rushAtt > 0) lines.push(`${totals.rushAtt} Rush - ${totals.rushYds} Yards`);
   const scoring: string[] = [];
   if (totals.passTd > 0) scoring.push(`${totals.passTd} Pass TD`);
@@ -1155,10 +1184,11 @@ export function totalsFromPlayerRow(player: ApiPlayerGameStats): RunningPlayerTo
     fgMade50to59: 0,
     fgMade60plus: 0,
     fgMissed: Math.max(0, fgAtt - fgMade),
+    punts: 0,
+    puntYds: 0,
     xpAtt: safeInt(player.pat_attempts),
     xpMade: safeInt(player.pat_made),
-    fumblesLost:
-      safeInt(player.rushing_fumbles_lost) + safeInt(player.receiving_fumbles_lost),
+    fumblesLost: safeInt(player.rushing_fumbles_lost) + safeInt(player.receiving_fumbles_lost),
     sacks: safeInt(player.sacks_made),
   };
 }
@@ -1193,7 +1223,8 @@ export function fantasyPointsByScoringFromTotals(totals: RunningPlayerTotals): {
 
 export function fantasyBreakdownFromTotals(totals: RunningPlayerTotals): string {
   const parts: string[] = [];
-  if (totals.passAtt > 0) parts.push(`${totals.passComp}/${totals.passAtt} pass · ${totals.passYds} yds`);
+  if (totals.passAtt > 0)
+    parts.push(`${totals.passComp}/${totals.passAtt} pass · ${totals.passYds} yds`);
   if (totals.rushAtt > 0) parts.push(`${totals.rushAtt} car · ${totals.rushYds} yds`);
   if (totals.rec > 0) parts.push(`${totals.rec} rec · ${totals.recYds} yds`);
   const tdParts: string[] = [];
@@ -1228,7 +1259,7 @@ export function fantasyBreakdownFromTotals(totals: RunningPlayerTotals): string 
 export function updateRunningTotalsFromPlay(
   play: ApiPlayDetail,
   totalsByKey: Map<string, RunningPlayerTotals>,
-  metaByFullKey: Map<string, RunningPlayerMeta>,
+  metaByFullKey: Map<string, RunningPlayerMeta>
 ): void {
   const type = resolveAnimType(play);
   if (!type) return;
@@ -1309,7 +1340,7 @@ export function updateRunningTotalsFromPlay(
         totalsByKey,
         offenseTeam,
         metaByFullKey,
-        'QB',
+        'QB'
       );
     }
 
@@ -1333,7 +1364,7 @@ export function updateRunningTotalsFromPlay(
           },
           totalsByKey,
           offenseTeam,
-          metaByFullKey,
+          metaByFullKey
         );
       }
     }
@@ -1352,15 +1383,39 @@ export function updateRunningTotalsFromPlay(
         },
         totalsByKey,
         offenseTeam,
-        metaByFullKey,
+        metaByFullKey
       );
     }
   }
 
-  const hasExtraPointTry =
-    rawPlayType === 'extra_point' || /\bextra point\b/i.test(text);
-  const hasFieldGoalTry =
-    rawPlayType === 'field_goal' || /\bfield goal\b/i.test(text);
+  const hasExtraPointTry = rawPlayType === 'extra_point' || /\bextra point\b/i.test(text);
+  const hasFieldGoalTry = rawPlayType === 'field_goal' || /\bfield goal\b/i.test(text);
+  const hasPuntPlay = rawPlayType === 'punt' || /\bpunts?\b/i.test(text);
+  if (hasPuntPlay) {
+    const kickSentence =
+      actionSentences(actionText).find((sentence) => /\bpunts?\b/i.test(sentence)) ?? actionText;
+    const punterName = extractPrimaryBallCarrier(kickSentence);
+    const puntDistanceMatch = kickSentence.match(/\bpunts?\s+(\d+)\s+yards?\b/i);
+    const puntDistance =
+      puntDistanceMatch?.[1] != null
+        ? Number.parseInt(puntDistanceMatch[1], 10)
+        : play.kick_distance != null
+          ? safeInt(play.kick_distance, 0)
+          : 0;
+    if (punterName && Number.isFinite(puntDistance)) {
+      updateRunningPlayerTotals(
+        punterName,
+        (totals) => {
+          totals.punts += 1;
+          totals.puntYds += Math.max(0, puntDistance);
+        },
+        totalsByKey,
+        offenseTeam,
+        metaByFullKey,
+        'K'
+      );
+    }
+  }
   if (hasExtraPointTry || hasFieldGoalTry) {
     const kicker = extractKickerName(text);
     if (kicker) {
@@ -1404,7 +1459,7 @@ export function updateRunningTotalsFromPlay(
         totalsByKey,
         offenseTeam,
         metaByFullKey,
-        'K',
+        'K'
       );
     }
   }
@@ -1420,6 +1475,7 @@ function formatYardPlaySummary(yards: number, noun: string): string {
 
 type ActorInfo = {
   name: string;
+  gsisId?: string;
   line?: string;
   summary?: string;
   lines?: string[];
@@ -1447,16 +1503,17 @@ export function toPlayAnimation(
   playerStatsLookup: Map<string, ApiPlayerGameStats>,
   runningTotalsLookup: Map<string, RunningPlayerTotals>,
   runningTotalsBeforeLookup: Map<string, RunningPlayerTotals>,
+  headshotsByName?: Map<string, string>
 ): PlayAnimationData | null {
   const type = resolveAnimType(play);
   if (!type) return null;
 
+  const rawPlayType = (play.play_type ?? '').toLowerCase();
   const text = compactPlayText(play);
   const actionText = primaryActionText(text);
   const inferredTouchdown =
     (/\b(?:touchdown|td)\b/i.test(actionText) ||
-      (play.is_scoring_play &&
-        (type === 'pass' || type === 'rush' || type === 'turnover'))) &&
+      (play.is_scoring_play && (type === 'pass' || type === 'rush' || type === 'turnover'))) &&
     !/\btouchdown\s+nullified\b/i.test(actionText) &&
     !/\bno play\b/i.test(actionText);
 
@@ -1468,7 +1525,7 @@ export function toPlayAnimation(
     resolveYardlineAfter(play, nextSnapPlay),
     possAfter,
     awayAbbr,
-    homeAbbr,
+    homeAbbr
   );
   let yards = resolveActionYards(play, type, text);
 
@@ -1476,6 +1533,7 @@ export function toPlayAnimation(
   let actorSummary: string | undefined;
   let qbName: string | null = null;
   let qbSummary: string | undefined;
+  let kickerActor: ActorInfo | null = null;
   let kickLanding: ParsedDisplaySpot | undefined;
   let turnoverSpot: ParsedDisplaySpot | undefined;
   const penalty = parsePenaltyDetails(play, awayAbbr, homeAbbr);
@@ -1505,13 +1563,12 @@ export function toPlayAnimation(
     name: string,
     summary?: string,
     forceQuarterback = false,
-    forceKicker = false,
+    forceKicker = false
   ): ActorInfo | null => {
     const statsRow = playerStatsRowForPlayer(name, playerStatsLookup);
     const afterTotals = runningTotalsForPlayer(name, runningTotalsLookup);
     const beforeTotals = runningTotalsForPlayer(name, runningTotalsBeforeLookup);
-    const isQuarterback =
-      forceQuarterback || normalizeAbbr(statsRow?.player_position) === 'QB';
+    const isQuarterback = forceQuarterback || normalizeAbbr(statsRow?.player_position) === 'QB';
     const isKicker =
       forceKicker ||
       normalizeAbbr(statsRow?.player_position) === 'K' ||
@@ -1549,11 +1606,15 @@ export function toPlayAnimation(
 
     return {
       name,
+      gsisId: statsRow?.player_gsis_id?.trim() || undefined,
       line: afterLines?.[0],
       summary,
       lines: afterLines,
       previousLines: linesEqual(beforeLines, afterLines) ? undefined : beforeLines,
-      headshotUrl: statsRow?.player_headshot ?? undefined,
+      headshotUrl:
+        statsRow?.player_headshot?.trim() ||
+        lookupHeadshotByName(name, headshotsByName) ||
+        undefined,
     };
   };
 
@@ -1563,7 +1624,9 @@ export function toPlayAnimation(
     const fromPct = yardToFieldPct(from.yardLine, startSide, awayAbbr);
     const offenseDir = possBefore === awayAbbr ? 1 : -1;
     const projectedPct = inferredTouchdown
-      ? offenseDir === 1 ? 100 : 0
+      ? offenseDir === 1
+        ? 100
+        : 0
       : fromPct + offenseDir * yards;
     to = fieldPctToDisplaySpot(projectedPct, awayAbbr, homeAbbr);
   }
@@ -1580,7 +1643,8 @@ export function toPlayAnimation(
     qbName = extractPrimaryBallCarrier(actionText, 'pass') ?? null;
     if (qbName) {
       if (passLooksLikeSack) qbSummary = formatYardPlaySummary(yards, 'Sack');
-      else if (passComplete) qbSummary = formatYardPlaySummary(yards, passIsTouchdown ? 'TD Pass' : 'Pass');
+      else if (passComplete)
+        qbSummary = formatYardPlaySummary(yards, passIsTouchdown ? 'TD Pass' : 'Pass');
       else qbSummary = 'Incomplete Pass';
     }
 
@@ -1594,13 +1658,35 @@ export function toPlayAnimation(
 
   if (type === 'rush') {
     actorName = extractPrimaryBallCarrier(actionText, 'rush') ?? null;
-    if (actorName) actorSummary = formatYardPlaySummary(yards, 'Rush');
+    const isKneelDown =
+      rawPlayType === 'qb_kneel' || /\bkneels?\b|\bkneel\s+down\b/i.test(actionText);
+    if (actorName) actorSummary = isKneelDown ? 'Kneel Down' : formatYardPlaySummary(yards, 'Rush');
   }
 
   if (type === 'kick') {
     const kick = parseKickDetails(play, awayAbbr, homeAbbr);
+    const kickSentence =
+      actionSentences(actionText).find((sentence) => /\b(?:kicks?|punts?)\b/i.test(sentence)) ??
+      actionText;
+    const kickerName = extractPrimaryBallCarrier(kickSentence) ?? null;
+    if (kickerName) {
+      const kickDistance =
+        play.kick_distance != null ? safeInt(play.kick_distance) : (kick.kickYards ?? null);
+      const kickSummary =
+        /\bpunts?\b/i.test(kickSentence) && kickDistance != null && kickDistance > 0
+          ? formatYardPlaySummary(kickDistance, 'Punt')
+          : /\bpunts?\b/i.test(kickSentence)
+            ? 'Punt'
+            : 'Kick';
+      kickerActor = buildActorInfo(kickerName, kickSummary, false, true);
+    }
     if (kick.start) {
       from = kick.start;
+    } else if (rawPlayType === 'kickoff') {
+      // For kickoffs in ESPN data, possBefore = the RECEIVING team (not the kicker).
+      // The kicker is always on the other team, kicking from their own 35-yard line.
+      const kickingTeam = possBefore === awayAbbr ? homeAbbr : awayAbbr;
+      from = { side: kickingTeam, yardLine: 35 };
     } else if (kick.landing) {
       // Derive kick start from landing spot + kick distance.
       // This is more reliable than play.yard_line which some data sources
@@ -1609,9 +1695,7 @@ export function toPlayAnimation(
       // Use the explicit kick_distance field if present, otherwise fall back to
       // the yards extracted from the play text (ESPN games omit kick_distance).
       const kickDist =
-        play.kick_distance != null
-          ? safeInt(play.kick_distance)
-          : (kick.kickYards ?? null);
+        play.kick_distance != null ? safeInt(play.kick_distance) : (kick.kickYards ?? null);
       if (kickDist != null && kickDist > 0) {
         const offenseDir = possBefore === awayAbbr ? 1 : -1;
         const landingPct = displaySpotToFieldPct(kick.landing, awayAbbr);
@@ -1628,8 +1712,8 @@ export function toPlayAnimation(
         retYards = Math.abs(
           Math.round(
             displaySpotToFieldPct(kick.returnSpot, awayAbbr) -
-              displaySpotToFieldPct(kick.landing, awayAbbr),
-          ),
+              displaySpotToFieldPct(kick.landing, awayAbbr)
+          )
         );
       }
       yards = retYards ?? 0;
@@ -1638,8 +1722,8 @@ export function toPlayAnimation(
       yards = Math.abs(
         Math.round(
           displaySpotToFieldPct(kick.returnSpot, awayAbbr) -
-            displaySpotToFieldPct(kick.landing, awayAbbr),
-        ),
+            displaySpotToFieldPct(kick.landing, awayAbbr)
+        )
       );
     } else {
       actorName = null;
@@ -1651,8 +1735,7 @@ export function toPlayAnimation(
     if (kicker) {
       actorName = kicker;
       const isExtraPoint =
-        (play.play_type ?? '').toLowerCase() === 'extra_point' ||
-        /\bextra point\b/i.test(text);
+        (play.play_type ?? '').toLowerCase() === 'extra_point' || /\bextra point\b/i.test(text);
       const result = resolveFieldGoalResult(play);
       const isGood = result === 'made';
       if (isExtraPoint) {
@@ -1680,25 +1763,40 @@ export function toPlayAnimation(
       actorSummary = formatYardPlaySummary(turnover.returnYards ?? yards, 'Return');
     }
     // Keep QB context on passing turnovers for the nearby QB stat popup.
-    if (
-      /\bpass|sacked\b/i.test(actionText) ||
-      (play.play_type ?? '').toLowerCase() === 'pass'
-    ) {
+    if (/\bpass|sacked\b/i.test(actionText) || (play.play_type ?? '').toLowerCase() === 'pass') {
       qbName = extractPrimaryBallCarrier(actionText, 'pass') ?? null;
       if (qbName) qbSummary = /intercept/i.test(text) ? 'Interception' : 'Turnover';
     }
   }
 
   if (penalty && (penalty.yards ?? 0) > 0) {
-    const endSide = to.side || possAfter;
-    const endPct = yardToFieldPct(to.yardLine, endSide, awayAbbr);
     const offenseDir = possBefore === awayAbbr ? 1 : -1;
     const isOffensePenalty = penalty.team === possBefore;
     const adjustmentDir = isOffensePenalty ? -offenseDir : offenseDir;
+    // Determine the enforcement base spot:
+    //   • Explicit "enforced at" spot in the play text → use that.
+    //   • No-play penalty (play is nullified, e.g. offensive holding) → enforce
+    //     from the line of scrimmage (previous spot). Ball returns to snap spot ± yards.
+    //   • Play stands / tack-on (e.g. defensive personal foul after a completed run)
+    //     → enforce from the end of the play.
+    let basePct: number;
+    if (penalty.enforcedSpot) {
+      basePct = yardToFieldPct(
+        penalty.enforcedSpot.yardLine,
+        penalty.enforcedSpot.side ?? possBefore,
+        awayAbbr
+      );
+    } else if (penalty.isNoPlay) {
+      const fromSide = from.side || possBefore;
+      basePct = yardToFieldPct(from.yardLine, fromSide, awayAbbr);
+    } else {
+      const endSide = to.side || possAfter;
+      basePct = yardToFieldPct(to.yardLine, endSide, awayAbbr);
+    }
     penaltyAdjusted = fieldPctToDisplaySpot(
-      endPct + adjustmentDir * safeInt(penalty.yards, 0),
+      basePct + adjustmentDir * safeInt(penalty.yards, 0),
       awayAbbr,
-      homeAbbr,
+      homeAbbr
     );
   }
 
@@ -1707,14 +1805,12 @@ export function toPlayAnimation(
   const hasExtraPointTry = /extra point/i.test(text);
   if (hasTwoPointTry || hasExtraPointTry) {
     const offenseDir = possBefore === awayAbbr ? 1 : -1;
-    const tryKind: 'two_point' | 'extra_point' = hasTwoPointTry
-      ? 'two_point'
-      : 'extra_point';
+    const tryKind: 'two_point' | 'extra_point' = hasTwoPointTry ? 'two_point' : 'extra_point';
     const defaultTrySpot = tryKind === 'two_point' ? 2 : 15;
     let tryFrom = fieldPctToDisplaySpot(
       offenseDir === 1 ? 100 - defaultTrySpot : defaultTrySpot,
       awayAbbr,
-      homeAbbr,
+      homeAbbr
     );
     if (penalty?.enforcedSpot) tryFrom = penalty.enforcedSpot;
     const tryTo = fieldPctToDisplaySpot(offenseDir === 1 ? 100 : 0, awayAbbr, homeAbbr);
@@ -1739,18 +1835,17 @@ export function toPlayAnimation(
       };
     } else {
       let attemptText = (text.split(/two-point conversion attempt\.?/i)[1] ?? '').trim();
-      attemptText =
-        attemptText.split(/\*\*|injury update|penalty on/i)[0]?.trim() ?? '';
+      attemptText = attemptText.split(/\*\*|injury update|penalty on/i)[0]?.trim() ?? '';
       const attempt = attemptText || text;
 
       const isPassTry = /\bpass\b/i.test(attempt);
-      const isRushTry =
-        /\b(up the|left|right|rush|scramble)\b/i.test(attempt) && !isPassTry;
+      const isRushTry = /\b(up the|left|right|rush|scramble)\b/i.test(attempt) && !isPassTry;
       const tryPlayType: 'pass' | 'rush' = isPassTry ? 'pass' : isRushTry ? 'rush' : 'pass';
       const tryDirection = resolveDirectionFromText(attempt);
-      const tryIsGood = !/(incomplete|attempt fails|fails|failed|no good|intercepted|stopped|short of)/i.test(
-        attempt,
-      );
+      const tryIsGood =
+        !/(incomplete|attempt fails|fails|failed|no good|intercepted|stopped|short of)/i.test(
+          attempt
+        );
       const tryQbName =
         extractPrimaryBallCarrier(attempt, tryPlayType === 'pass' ? 'pass' : 'rush') ??
         extractPrimaryBallCarrier(actionText, 'pass') ??
@@ -1761,12 +1856,20 @@ export function toPlayAnimation(
           : extractPrimaryBallCarrier(attempt, 'rush');
       const tryQbSummary =
         tryPlayType === 'pass'
-          ? tryIsGood ? '2PT Pass' : '2PT Attempt'
-          : tryIsGood ? '2PT Rush' : '2PT Attempt';
+          ? tryIsGood
+            ? '2PT Pass'
+            : '2PT Attempt'
+          : tryIsGood
+            ? '2PT Rush'
+            : '2PT Attempt';
       const tryActorSummary =
         tryPlayType === 'pass'
-          ? tryIsGood ? '2PT Catch' : 'Targeted'
-          : tryIsGood ? '2PT Rush' : '2PT Rush';
+          ? tryIsGood
+            ? '2PT Catch'
+            : 'Targeted'
+          : tryIsGood
+            ? '2PT Rush'
+            : '2PT Rush';
 
       postScoreTry = {
         kind: tryKind,
@@ -1783,10 +1886,12 @@ export function toPlayAnimation(
 
   const actorInfo = actorName ? buildActorInfo(actorName, actorSummary, false) : null;
   const qbInfo = qbName ? buildActorInfo(qbName, qbSummary, true) : null;
+  const kickerInfo = type === 'kick' ? kickerActor : null;
 
   return {
     type,
     offenseTeam: possBefore,
+    startDown: safeInt(play.down, 0) || undefined,
     startDistance: safeInt(play.distance, 0),
     direction: resolveDirection(play),
     fromYardline: from.yardLine,
@@ -1803,19 +1908,20 @@ export function toPlayAnimation(
           (Boolean(play.complete_pass) || yards > 0 || inferredTouchdown),
     isFirstDown: Boolean(play.first_down || play.end_down === 1),
     isTurnover: isTurnoverPlay(play),
-    turnoverBy: isTurnoverPlay(play)
-      ? getOpponent(possBefore, awayAbbr, homeAbbr)
-      : undefined,
+    turnoverBy: isTurnoverPlay(play) ? getOpponent(possBefore, awayAbbr, homeAbbr) : undefined,
     turnoverSpotYardline: turnoverSpot?.yardLine,
     turnoverSpotSide: turnoverSpot?.side,
     receiver: null,
     actor: actorInfo ? { ...actorInfo } : null,
-    qbActor: qbInfo ? { ...qbInfo } : null,
+    qbActor: kickerInfo ? { ...kickerInfo } : qbInfo ? { ...qbInfo } : null,
     kickLandingYardline: kickLanding?.yardLine,
     kickLandingSide: kickLanding?.side,
     fgResult: resolveFieldGoalResult(play),
     fgDistance: play.kick_distance == null ? undefined : safeInt(play.kick_distance),
     isTouchdown: inferredTouchdown || Boolean(play.touchdown),
+    isSafety:
+      /\bsafety\b/i.test(play.description) &&
+      !/(extra point|point after|safety kick)/i.test(play.description),
     penaltyTeam: penalty?.team,
     penaltyType: penalty?.kind,
     penaltyPlayer: penalty?.player,
@@ -1824,8 +1930,7 @@ export function toPlayAnimation(
     penaltyEnforcedSide: penalty?.enforcedSpot?.side,
     penaltyAdjustedYardline: penaltyAdjusted?.yardLine,
     penaltyAdjustedSide: penaltyAdjusted?.side,
-    isNoPlay:
-      penalty?.isNoPlay || (play.play_type ?? '').toLowerCase() === 'no_play',
+    isNoPlay: penalty?.isNoPlay || (play.play_type ?? '').toLowerCase() === 'no_play',
     postScoreTryMiss:
       /(two-point conversion attempt|extra point)/i.test(text) &&
       /(attempt fails|is incomplete|fails|no good|missed|blocked)/i.test(text),
@@ -1841,6 +1946,16 @@ export function toPlayAnimation(
     postScoreTryQbActor: postScoreTry?.qbActor ?? null,
     description: play.description || play.short_description,
   };
+}
+
+function lookupHeadshotByName(
+  playerName: string | null | undefined,
+  headshotsByName?: Map<string, string>
+): string | null {
+  if (!playerName || !headshotsByName || headshotsByName.size === 0) return null;
+  const fullKey = normalizeNameKey(playerName);
+  const shortKey = abbreviatedNameKey(playerName);
+  return headshotsByName.get(fullKey) ?? headshotsByName.get(shortKey) ?? null;
 }
 
 // ─── Leader display helpers ───────────────────────────────────────────────────

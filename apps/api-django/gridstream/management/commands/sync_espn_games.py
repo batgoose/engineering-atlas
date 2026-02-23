@@ -7,14 +7,24 @@ examples:
     # sync current week
     python manage.py sync_espn_games
 
-    # sync specific week
-    python manage.py sync_espn_games --season 2025 --week 1 --season-type 2
+    # sync specific week (historical seasons supported)
+    python manage.py sync_espn_games --season 2023 --week 1 --season-type 2
+
+    # sync postseason
+    python manage.py sync_espn_games --season 2023 --week 5 --season-type 3
 
     # sync with full summary (drives, plays, boxscore)
-    python manage.py sync_espn_games --full
+    python manage.py sync_espn_games --season 2023 --week 1 --full
 
     # dry run
     python manage.py sync_espn_games --dry-run
+
+note on historical seasons:
+    ESPN's scoreboard API ignores year= and week= params for historical seasons
+    and always returns the current week.  When --season and --week are both
+    given, we look up the exact date range from the ESPN calendar API and use
+    the dates=YYYYMMDD-YYYYMMDD param instead, which works reliably for any
+    season back to at least 2000.
 """
 
 import json
@@ -48,6 +58,12 @@ ESPN_SUMMARY_URL = (
     "https://site.web.api.espn.com/apis/site/v2/sports/football/nfl/summary"
     "?event={event_id}"
 )
+# Calendar API: returns startDate/endDate for a specific week so we can build
+# a dates=YYYYMMDD-YYYYMMDD param that works for historical seasons.
+ESPN_CALENDAR_URL = (
+    "https://sports.core.api.espn.com/v2/sports/football/leagues/nfl"
+    "/seasons/{year}/types/{season_type}/weeks/{week}"
+)
 
 SEASON_TYPE_MAP = {1: "PRE", 2: "REG", 3: "POST"}
 
@@ -80,13 +96,33 @@ class Command(BaseCommand):
         dry_run = options["dry_run"]
         full = options["full"]
 
-        # build scoreboard url
-        params = {}
-        if options["season"]:
+        # Build scoreboard params.
+        # ESPN ignores year= and week= for historical seasons (pre-2024 approximately).
+        # When both --season and --week are given we fetch the exact date range from
+        # the ESPN calendar API and pass dates=YYYYMMDD-YYYYMMDD instead.
+        params: dict = {}
+        if options["season"] and options["week"]:
+            dates_str = self._fetch_week_dates(
+                options["season"], options["season_type"], options["week"]
+            )
+            if dates_str:
+                params["dates"] = dates_str
+                self.stdout.write(
+                    f"Using dates={dates_str} for season {options['season']} "
+                    f"week {options['week']} (type {options['season_type']})"
+                )
+            else:
+                # Calendar lookup failed; fall back to year/week (works for recent seasons)
+                logger.warning(
+                    "Calendar lookup failed, falling back to year/week params"
+                )
+                params["year"] = options["season"]
+                params["week"] = options["week"]
+                params["seasontype"] = options["season_type"]
+        elif options["season"]:
             params["year"] = options["season"]
-        if options["week"]:
-            params["week"] = options["week"]
-        if options["season_type"]:
+            params["seasontype"] = options["season_type"]
+        elif options["season_type"]:
             params["seasontype"] = options["season_type"]
 
         self.stdout.write(f"Fetching ESPN scoreboard... {params or '(current week)'}")
@@ -98,11 +134,25 @@ class Command(BaseCommand):
         except requests.RequestException as e:
             raise CommandError(f"ESPN fetch failed: {e}")
 
-        season_year = data.get("season", {}).get("year")
-        season_type_int = data.get("season", {}).get("type", 2)
+        # When using dates= the response omits season/week metadata; fall back
+        # to the requested values so Season.get_or_create works correctly.
+        season_year = data.get("season", {}).get("year") or options.get("season")
+        season_type_int = data.get("season", {}).get("type") or options.get(
+            "season_type", 2
+        )
         season_type = SEASON_TYPE_MAP.get(season_type_int, "REG")
-        week_number = data.get("week", {}).get("number")
+        week_number = data.get("week", {}).get("number") or options.get("week")
         events = data.get("events", [])
+
+        # Validate that ESPN returned the season we requested.
+        # Without a valid dates= param, ESPN ignores year/week for historical
+        # seasons and silently returns the current week instead.
+        if options["season"] and season_year and season_year != options["season"]:
+            self.stdout.write(
+                f"  [skip] ESPN returned {season_year} wk {week_number}"
+                f" (wanted {options['season']} wk {options.get('week', '?')})"
+            )
+            return
 
         self.stdout.write(
             f"Season {season_year}, Week {week_number}, "
@@ -460,6 +510,40 @@ class Command(BaseCommand):
                 "end_yard_line": end.get("yardsToEndzone"),
             },
         )
+
+    def _fetch_week_dates(
+        self, year: int, season_type: int, week: int
+    ) -> Optional[str]:
+        """Return 'YYYYMMDD-YYYYMMDD' date range for a week from the ESPN calendar API.
+
+        ESPN's calendar API gives us the exact startDate/endDate for any week in any
+        season, which we use to build the dates= param for the scoreboard endpoint.
+        Returns None if the lookup fails (caller should fall back to year/week params).
+        """
+        url = ESPN_CALENDAR_URL.format(year=year, season_type=season_type, week=week)
+        try:
+            resp = requests.get(url, timeout=10)
+            resp.raise_for_status()
+            cal = resp.json()
+        except requests.RequestException as e:
+            logger.warning(f"ESPN calendar lookup failed ({url}): {e}")
+            return None
+
+        start_raw = cal.get("startDate", "")
+        end_raw = cal.get("endDate", "")
+        if not start_raw or not end_raw:
+            logger.warning(f"ESPN calendar response missing dates: {cal.keys()}")
+            return None
+
+        try:
+            start_dt = datetime.fromisoformat(start_raw.replace("Z", "+00:00"))
+            end_dt = datetime.fromisoformat(end_raw.replace("Z", "+00:00"))
+            return f"{start_dt.strftime('%Y%m%d')}-{end_dt.strftime('%Y%m%d')}"
+        except (ValueError, TypeError) as e:
+            logger.warning(
+                f"Could not parse calendar dates ({start_raw}, {end_raw}): {e}"
+            )
+            return None
 
     def _resolve_team(self, team_data: dict) -> Optional[Team]:
         """look up a team by espn id or abbreviation"""

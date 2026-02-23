@@ -14,6 +14,7 @@
  * - Sequence behavior reference: docs/gridstream-live-runtime.md
  */
 
+import type { CSSProperties } from 'react';
 import type { PlayAnimationData } from '@atlas/sdk/gridstream/types';
 import { yardToFieldPct } from '@atlas/sdk/gridstream/transforms';
 import { gridstreamColors as C, gridstreamFonts as F } from '@atlas/sdk/gridstream/theme';
@@ -24,6 +25,12 @@ import {
   FIELD_BOTTOM,
   FIELD_LEFT,
   FIELD_RIGHT,
+  AWAY_EZ_LEFT,
+  AWAY_EZ_RIGHT,
+  HOME_EZ_LEFT,
+  HOME_EZ_RIGHT,
+  FG_UPRIGHT_Y_HALF,
+  FG_PORTAL_CENTER_Y,
   getFgEndpoints,
 } from '@atlas/sdk/gridstream/field';
 import { ANIM_TIMING } from '@atlas/sdk/gridstream/animations';
@@ -31,10 +38,507 @@ import { ANIM_TIMING } from '@atlas/sdk/gridstream/animations';
 interface PlayAnimationProps {
   play: PlayAnimationData;
   awayAbbr: string;
+  homeAbbr?: string;
+  teamColorsByAbbr?: Record<string, TeamMarkerPalette>;
+  hideHeadshots?: boolean;
+  hidePenaltyCallout?: boolean;
+  /** When true, suppress the FG arc trail + ball (overlay SVG renders it in screen space). */
+  hideFgTrail?: boolean;
+}
+
+interface TeamMarkerPalette {
+  color?: string;
+  altColor?: string;
 }
 
 function clampX(value: number): number {
   return Math.max(50, Math.min(950, value));
+}
+
+const FIELD_HEADSHOT_SCALE = 4;
+const FIELD_HEADSHOT_FIELD_OFFSET_Y = 0;
+const FIELD_HEADSHOT_PASS_DEPTH_OFFSET_Y = -48;
+const FIELD_HEADSHOT_ACTION_DEPTH_OFFSET_Y = -40;
+const FIELD_HEADSHOT_PASS_SIZE_MULTIPLIER = 2;
+const FIELD_HEADSHOT_PASS_LATERAL_OFFSET_X = 56;
+const SHORT_RUSH_DEPTH_DISTANCE_PX = 110;
+const SHORT_RUSH_MAX_EXTRA_DEPTH_Y = 0;
+const FIELD_TILT_RAD = (32 * Math.PI) / 180;
+const FIELD_PERSPECTIVE_PX = 800;
+const FIELD_PERSPECTIVE_ORIGIN_X = 500;
+const FIELD_PERSPECTIVE_ORIGIN_Y = 420;
+
+function markerHash(value: string): string {
+  let hash = 0;
+  for (let i = 0; i < value.length; i += 1) {
+    hash = (hash * 33 + value.charCodeAt(i)) >>> 0;
+  }
+  return hash.toString(36);
+}
+
+function normalizeHeadshotUrl(url: string | undefined): string | undefined {
+  const trimmed = url?.trim();
+  return trimmed ? trimmed : undefined;
+}
+
+function stripPlayHeadshots(play: PlayAnimationData): PlayAnimationData {
+  return {
+    ...play,
+    actor: play.actor ? { ...play.actor, headshotUrl: undefined } : play.actor,
+    qbActor: play.qbActor ? { ...play.qbActor, headshotUrl: undefined } : play.qbActor,
+    postScoreTryActor: play.postScoreTryActor
+      ? { ...play.postScoreTryActor, headshotUrl: undefined }
+      : play.postScoreTryActor,
+    postScoreTryQbActor: play.postScoreTryQbActor
+      ? { ...play.postScoreTryQbActor, headshotUrl: undefined }
+      : play.postScoreTryQbActor,
+  };
+}
+
+function parsePathPoint(path: string, mode: 'start' | 'end'): { x: number; y: number } | null {
+  const coordPattern = /(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)/g;
+  let match: RegExpExecArray | null = null;
+  let first: RegExpExecArray | null = null;
+  let last: RegExpExecArray | null = null;
+  while ((match = coordPattern.exec(path)) !== null) {
+    if (!first) first = match;
+    last = match;
+  }
+  const target = mode === 'start' ? first : last;
+  if (!target?.[1] || !target[2]) return null;
+  const x = Number.parseFloat(target[1]);
+  const y = Number.parseFloat(target[2]);
+  if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
+  return { x, y };
+}
+
+function projectFieldPointToScreen(x: number, y: number): { x: number; y: number } {
+  const relX = x - FIELD_PERSPECTIVE_ORIGIN_X;
+  const relY = y - FIELD_PERSPECTIVE_ORIGIN_Y;
+  const sinTilt = Math.sin(FIELD_TILT_RAD);
+  const cosTilt = Math.cos(FIELD_TILT_RAD);
+  const z = relY * sinTilt;
+  const scale = FIELD_PERSPECTIVE_PX / (FIELD_PERSPECTIVE_PX - z);
+  return {
+    x: FIELD_PERSPECTIVE_ORIGIN_X + relX * scale,
+    y: FIELD_PERSPECTIVE_ORIGIN_Y + relY * cosTilt * scale,
+  };
+}
+
+function buildHeadshotScreenCompensation(x: number, y: number): string {
+  const sampleRadius = 24;
+  const left = projectFieldPointToScreen(x - sampleRadius, y);
+  const right = projectFieldPointToScreen(x + sampleRadius, y);
+  const top = projectFieldPointToScreen(x, y - sampleRadius);
+  const bottom = projectFieldPointToScreen(x, y + sampleRadius);
+  const projectedXRadius = Math.abs(right.x - left.x) / 2;
+  const projectedYRadius = Math.abs(bottom.y - top.y) / 2;
+  if (
+    !Number.isFinite(projectedXRadius) ||
+    !Number.isFinite(projectedYRadius) ||
+    projectedYRadius < 0.001
+  ) {
+    return 'matrix(1 0 0 1 0 0)';
+  }
+
+  const scaleY = Math.max(0.8, Math.min(1.5, projectedXRadius / projectedYRadius));
+  return `matrix(1 0 0 ${scaleY} 0 0)`;
+}
+
+function samePlayerName(left?: string | null, right?: string | null): boolean {
+  if (!left || !right) return false;
+  const leftKey = left.toLowerCase().replace(/[^a-z0-9]/g, '');
+  const rightKey = right.toLowerCase().replace(/[^a-z0-9]/g, '');
+  if (!leftKey || !rightKey) return false;
+  return leftKey === rightKey;
+}
+
+function normalizeHexColor(hexColor?: string): string | null {
+  if (!hexColor) return null;
+  const hex = hexColor.replace('#', '').trim();
+  if (!/^[0-9a-fA-F]{6}$/.test(hex)) return null;
+  return `#${hex}`;
+}
+
+function relativeLuminance(hexColor: string): number {
+  const hex = hexColor.replace('#', '').trim();
+  if (hex.length !== 6) return 0;
+  const r = parseInt(hex.slice(0, 2), 16) / 255;
+  const g = parseInt(hex.slice(2, 4), 16) / 255;
+  const b = parseInt(hex.slice(4, 6), 16) / 255;
+  const toLinear = (c: number) => (c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4);
+  return 0.2126 * toLinear(r) + 0.7152 * toLinear(g) + 0.0722 * toLinear(b);
+}
+
+function getReadableTeamColor(palette?: TeamMarkerPalette): string | null {
+  if (!palette) return null;
+  const candidates = [normalizeHexColor(palette.color), normalizeHexColor(palette.altColor)].filter(
+    Boolean
+  ) as string[];
+  if (candidates.length === 0) return null;
+  const sorted = [...candidates].sort((a, b) => relativeLuminance(b) - relativeLuminance(a));
+  for (const color of sorted) {
+    if (relativeLuminance(color) >= 0.16) return color;
+  }
+  return sorted[0] ?? null;
+}
+
+function getTeamPalette(
+  teamAbbr: string | undefined,
+  teamColorsByAbbr?: Record<string, TeamMarkerPalette>
+): TeamMarkerPalette | undefined {
+  if (!teamAbbr || !teamColorsByAbbr) return undefined;
+  const key = teamAbbr.trim().toUpperCase();
+  return (
+    teamColorsByAbbr[key] ??
+    teamColorsByAbbr[teamAbbr] ??
+    Object.entries(teamColorsByAbbr).find(([abbr]) => abbr.toUpperCase() === key)?.[1]
+  );
+}
+
+function resolveTeamRingColor(
+  teamAbbr: string | undefined,
+  teamColorsByAbbr: Record<string, TeamMarkerPalette> | undefined,
+  fallback: string
+): string {
+  const palette = getTeamPalette(teamAbbr, teamColorsByAbbr);
+  return getReadableTeamColor(palette) ?? fallback;
+}
+
+function resolveDefenseTeam(
+  offenseTeam: string | undefined,
+  awayAbbr: string,
+  homeAbbr?: string,
+  teamColorsByAbbr?: Record<string, TeamMarkerPalette>
+): string | undefined {
+  const offense = offenseTeam?.trim().toUpperCase();
+  const away = awayAbbr.trim().toUpperCase();
+  const home = homeAbbr?.trim().toUpperCase();
+  if (!offense) return undefined;
+  if (home && offense === away) return home;
+  if (home && offense === home) return away;
+  const teamKeys = Object.keys(teamColorsByAbbr ?? {}).map((key) => key.toUpperCase());
+  if (teamKeys.length === 2 && teamKeys.includes(offense)) {
+    return teamKeys.find((key) => key !== offense);
+  }
+  return undefined;
+}
+
+function MovingHeadshotMarker({
+  markerId,
+  path,
+  duration,
+  begin,
+  headshotUrl,
+  fallbackRadius,
+  fallbackFill,
+  ringColor,
+  avatarRadius = 6.2,
+  opacity = 0.95,
+  style,
+  dataAnim,
+  hiddenUntilBegin = false,
+  hideFallbackUntilBegin = false,
+  standupDelay,
+  depthOffsetY = FIELD_HEADSHOT_FIELD_OFFSET_Y,
+  sizeMultiplier = 1,
+}: {
+  markerId: string;
+  path: string;
+  duration: string;
+  begin?: string;
+  headshotUrl?: string;
+  fallbackRadius: number;
+  fallbackFill: string;
+  ringColor?: string;
+  avatarRadius?: number;
+  opacity?: number;
+  style?: CSSProperties;
+  dataAnim?: string;
+  hiddenUntilBegin?: boolean;
+  hideFallbackUntilBegin?: boolean;
+  standupDelay?: string;
+  depthOffsetY?: number;
+  sizeMultiplier?: number;
+}) {
+  const resolvedHeadshot = normalizeHeadshotUrl(headshotUrl);
+  if (!resolvedHeadshot) {
+    const hideFallback = hideFallbackUntilBegin && hiddenUntilBegin && Boolean(begin);
+    return (
+      <circle
+        r={fallbackRadius}
+        fill={fallbackFill}
+        opacity={opacity}
+        style={style}
+        data-anim={dataAnim}
+        visibility={hideFallback ? 'hidden' : undefined}
+      >
+        {hideFallback && begin && (
+          <set attributeName="visibility" to="visible" begin={begin} fill="freeze" />
+        )}
+        <animateMotion
+          begin={begin}
+          dur={duration}
+          fill="freeze"
+          path={path}
+          keyPoints="0;1"
+          keyTimes="0;1"
+          calcMode="linear"
+        />
+      </circle>
+    );
+  }
+
+  const ring = ringColor ?? fallbackFill;
+  const scaledAvatarRadius = avatarRadius * FIELD_HEADSHOT_SCALE * sizeMultiplier;
+  const clipId = `marker-clip-${markerHash(`${markerId}:${path}:${duration}:${begin ?? '0'}`)}`;
+  const imageSize = scaledAvatarRadius * 2;
+  const ringStroke = Math.max(0.8, scaledAvatarRadius * 0.07);
+  const shadowRx = scaledAvatarRadius * 0.66;
+  const shadowRy = Math.max(2.5, scaledAvatarRadius * 0.2);
+  const shadowSoftRx = shadowRx * 1.2;
+  const shadowSoftRy = shadowRy * 1.5;
+  const shadowY = scaledAvatarRadius * 0.92;
+  const shadowSoftY = shadowY + shadowRy * 1.05;
+  const standDelay = standupDelay ?? begin ?? '0s';
+  const standStyle: CSSProperties = {
+    willChange: 'transform, opacity',
+    animation: `markerStandUp 0.3s ease-out ${standDelay} both`,
+  };
+  const pathEnd = parsePathPoint(path, 'end');
+  const uprightTransform =
+    pathEnd == null
+      ? 'matrix(1 0 0 1 0 0)'
+      : buildHeadshotScreenCompensation(pathEnd.x, pathEnd.y + depthOffsetY);
+
+  return (
+    <g
+      opacity={opacity}
+      style={style}
+      data-anim={dataAnim}
+      visibility={hiddenUntilBegin ? 'hidden' : undefined}
+    >
+      {hiddenUntilBegin && begin && (
+        <set attributeName="visibility" to="visible" begin={begin} fill="freeze" />
+      )}
+      <defs>
+        <clipPath id={clipId}>
+          <circle cx={0} cy={0} r={scaledAvatarRadius - 0.7} />
+        </clipPath>
+      </defs>
+      <g transform={`translate(0 ${depthOffsetY})`}>
+        <ellipse
+          cx={0}
+          cy={shadowSoftY}
+          rx={shadowSoftRx}
+          ry={shadowSoftRy}
+          fill="rgba(0,0,0,0.18)"
+        />
+        <ellipse cx={0} cy={shadowY} rx={shadowRx} ry={shadowRy} fill="rgba(0,0,0,0.36)" />
+        <g transform={uprightTransform}>
+          <g style={standStyle}>
+            {/* Glow bloom behind ring */}
+            <circle
+              r={scaledAvatarRadius + ringStroke * 0.5}
+              fill="none"
+              stroke={ring}
+              strokeOpacity={0.22}
+              strokeWidth={ringStroke * 4}
+            />
+            <circle
+              r={scaledAvatarRadius}
+              fill="rgba(5,12,24,.94)"
+              stroke={ring}
+              strokeOpacity={0.9}
+              strokeWidth={ringStroke}
+            />
+            <image
+              href={resolvedHeadshot}
+              x={-scaledAvatarRadius}
+              y={-scaledAvatarRadius}
+              width={imageSize}
+              height={imageSize}
+              preserveAspectRatio="xMidYMid slice"
+              clipPath={`url(#${clipId})`}
+            />
+          </g>
+        </g>
+      </g>
+      <animateMotion
+        begin={begin}
+        dur={duration}
+        fill="freeze"
+        path={path}
+        keyPoints="0;1"
+        keyTimes="0;1"
+        calcMode="linear"
+      />
+    </g>
+  );
+}
+
+function StaticHeadshotMarker({
+  markerId,
+  x,
+  y,
+  headshotUrl,
+  playerName,
+  fallbackRadius,
+  fallbackFill,
+  ringColor,
+  avatarRadius = 5.8,
+  opacity = 1,
+  style,
+  dataAnim,
+  standupDelay,
+  depthOffsetY = FIELD_HEADSHOT_FIELD_OFFSET_Y,
+  sizeMultiplier = 1,
+}: {
+  markerId: string;
+  x: number;
+  y: number;
+  headshotUrl?: string;
+  playerName?: string;
+  fallbackRadius: number;
+  fallbackFill: string;
+  ringColor?: string;
+  avatarRadius?: number;
+  opacity?: number;
+  style?: CSSProperties;
+  dataAnim?: string;
+  standupDelay?: string;
+  depthOffsetY?: number;
+  sizeMultiplier?: number;
+}) {
+  const resolvedHeadshot = normalizeHeadshotUrl(headshotUrl);
+  if (!resolvedHeadshot) {
+    if (playerName) {
+      // Initials avatar: render at field-surface level (no depth offset) to avoid
+      // CSS/SVG transform composition issues that cause ovals under perspective.
+      const initials = playerName
+        .trim()
+        .split(/\s+/)
+        .map((w) => w[0]?.toUpperCase() ?? '')
+        .filter(Boolean)
+        .slice(0, 2)
+        .join('');
+      const ring = ringColor ?? fallbackFill;
+      const scaledAvatarRadius = avatarRadius * FIELD_HEADSHOT_SCALE * sizeMultiplier;
+      const ringStroke = Math.max(0.8, scaledAvatarRadius * 0.07);
+      // Use field-surface y (no depthOffsetY) to keep compensation simple & stable
+      const uprightTransform = buildHeadshotScreenCompensation(x, y);
+      return (
+        <g transform={`translate(${x} ${y})`} opacity={opacity} style={style} data-anim={dataAnim}>
+          <g transform={uprightTransform}>
+            <circle
+              r={scaledAvatarRadius + ringStroke * 0.5}
+              fill="none"
+              stroke={ring}
+              strokeOpacity={0.22}
+              strokeWidth={ringStroke * 4}
+            />
+            <circle
+              r={scaledAvatarRadius}
+              fill="rgba(5,12,24,.94)"
+              stroke={ring}
+              strokeOpacity={0.9}
+              strokeWidth={ringStroke}
+            />
+            <text
+              textAnchor="middle"
+              dominantBaseline="central"
+              fill={ring}
+              fontSize={scaledAvatarRadius * 0.72}
+              fontFamily="'Barlow Condensed', sans-serif"
+              fontWeight={700}
+              letterSpacing=".04em"
+            >
+              {initials}
+            </text>
+          </g>
+        </g>
+      );
+    }
+    return (
+      <circle
+        cx={x}
+        cy={y}
+        r={fallbackRadius}
+        fill={fallbackFill}
+        opacity={opacity}
+        style={style}
+        data-anim={dataAnim}
+      />
+    );
+  }
+
+  const ring = ringColor ?? fallbackFill;
+  const scaledAvatarRadius = avatarRadius * FIELD_HEADSHOT_SCALE * sizeMultiplier;
+  const clipId = `marker-static-${markerHash(`${markerId}:${x.toFixed(1)}:${y.toFixed(1)}:${resolvedHeadshot}`)}`;
+  const imageSize = scaledAvatarRadius * 2;
+  const ringStroke = Math.max(0.8, scaledAvatarRadius * 0.07);
+  const shadowRx = scaledAvatarRadius * 0.66;
+  const shadowRy = Math.max(2.5, scaledAvatarRadius * 0.2);
+  const shadowSoftRx = shadowRx * 1.2;
+  const shadowSoftRy = shadowRy * 1.5;
+  const shadowY = scaledAvatarRadius * 0.92;
+  const shadowSoftY = shadowY + shadowRy * 1.05;
+  const standStyle: CSSProperties = {
+    willChange: 'transform, opacity',
+    animation: `markerStandUp 0.3s ease-out ${standupDelay ?? '0s'} both`,
+  };
+  const uprightTransform = buildHeadshotScreenCompensation(x, y + depthOffsetY);
+
+  return (
+    <g
+      transform={`translate(${x} ${y + depthOffsetY})`}
+      opacity={opacity}
+      style={style}
+      data-anim={dataAnim}
+    >
+      <defs>
+        <clipPath id={clipId}>
+          <circle cx={0} cy={0} r={scaledAvatarRadius - 0.7} />
+        </clipPath>
+      </defs>
+      <ellipse
+        cx={0}
+        cy={shadowSoftY}
+        rx={shadowSoftRx}
+        ry={shadowSoftRy}
+        fill="rgba(0,0,0,0.18)"
+      />
+      <ellipse cx={0} cy={shadowY} rx={shadowRx} ry={shadowRy} fill="rgba(0,0,0,0.36)" />
+      <g transform={uprightTransform}>
+        <g style={standStyle}>
+          {/* Glow bloom behind ring */}
+          <circle
+            r={scaledAvatarRadius + ringStroke * 0.5}
+            fill="none"
+            stroke={ring}
+            strokeOpacity={0.22}
+            strokeWidth={ringStroke * 4}
+          />
+          <circle
+            r={scaledAvatarRadius}
+            fill="rgba(5,12,24,.94)"
+            stroke={ring}
+            strokeOpacity={0.9}
+            strokeWidth={ringStroke}
+          />
+          <image
+            href={resolvedHeadshot}
+            x={-scaledAvatarRadius}
+            y={-scaledAvatarRadius}
+            width={imageSize}
+            height={imageSize}
+            preserveAspectRatio="xMidYMid slice"
+            clipPath={`url(#${clipId})`}
+          />
+        </g>
+      </g>
+    </g>
+  );
 }
 
 const YARDS_TO_PX = 7.36;
@@ -50,7 +554,20 @@ interface PostScoreTryOverlayData {
   actor?: PlayAnimationData['postScoreTryActor'];
 }
 
-export function PlayAnimation({ play, awayAbbr }: PlayAnimationProps) {
+export function PlayAnimation({
+  play: rawPlay,
+  awayAbbr,
+  homeAbbr,
+  teamColorsByAbbr,
+  hideHeadshots = false,
+  hidePenaltyCallout = false,
+  hideFgTrail = false,
+}: PlayAnimationProps) {
+  const play = hideHeadshots ? stripPlayHeadshots(rawPlay) : rawPlay;
+  const offenseTeam = play.offenseTeam?.trim().toUpperCase();
+  const defenseTeam = resolveDefenseTeam(offenseTeam, awayAbbr, homeAbbr, teamColorsByAbbr);
+  const offenseRingColor = resolveTeamRingColor(offenseTeam, teamColorsByAbbr, C.cyan);
+  const defenseRingColor = resolveTeamRingColor(defenseTeam, teamColorsByAbbr, C.red);
   const possIsAway = (play.offenseTeam ?? play.fromSide) === awayAbbr;
   const fromPct = yardToFieldPct(play.fromYardline, play.fromSide, awayAbbr);
   const toPct = yardToFieldPct(play.toYardline, play.toSide, awayAbbr);
@@ -93,6 +610,10 @@ export function PlayAnimation({ play, awayAbbr }: PlayAnimationProps) {
   const lateralSign = play.direction === 'left' ? -1 : play.direction === 'right' ? 1 : 0;
   const dirY = FIELD_CENTER_Y + lateralSign * (possIsAway ? 60 : -60);
 
+  if (play.isSafety) {
+    return <SafetyAnimation fromX={fromX} possIsAway={possIsAway} />;
+  }
+
   switch (play.type) {
     case 'pass':
       return (
@@ -104,6 +625,9 @@ export function PlayAnimation({ play, awayAbbr }: PlayAnimationProps) {
           play={play}
           possIsAway={possIsAway}
           postScoreTry={postScoreTry}
+          offenseRingColor={offenseRingColor}
+          hidePenaltyCallout={hidePenaltyCallout}
+          hideFgTrail={hideFgTrail}
         />
       );
     case 'rush':
@@ -116,20 +640,44 @@ export function PlayAnimation({ play, awayAbbr }: PlayAnimationProps) {
           play={play}
           possIsAway={possIsAway}
           postScoreTry={postScoreTry}
+          offenseRingColor={offenseRingColor}
+          hidePenaltyCallout={hidePenaltyCallout}
+          hideFgTrail={hideFgTrail}
         />
       );
     case 'turnover':
       return (
-        <TurnoverAnimation fromX={fromX} turnoverX={turnoverX} toX={toX} dirY={dirY} play={play} />
+        <TurnoverAnimation
+          fromX={fromX}
+          turnoverX={turnoverX}
+          toX={toX}
+          dirY={dirY}
+          play={play}
+          offenseRingColor={offenseRingColor}
+          defenseRingColor={defenseRingColor}
+        />
       );
     case 'kick':
-      return <KickAnimation fromX={fromX} toX={toX} play={play} awayAbbr={awayAbbr} />;
+      return (
+        <KickAnimation
+          fromX={fromX}
+          toX={toX}
+          play={play}
+          awayAbbr={awayAbbr}
+          offenseRingColor={offenseRingColor}
+          defenseRingColor={defenseRingColor}
+          hidePenaltyCallout={hidePenaltyCallout}
+        />
+      );
     case 'fieldgoal':
       return (
         <FieldGoalAnimation
           fromX={fromX}
           play={play}
           possIsAway={possIsAway}
+          offenseRingColor={offenseRingColor}
+          hidePenaltyCallout={hidePenaltyCallout}
+          hideFgTrail={hideFgTrail}
         />
       );
     default:
@@ -147,6 +695,9 @@ function PassAnimation({
   play,
   possIsAway,
   postScoreTry,
+  offenseRingColor,
+  hidePenaltyCallout,
+  hideFgTrail,
 }: {
   fromX: number;
   toX: number;
@@ -155,11 +706,15 @@ function PassAnimation({
   play: PlayAnimationData;
   possIsAway: boolean;
   postScoreTry: PostScoreTryOverlayData | null;
+  offenseRingColor: string;
+  hidePenaltyCallout: boolean;
+  hideFgTrail?: boolean;
 }) {
   const isComplete = play.isComplete;
   const text = play.description.toLowerCase();
   const isSack = !isComplete && (text.includes('sack') || play.yardsGained < 0);
   const missLabel = isSack ? 'SACK' : 'INC';
+  const passResultColor = isComplete && play.yardsGained >= 0 ? C.green : C.red;
   const trailColor = isComplete ? C.cyan : C.red;
   // Main pass timing. Follow-on overlays (penalty / post-score try) key off this.
   const duration = Math.max(ANIM_TIMING.pass * 1.03, 1.24);
@@ -197,15 +752,38 @@ function PassAnimation({
     ? `M ${fromX},${FIELD_CENTER_Y} L ${targetX},${targetY}`
     : `M ${fromX},${FIELD_CENTER_Y} Q ${(fromX + targetX) / 2},${arcPeakY} ${targetX},${targetY}`;
   const hasPenalty = (play.penaltyYards ?? 0) > 0;
-  const penaltyDelay = duration + 0.16;
+  const isPenaltyOnlyNoPlay =
+    play.isNoPlay &&
+    hasPenalty &&
+    !/\b(pass|incomplete|sacked|scramble|rush|up the|left|right|middle)\b/i.test(play.description);
+  const penaltyDelay = isPenaltyOnlyNoPlay ? 0.16 : duration + 0.7;
   const penaltyAdjustDir =
     play.penaltyTeam && play.offenseTeam && play.penaltyTeam === play.offenseTeam
       ? -offenseDir
       : offenseDir;
+  // No-play (offensive penalty, or DPI on incomplete): enforce from the LOS.
+  // Play stands / tack-on (defensive personal foul after a complete pass): from catch point.
+  const penaltyBaseX = play.isNoPlay ? fromX : targetX;
   const computedPenaltyAdjustedX = clampX(
-    targetX + penaltyAdjustDir * (play.penaltyYards ?? 0) * YARDS_TO_PX
+    penaltyBaseX + penaltyAdjustDir * (play.penaltyYards ?? 0) * YARDS_TO_PX
   );
   const penaltyEndX = penaltyAdjustedX ?? computedPenaltyAdjustedX;
+  if (isPenaltyOnlyNoPlay) {
+    return (
+      <g>
+        <PenaltyAdjustmentOverlay
+          fromX={penaltyBaseX}
+          toX={penaltyEndX}
+          y={FIELD_CENTER_Y}
+          delay={penaltyDelay + 0.05}
+        />
+        {!hidePenaltyCallout && (
+          <PenaltyCallout x={penaltyEndX} play={play} delay={penaltyDelay + 0.02} />
+        )}
+      </g>
+    );
+  }
+
   const postTryDelay = duration + 4.85;
   const hasPostTrySequence = Boolean(postScoreTry);
   // On TD + XP/2PT plays we intentionally clear primary pass visuals before rendering try.
@@ -214,16 +792,73 @@ function PassAnimation({
     : undefined;
   const primaryFadeOutDelay =
     hidePrimaryAt != null ? Math.max(hidePrimaryAt - 0.08, duration + 0.35) : undefined;
+  const passLateralSign = targetX >= fromX ? 1 : -1;
   const cardSide: 'left' | 'right' = targetX >= fromX ? 'right' : 'left';
   const qbCardSide: 'left' | 'right' = targetX >= fromX ? 'left' : 'right';
-  const renderReceiverCard = Boolean(isComplete && play.actor?.name);
-  const renderQbCard = Boolean(play.qbActor?.name);
-  const cardsCrowded = renderReceiverCard && renderQbCard && Math.abs(targetX - fromX) < 180;
-
+  const qbReleaseHeadshot = normalizeHeadshotUrl(play.qbActor?.headshotUrl);
+  const sackTravelHeadshot = isSack ? qbReleaseHeadshot : undefined;
+  const receiverEndHeadshot =
+    isComplete &&
+    !isSack &&
+    play.actor?.name &&
+    !samePlayerName(play.actor.name, play.qbActor?.name)
+      ? normalizeHeadshotUrl(play.actor?.headshotUrl)
+      : undefined;
+  const qbReleaseStyle =
+    hidePrimaryAt == null
+      ? { opacity: 0, animation: 'fadeIn 0.14s ease 0s forwards' }
+      : {
+          opacity: 0,
+          animation: `fadeIn 0.14s ease 0s forwards, fadeOut 0.2s ease ${Math.max(hidePrimaryAt - 0.08, 0.36)}s forwards`,
+        };
+  const receiverEndStyle =
+    primaryFadeOutDelay == null
+      ? { opacity: 0, animation: `fadeIn 0.22s ease ${duration + 0.04}s forwards` }
+      : {
+          opacity: 0,
+          animation: `fadeIn 0.22s ease ${duration + 0.04}s forwards, fadeOut 0.2s ease ${primaryFadeOutDelay}s forwards`,
+        };
+  const qbHeadshotX = clampX(fromX - passLateralSign * FIELD_HEADSHOT_PASS_LATERAL_OFFSET_X);
+  const receiverHeadshotX = clampX(
+    targetX + passLateralSign * FIELD_HEADSHOT_PASS_LATERAL_OFFSET_X
+  );
   return (
     <g>
-      {hasPostTrySequence && (
-        <PreTrySnapGuide x={fromX} hideAt={hidePrimaryAt} />
+      {hasPostTrySequence && <PreTrySnapGuide x={fromX} hideAt={hidePrimaryAt} />}
+      {play.isFirstDown && !hasPostTrySequence && <FirstDownMarker x={toX} />}
+      {!play.isFirstDown && !play.isTurnover && play.startDown === 4 && !hasPostTrySequence && (
+        <TurnoverOnDownsMarker x={toX} />
+      )}
+      {qbReleaseHeadshot && !isSack && (
+        <StaticHeadshotMarker
+          markerId="pass-qb-release"
+          x={qbHeadshotX}
+          y={FIELD_CENTER_Y}
+          headshotUrl={qbReleaseHeadshot}
+          fallbackRadius={3.4}
+          fallbackFill={C.amber}
+          ringColor={offenseRingColor}
+          style={qbReleaseStyle}
+          dataAnim="pass-qb-release-marker"
+          depthOffsetY={FIELD_HEADSHOT_PASS_DEPTH_OFFSET_Y}
+          sizeMultiplier={FIELD_HEADSHOT_PASS_SIZE_MULTIPLIER}
+        />
+      )}
+      {receiverEndHeadshot && (
+        <StaticHeadshotMarker
+          markerId="pass-end-receiver"
+          x={receiverHeadshotX}
+          y={targetY}
+          headshotUrl={receiverEndHeadshot}
+          fallbackRadius={4.6}
+          fallbackFill={C.cyan}
+          ringColor={offenseRingColor}
+          avatarRadius={6.4}
+          style={receiverEndStyle}
+          dataAnim="pass-end-headshot"
+          depthOffsetY={FIELD_HEADSHOT_PASS_DEPTH_OFFSET_Y}
+          sizeMultiplier={FIELD_HEADSHOT_PASS_SIZE_MULTIPLIER}
+        />
       )}
 
       {/* Main path */}
@@ -243,20 +878,32 @@ function PassAnimation({
             : { animation: `fadeOut 0.22s ease ${primaryFadeOutDelay}s forwards` }
         }
       >
-        <animate attributeName="stroke-dashoffset" from="1" to="0" dur={`${duration}s`} fill="freeze" />
+        <animate
+          attributeName="stroke-dashoffset"
+          from="1"
+          to="0"
+          dur={`${duration}s`}
+          fill="freeze"
+        />
       </path>
-      <circle
-        r="3.6"
-        fill={trailColor}
-        opacity={0.95}
+      <MovingHeadshotMarker
+        markerId="pass-main"
+        path={pathD}
+        duration={`${duration}s`}
+        headshotUrl={sackTravelHeadshot}
+        fallbackRadius={3.6}
+        fallbackFill={trailColor}
+        ringColor={offenseRingColor}
+        avatarRadius={6.2}
+        depthOffsetY={isSack ? FIELD_HEADSHOT_ACTION_DEPTH_OFFSET_Y : undefined}
+        sizeMultiplier={isSack ? FIELD_HEADSHOT_PASS_SIZE_MULTIPLIER : 1}
         style={
           primaryFadeOutDelay == null
             ? undefined
             : { animation: `fadeOut 0.2s ease ${primaryFadeOutDelay}s forwards` }
         }
-      >
-        <animateMotion dur={`${duration}s`} fill="freeze" path={pathD} />
-      </circle>
+        dataAnim="pass-main-marker"
+      />
 
       {/* End flash */}
       <circle
@@ -264,7 +911,7 @@ function PassAnimation({
         cy={targetY}
         r={4}
         fill="none"
-        stroke={isComplete ? C.green : C.red}
+        stroke={passResultColor}
         strokeWidth={2}
         data-anim="pass-end-flash"
         style={{
@@ -272,7 +919,7 @@ function PassAnimation({
           opacity: 0,
         }}
       />
-      {isSack && (
+      {isSack && !sackTravelHeadshot && (
         <circle
           cx={targetX}
           cy={targetY}
@@ -282,7 +929,12 @@ function PassAnimation({
           visibility="hidden"
           data-anim="pass-end-dot"
         >
-          <set attributeName="visibility" to="visible" begin={`${duration + 0.04}s`} fill="freeze" />
+          <set
+            attributeName="visibility"
+            to="visible"
+            begin={`${duration + 0.04}s`}
+            fill="freeze"
+          />
           <animate
             attributeName="opacity"
             begin={`${duration + 0.04}s`}
@@ -303,7 +955,7 @@ function PassAnimation({
           )}
         </circle>
       )}
-      {isComplete && (
+      {isComplete && !receiverEndHeadshot && (
         <circle
           cx={targetX}
           cy={targetY}
@@ -313,7 +965,12 @@ function PassAnimation({
           visibility="hidden"
           data-anim="pass-end-dot"
         >
-          <set attributeName="visibility" to="visible" begin={`${duration + 0.04}s`} fill="freeze" />
+          <set
+            attributeName="visibility"
+            to="visible"
+            begin={`${duration + 0.04}s`}
+            fill="freeze"
+          />
           <animate
             attributeName="opacity"
             begin={`${duration + 0.04}s`}
@@ -364,7 +1021,7 @@ function PassAnimation({
         x={targetX}
         y={targetY - 14}
         textAnchor="middle"
-        fill={isComplete ? C.green : C.red}
+        fill={passResultColor}
         fontSize={12}
         fontFamily={F.display}
         fontWeight={700}
@@ -382,60 +1039,24 @@ function PassAnimation({
       {hasPenalty && (
         <>
           <PenaltyAdjustmentOverlay
-            fromX={targetX}
+            fromX={penaltyBaseX}
             toX={penaltyEndX}
-            y={targetY}
+            y={play.isNoPlay ? FIELD_CENTER_Y : targetY}
             delay={penaltyDelay + 0.05}
           />
-          <PenaltyCallout
-            x={penaltyEndX}
-            y={targetY}
-            play={play}
-            delay={penaltyDelay + 0.02}
-            side={penaltyEndX >= fromX ? 'right' : 'left'}
-          />
+          {!hidePenaltyCallout && (
+            <PenaltyCallout x={penaltyEndX} play={play} delay={penaltyDelay + 0.02} />
+          )}
         </>
       )}
-
-      {isComplete && play.actor?.name && (
-        <ActorCard
-          x={targetX}
-          y={targetY + 8}
-          title={play.actor.name}
-          summary={play.actor.summary}
-          lines={play.actor.lines}
-          previousLines={play.actor.previousLines}
-          headshotUrl={play.actor.headshotUrl}
-          accent={C.amber}
-          delay={ANIM_TIMING.receiverDelay}
-          side={cardSide}
-          anchor="above"
-          disappearAfter={hidePrimaryAt}
-        />
-      )}
-
-      {play.qbActor?.name && (
-        <ActorCard
-          x={fromX}
-          y={FIELD_CENTER_Y + (cardsCrowded ? -18 : -6)}
-          title={play.qbActor.name}
-          summary={play.qbActor.summary}
-          lines={play.qbActor.lines}
-          previousLines={play.qbActor.previousLines}
-          headshotUrl={play.qbActor.headshotUrl}
-          accent={isSack ? C.red : C.cyan}
-          delay={ANIM_TIMING.receiverDelay * 0.55}
-          side={qbCardSide}
-          anchor="above"
-          disappearAfter={hidePrimaryAt}
-        />
-      )}
-
-      {/* First down animation */}
-      {play.isFirstDown && !hasPostTrySequence && <FirstDownMarker x={toX} />}
-
       {postScoreTry && (
-        <PostScoreAttemptOverlay data={postScoreTry} delay={postTryDelay} fallbackSide={cardSide} />
+        <PostScoreAttemptOverlay
+          data={postScoreTry}
+          delay={postTryDelay}
+          fallbackSide={cardSide}
+          offenseRingColor={offenseRingColor}
+          hideFgTrail={hideFgTrail}
+        />
       )}
     </g>
   );
@@ -451,6 +1072,9 @@ function RushAnimation({
   play,
   possIsAway,
   postScoreTry,
+  offenseRingColor,
+  hidePenaltyCallout,
+  hideFgTrail,
 }: {
   fromX: number;
   toX: number;
@@ -459,6 +1083,9 @@ function RushAnimation({
   play: PlayAnimationData;
   possIsAway: boolean;
   postScoreTry: PostScoreTryOverlayData | null;
+  offenseRingColor: string;
+  hidePenaltyCallout: boolean;
+  hideFgTrail?: boolean;
 }) {
   const duration = ANIM_TIMING.rush * 1.08;
   const touchdownTargetX = play.isTouchdown
@@ -470,8 +1097,12 @@ function RushAnimation({
     play.penaltyTeam && play.offenseTeam && play.penaltyTeam === play.offenseTeam
       ? -offenseDir
       : offenseDir;
+  // No-play (e.g. offensive holding): enforce from snap/LOS so arrow starts at
+  // the original line of scrimmage. Tack-on (e.g. defensive personal foul after
+  // the run): enforce from the run end spot.
+  const penaltyBaseX = play.isNoPlay ? fromX : touchdownTargetX;
   const computedPenaltyAdjustedX = clampX(
-    touchdownTargetX + penaltyAdjustDir * (play.penaltyYards ?? 0) * YARDS_TO_PX
+    penaltyBaseX + penaltyAdjustDir * (play.penaltyYards ?? 0) * YARDS_TO_PX
   );
   const penaltyEndX = penaltyAdjustedX ?? computedPenaltyAdjustedX;
   const penaltyDelay = duration + 0.12;
@@ -482,6 +1113,7 @@ function RushAnimation({
     : undefined;
   const primaryFadeOutDelay =
     hidePrimaryAt != null ? Math.max(hidePrimaryAt - 0.08, duration + 0.35) : undefined;
+  const hasRushHeadshot = Boolean(normalizeHeadshotUrl(play.actor?.headshotUrl));
 
   const bend = play.direction === 'left' ? -34 : play.direction === 'right' ? 34 : 12;
   const c1X = fromX + (touchdownTargetX - fromX) * 0.35;
@@ -490,11 +1122,43 @@ function RushAnimation({
   const c2Y = dirY + bend * 0.35;
   const pathD = `M ${fromX},${FIELD_CENTER_Y} C ${c1X},${c1Y} ${c2X},${c2Y} ${touchdownTargetX},${dirY}`;
   const cardSide: 'left' | 'right' = touchdownTargetX >= fromX ? 'right' : 'left';
-
+  const rushDistancePx = Math.abs(touchdownTargetX - fromX);
+  const shortRushFactor = Math.max(
+    0,
+    Math.min(1, 1 - rushDistancePx / SHORT_RUSH_DEPTH_DISTANCE_PX)
+  );
+  const rushHeadshotDepthOffsetY =
+    FIELD_HEADSHOT_ACTION_DEPTH_OFFSET_Y -
+    Math.round(shortRushFactor * SHORT_RUSH_MAX_EXTRA_DEPTH_Y);
+  const rushYardsColor = play.yardsGained < 0 ? C.red : C.cyan;
   return (
     <g>
-      {hasPostTrySequence && (
-        <PreTrySnapGuide x={fromX} hideAt={hidePrimaryAt} />
+      {hasPostTrySequence && <PreTrySnapGuide x={fromX} hideAt={hidePrimaryAt} />}
+      {play.isFirstDown && !hasPostTrySequence && <FirstDownMarker x={touchdownTargetX} />}
+      {!play.isFirstDown && !play.isTurnover && play.startDown === 4 && !hasPostTrySequence && (
+        <TurnoverOnDownsMarker x={touchdownTargetX} />
+      )}
+
+      {/* Moving runner marker */}
+      {hasRushHeadshot && (
+        <MovingHeadshotMarker
+          markerId="rush-main"
+          path={pathD}
+          duration={`${duration}s`}
+          headshotUrl={play.actor?.headshotUrl}
+          fallbackRadius={4.2}
+          fallbackFill={C.cyan}
+          ringColor={offenseRingColor}
+          avatarRadius={6.4}
+          depthOffsetY={rushHeadshotDepthOffsetY}
+          sizeMultiplier={FIELD_HEADSHOT_PASS_SIZE_MULTIPLIER}
+          style={{
+            filter: `drop-shadow(0 0 6px ${C.cyanGlow})`,
+            ...(primaryFadeOutDelay == null
+              ? {}
+              : { animation: `fadeOut 0.2s ease ${primaryFadeOutDelay}s forwards` }),
+          }}
+        />
       )}
 
       {/* Rush trail */}
@@ -514,45 +1178,56 @@ function RushAnimation({
             : { animation: `fadeOut 0.22s ease ${primaryFadeOutDelay}s forwards` }
         }
       >
-        <animate attributeName="stroke-dashoffset" from="1" to="0" dur={`${duration}s`} fill="freeze" />
+        <animate
+          attributeName="stroke-dashoffset"
+          from="1"
+          to="0"
+          dur={`${duration}s`}
+          fill="freeze"
+        />
       </path>
-
-      {/* Moving runner marker */}
-      <circle
-        r="4.2"
-        fill={C.cyan}
-        opacity={0.95}
-        style={{
-          filter: `drop-shadow(0 0 6px ${C.cyanGlow})`,
-          ...(primaryFadeOutDelay == null
-            ? {}
-            : { animation: `fadeOut 0.2s ease ${primaryFadeOutDelay}s forwards` }),
-        }}
-      >
-        <animateMotion dur={`${duration}s`} fill="freeze" path={pathD} />
-      </circle>
+      {!hasRushHeadshot && (
+        <MovingHeadshotMarker
+          markerId="rush-main"
+          path={pathD}
+          duration={`${duration}s`}
+          headshotUrl={play.actor?.headshotUrl}
+          fallbackRadius={4.2}
+          fallbackFill={C.cyan}
+          ringColor={offenseRingColor}
+          avatarRadius={6.4}
+          style={{
+            filter: `drop-shadow(0 0 6px ${C.cyanGlow})`,
+            ...(primaryFadeOutDelay == null
+              ? {}
+              : { animation: `fadeOut 0.2s ease ${primaryFadeOutDelay}s forwards` }),
+          }}
+        />
+      )}
 
       {/* End marker glow */}
-      <circle
-        cx={touchdownTargetX}
-        cy={dirY}
-        r={5}
-        fill={C.cyan}
-        opacity={0}
-        style={{
-          animation:
-            primaryFadeOutDelay == null
-              ? `fadeIn 0.3s ease ${duration}s forwards`
-              : `fadeIn 0.3s ease ${duration}s forwards, fadeOut 0.2s ease ${primaryFadeOutDelay}s forwards`,
-        }}
-      />
+      {!hasRushHeadshot && (
+        <circle
+          cx={touchdownTargetX}
+          cy={dirY}
+          r={5}
+          fill={C.cyan}
+          opacity={0}
+          style={{
+            animation:
+              primaryFadeOutDelay == null
+                ? `fadeIn 0.3s ease ${duration}s forwards`
+                : `fadeIn 0.3s ease ${duration}s forwards, fadeOut 0.2s ease ${primaryFadeOutDelay}s forwards`,
+          }}
+        />
+      )}
 
       {/* Yards label */}
       <text
         x={touchdownTargetX}
         y={dirY - 12}
         textAnchor="middle"
-        fill={C.cyan}
+        fill={rushYardsColor}
         fontSize={12}
         fontFamily={F.display}
         fontWeight={700}
@@ -571,42 +1246,24 @@ function RushAnimation({
       {hasPenalty && (
         <>
           <PenaltyAdjustmentOverlay
-            fromX={touchdownTargetX}
+            fromX={penaltyBaseX}
             toX={penaltyEndX}
-            y={dirY}
+            y={play.isNoPlay ? FIELD_CENTER_Y : dirY}
             delay={penaltyDelay + 0.05}
           />
-          <PenaltyCallout
-            x={penaltyEndX}
-            y={dirY}
-            play={play}
-            delay={penaltyDelay + 0.03}
-            side={penaltyEndX >= fromX ? 'right' : 'left'}
-          />
+          {!hidePenaltyCallout && (
+            <PenaltyCallout x={penaltyEndX} play={play} delay={penaltyDelay + 0.03} />
+          )}
         </>
       )}
-
-      {play.actor?.name && (
-        <ActorCard
-          x={touchdownTargetX}
-          y={dirY + 8}
-          title={play.actor.name}
-          summary={play.actor.summary}
-          lines={play.actor.lines}
-          previousLines={play.actor.previousLines}
-          headshotUrl={play.actor.headshotUrl}
-          accent={C.cyan}
-          delay={ANIM_TIMING.receiverDelay}
-          side={cardSide}
-          anchor="above"
-          disappearAfter={hidePrimaryAt}
-        />
-      )}
-
-      {play.isFirstDown && !hasPostTrySequence && <FirstDownMarker x={touchdownTargetX} />}
-
       {postScoreTry && (
-        <PostScoreAttemptOverlay data={postScoreTry} delay={postTryDelay} fallbackSide={cardSide} />
+        <PostScoreAttemptOverlay
+          data={postScoreTry}
+          delay={postTryDelay}
+          fallbackSide={cardSide}
+          offenseRingColor={offenseRingColor}
+          hideFgTrail={hideFgTrail}
+        />
       )}
     </g>
   );
@@ -671,10 +1328,9 @@ function PenaltyAdjustmentOverlay({
         fill="none"
         stroke={C.amber}
         strokeWidth={2}
-        opacity={0.65}
+        opacity={0}
         strokeDasharray="6 4"
-        strokeDashoffset="1000"
-        style={{ animation: `trailDraw 0.34s ease ${delay + 0.04}s forwards` }}
+        style={{ animation: `fadeIn 0.28s ease ${delay + 0.04}s forwards` }}
       />
       <circle
         cx={toX}
@@ -692,16 +1348,19 @@ function PostScoreAttemptOverlay({
   data,
   delay,
   fallbackSide,
+  offenseRingColor,
+  hideFgTrail = false,
 }: {
   data: PostScoreTryOverlayData;
   delay: number;
   fallbackSide: 'left' | 'right';
+  offenseRingColor: string;
+  hideFgTrail?: boolean;
 }) {
+  const hideKickTrail = hideFgTrail && data.playType === 'kick';
   const travelRight = data.toX >= data.fromX;
-  const { backWallX } = getFgEndpoints(travelRight);
-  const endX = data.playType === 'kick' ? backWallX : data.toX;
-  const qbSide: 'left' | 'right' = travelRight ? 'left' : 'right';
-  const actorSide: 'left' | 'right' = travelRight ? 'right' : 'left';
+  const { uprightX } = getFgEndpoints(travelRight);
+  const endX = data.playType === 'kick' ? uprightX : data.toX;
   const directionY =
     data.direction === 'left'
       ? FIELD_CENTER_Y - 52
@@ -713,16 +1372,17 @@ function PostScoreAttemptOverlay({
   const traceColor = data.playType === 'kick' ? C.amber : C.cyan;
   const isPassLike = data.playType === 'pass';
   const isRushLike = data.playType === 'rush';
-  const endY = isPassLike ? directionY : FIELD_CENTER_Y;
-  const peakY = FIELD_CENTER_Y - (data.playType === 'kick' ? 110 : 72);
+  const endY = isPassLike
+    ? directionY
+    : data.playType === 'kick' && data.isGood
+      ? FG_PORTAL_CENTER_Y
+      : FIELD_CENTER_Y;
+  const peakY = FIELD_CENTER_Y - (data.playType === 'kick' ? (data.isGood ? 200 : 110) : 72);
   const pathD = isRushLike
     ? `M ${data.fromX},${FIELD_CENTER_Y} C ${data.fromX + (endX - data.fromX) * 0.32},${directionY} ${data.fromX + (endX - data.fromX) * 0.7},${directionY * 0.7 + FIELD_CENTER_Y * 0.3} ${endX},${endY}`
     : `M ${data.fromX},${FIELD_CENTER_Y} Q ${(data.fromX + endX) / 2},${peakY} ${endX},${endY}`;
-  const losLabel = data.kind === 'two_point'
-    ? '2PT TRY'
-    : data.playType === 'kick'
-      ? 'XP ATTEMPT'
-      : 'XP TRY';
+  const showTryLosLabel = data.kind !== 'extra_point';
+  const losLabel = data.kind === 'two_point' ? '2PT TRY' : 'XP TRY';
   const resultLabel =
     data.kind === 'two_point'
       ? data.isGood
@@ -731,6 +1391,8 @@ function PostScoreAttemptOverlay({
       : data.isGood
         ? 'XP GOOD'
         : 'XP NO GOOD';
+  const trailHeadshot =
+    data.playType === 'rush' ? data.actor?.headshotUrl || data.qbActor?.headshotUrl : undefined;
 
   return (
     <g
@@ -739,10 +1401,6 @@ function PostScoreAttemptOverlay({
         animation: `fadeIn 0.02s linear ${Math.max(delay - 0.02, 0)}s forwards`,
       }}
     >
-      {data.playType === 'kick' && (
-        <KickAttemptLabel x={data.fromX} label="XP ATTEMPT" delay={delay} />
-      )}
-
       <line
         x1={data.fromX}
         y1={FIELD_TOP}
@@ -753,61 +1411,95 @@ function PostScoreAttemptOverlay({
         opacity={0}
         style={{ animation: `fadeIn 0.2s ease ${delay}s forwards` }}
       />
-      <rect
-        x={data.fromX - 32}
-        y={FIELD_TOP + 2}
-        width={64}
-        height={14}
-        rx={2}
-        fill="rgba(7,11,20,.9)"
-        stroke="#3b82f6"
-        strokeOpacity={0.65}
-        strokeWidth={0.8}
-        style={{ opacity: 0, animation: `fadeIn 0.2s ease ${delay + 0.04}s forwards` }}
-      />
-      <text
-        x={data.fromX}
-        y={FIELD_TOP + 12}
-        textAnchor="middle"
-        fill="#7db6ff"
-        fontSize={8.5}
-        fontFamily={F.display}
-        fontWeight={700}
-        letterSpacing=".08em"
-        style={{ opacity: 0, animation: `fadeIn 0.2s ease ${delay + 0.06}s forwards` }}
-      >
-        {losLabel}
-      </text>
+      {showTryLosLabel && (
+        <>
+          <rect
+            x={data.fromX - 32}
+            y={FIELD_TOP + 2}
+            width={64}
+            height={14}
+            rx={2}
+            fill="rgba(7,11,20,.9)"
+            stroke="#3b82f6"
+            strokeOpacity={0.65}
+            strokeWidth={0.8}
+            style={{ opacity: 0, animation: `fadeIn 0.2s ease ${delay + 0.04}s forwards` }}
+          />
+          <text
+            x={data.fromX}
+            y={FIELD_TOP + 12}
+            textAnchor="middle"
+            fill="#7db6ff"
+            fontSize={8.5}
+            fontFamily={F.display}
+            fontWeight={700}
+            letterSpacing=".08em"
+            style={{ opacity: 0, animation: `fadeIn 0.2s ease ${delay + 0.06}s forwards` }}
+          >
+            {losLabel}
+          </text>
+        </>
+      )}
 
-      <path
-        d={pathD}
-        fill="none"
-        stroke={traceColor}
-        strokeWidth={2}
-        opacity={0.58}
-        pathLength={1}
-        strokeDasharray={1}
-        strokeDashoffset={1}
-      >
-        <animate
-          attributeName="stroke-dashoffset"
-          begin={`${delay + 0.08}s`}
-          dur={`${attemptDuration}s`}
-          from="1"
-          to="0"
-          fill="freeze"
-        />
-      </path>
-      <circle r="3.8" fill={traceColor} opacity={0.95}>
-        <animateMotion
-          begin={`${delay + 0.08}s`}
-          dur={`${attemptDuration}s`}
-          fill="freeze"
+      {/* Arc trail + ball — suppressed for kicks when overlay handles it */}
+      {!hideKickTrail && (
+        <path
+          d={pathD}
+          fill="none"
+          stroke={traceColor}
+          strokeWidth={2}
+          opacity={0.58}
+          pathLength={1}
+          strokeDasharray={1}
+          strokeDashoffset={1}
+        >
+          <animate
+            attributeName="stroke-dashoffset"
+            begin={`${delay + 0.08}s`}
+            dur={`${attemptDuration}s`}
+            from="1"
+            to="0"
+            fill="freeze"
+          />
+        </path>
+      )}
+      {!hideKickTrail && (
+        <MovingHeadshotMarker
+          markerId={`post-try-${data.playType}`}
           path={pathD}
+          duration={`${attemptDuration}s`}
+          begin={`${delay + 0.08}s`}
+          headshotUrl={trailHeadshot}
+          fallbackRadius={3.8}
+          fallbackFill={traceColor}
+          ringColor={offenseRingColor}
+          avatarRadius={6}
+          depthOffsetY={FIELD_HEADSHOT_ACTION_DEPTH_OFFSET_Y}
+          sizeMultiplier={FIELD_HEADSHOT_PASS_SIZE_MULTIPLIER}
+          hiddenUntilBegin
         />
-      </circle>
+      )}
+      {/* Kicker circle — suppressed for kicks when overlay renders it as a perfect circle */}
+      {data.playType === 'kick' && data.actor?.name && !hideKickTrail && (
+        <StaticHeadshotMarker
+          markerId="post-score-kick-kicker"
+          x={data.fromX}
+          y={FIELD_CENTER_Y}
+          headshotUrl={data.actor.headshotUrl}
+          playerName={data.actor.name}
+          fallbackRadius={3.8}
+          fallbackFill={C.amber}
+          ringColor={offenseRingColor}
+          avatarRadius={6.3}
+          depthOffsetY={FIELD_HEADSHOT_ACTION_DEPTH_OFFSET_Y}
+          sizeMultiplier={FIELD_HEADSHOT_PASS_SIZE_MULTIPLIER}
+          style={{ opacity: 0, animation: `fadeIn 0.16s ease ${delay}s forwards` }}
+          dataAnim="post-score-kick-headshot"
+        />
+      )}
 
-      {!data.isGood && (
+      {/* Result indicators — suppressed for kicks (overlay arc handles good/miss visually) */}
+      {!hideKickTrail && !data.isGood && (
         <g
           style={{
             opacity: 0,
@@ -834,77 +1526,33 @@ function PostScoreAttemptOverlay({
           />
         </g>
       )}
-
-      <circle
-        cx={endX}
-        cy={endY}
-        r={4.8}
-        fill={resultColor}
-        opacity={0}
-        style={{ animation: `fadeIn 0.2s ease ${delay + attemptDuration + 0.02}s forwards` }}
-      />
-      <text
-        x={endX}
-        y={endY - 14}
-        textAnchor="middle"
-        fill={resultColor}
-        fontSize={10}
-        fontFamily={F.display}
-        fontWeight={700}
-        letterSpacing=".12em"
-        style={{
-          opacity: 0,
-          animation: `slideUp 0.24s ease ${delay + attemptDuration + 0.12}s forwards`,
-        }}
-      >
-        {resultLabel}
-      </text>
-
-      {data.qbActor?.name && (
-        <ActorCard
-          x={data.fromX}
-          y={FIELD_CENTER_Y - 6}
-          title={data.qbActor.name}
-          summary={data.qbActor.summary}
-          lines={data.qbActor.lines}
-          previousLines={data.qbActor.previousLines}
-          headshotUrl={data.qbActor.headshotUrl}
-          accent={C.cyan}
-          delay={delay + 0.12}
-          side={qbSide}
-          anchor="above"
+      {!hideKickTrail && (
+        <circle
+          cx={endX}
+          cy={endY}
+          r={4.8}
+          fill={resultColor}
+          opacity={0}
+          style={{ animation: `fadeIn 0.2s ease ${delay + attemptDuration + 0.02}s forwards` }}
         />
       )}
-
-      {data.actor?.name && data.playType !== 'kick' && (
-        <ActorCard
+      {!hideKickTrail && (
+        <text
           x={endX}
-          y={endY}
-          title={data.actor.name}
-          summary={data.actor.summary}
-          lines={data.actor.lines}
-          previousLines={data.actor.previousLines}
-          headshotUrl={data.actor.headshotUrl}
-          accent={data.isGood ? C.amber : C.red}
-          delay={delay + attemptDuration + 0.1}
-          side={actorSide ?? fallbackSide}
-          anchor="above"
-        />
-      )}
-      {data.actor?.name && data.playType === 'kick' && (
-        <ActorCard
-          x={data.fromX}
-          y={FIELD_CENTER_Y + 4}
-          title={data.actor.name}
-          summary={data.actor.summary}
-          lines={data.actor.lines}
-          previousLines={data.actor.previousLines}
-          headshotUrl={data.actor.headshotUrl}
-          accent={data.isGood ? C.amber : C.red}
-          delay={delay + attemptDuration + 0.18}
-          side={travelRight ? 'left' : 'right'}
-          anchor="above"
-        />
+          y={endY - 14}
+          textAnchor="middle"
+          fill={resultColor}
+          fontSize={10}
+          fontFamily={F.display}
+          fontWeight={700}
+          letterSpacing=".12em"
+          style={{
+            opacity: 0,
+            animation: `slideUp 0.24s ease ${delay + attemptDuration + 0.12}s forwards`,
+          }}
+        >
+          {resultLabel}
+        </text>
       )}
     </g>
   );
@@ -924,12 +1572,16 @@ function TurnoverAnimation({
   toX,
   dirY,
   play,
+  offenseRingColor,
+  defenseRingColor,
 }: {
   fromX: number;
   turnoverX: number;
   toX: number;
   dirY: number;
   play: PlayAnimationData;
+  offenseRingColor: string;
+  defenseRingColor: string;
 }) {
   const text = play.description.toLowerCase();
   const isInterception = text.includes('intercept');
@@ -948,7 +1600,9 @@ function TurnoverAnimation({
     : `M ${fromX},${FIELD_CENTER_Y} Q ${(fromX + turnoverX) / 2},${FIELD_CENTER_Y - 20} ${turnoverX},${FIELD_CENTER_Y}`;
   const returnPath = `M ${turnoverX},${turnoverY} Q ${(turnoverX + toX) / 2},${FIELD_CENTER_Y + (toX > turnoverX ? 36 : -36)} ${toX},${FIELD_CENTER_Y}`;
   const firstColor = isInterception ? C.cyan : C.amber;
-  const actorSide: 'left' | 'right' = toX >= turnoverX ? 'right' : 'left';
+  const takeoverHeadshot = isInterception
+    ? play.qbActor?.headshotUrl || play.actor?.headshotUrl
+    : play.actor?.headshotUrl;
 
   return (
     <g>
@@ -982,9 +1636,18 @@ function TurnoverAnimation({
           fill="freeze"
         />
       </path>
-      <circle r="3.8" fill={firstColor} opacity={0.95}>
-        <animateMotion dur={`${firstDuration}s`} fill="freeze" path={firstPath} />
-      </circle>
+      <MovingHeadshotMarker
+        markerId="turnover-takeaway"
+        path={firstPath}
+        duration={`${firstDuration}s`}
+        headshotUrl={takeoverHeadshot}
+        fallbackRadius={3.8}
+        fallbackFill={firstColor}
+        ringColor={isInterception ? defenseRingColor : offenseRingColor}
+        avatarRadius={6.2}
+        depthOffsetY={FIELD_HEADSHOT_ACTION_DEPTH_OFFSET_Y}
+        sizeMultiplier={FIELD_HEADSHOT_PASS_SIZE_MULTIPLIER}
+      />
 
       {/* Takeaway marker */}
       <circle
@@ -1014,29 +1677,34 @@ function TurnoverAnimation({
               ].join(', '),
             }}
           />
-          <circle
-            r="4"
-            fill={C.red}
+          <MovingHeadshotMarker
+            markerId="turnover-return"
+            path={returnPath}
+            duration={`${returnDuration}s`}
+            begin={`${returnStartDelay}s`}
+            headshotUrl={play.actor?.headshotUrl}
+            fallbackRadius={4}
+            fallbackFill={C.red}
+            ringColor={defenseRingColor}
+            avatarRadius={6.3}
+            depthOffsetY={FIELD_HEADSHOT_ACTION_DEPTH_OFFSET_Y}
+            sizeMultiplier={FIELD_HEADSHOT_PASS_SIZE_MULTIPLIER}
             opacity={0}
+            hiddenUntilBegin
             style={{
               filter: `drop-shadow(0 0 6px rgba(255,59,79,0.6))`,
               animation: `fadeIn 0.08s linear ${returnStartDelay}s forwards`,
             }}
-          >
-            <animateMotion
-              begin={`${returnStartDelay}s`}
-              dur={`${returnDuration}s`}
-              fill="freeze"
-              path={returnPath}
-            />
-          </circle>
+          />
           <circle
             cx={toX}
             cy={FIELD_CENTER_Y}
             r={4.6}
             fill={C.red}
             opacity={0}
-            style={{ animation: `fadeIn 0.22s ease ${returnStartDelay + returnDuration}s forwards` }}
+            style={{
+              animation: `fadeIn 0.22s ease ${returnStartDelay + returnDuration}s forwards`,
+            }}
           />
         </>
       )}
@@ -1074,27 +1742,18 @@ function TurnoverAnimation({
           TURNOVER
         </text>
       </g>
-
-      {play.actor?.name && (
-        <ActorCard
-          x={toX}
-          y={FIELD_CENTER_Y}
-          title={play.actor.name}
-          summary={play.actor.summary}
-          lines={play.actor.lines}
-          previousLines={play.actor.previousLines}
-          headshotUrl={play.actor.headshotUrl}
-          accent={C.red}
-          delay={actorDelay}
-          side={actorSide}
-          anchor="above"
-        />
-      )}
     </g>
   );
 }
 
 // ── Kick / Return ─────────────────────────────────────────────
+
+function parseKickDistanceYards(description: string): number | null {
+  const match = description.match(/\b(?:punts?|kicks?)\s+(\d+)\s+yards?\b/i);
+  if (!match?.[1]) return null;
+  const yards = Number.parseInt(match[1], 10);
+  return Number.isNaN(yards) ? null : yards;
+}
 
 /**
  * Handles kickoff and punt trajectories + optional return leg.
@@ -1104,45 +1763,82 @@ function KickAnimation({
   toX,
   play,
   awayAbbr,
+  offenseRingColor,
+  defenseRingColor,
+  hidePenaltyCallout,
 }: {
   fromX: number;
   toX: number;
   play: PlayAnimationData;
   awayAbbr: string;
+  offenseRingColor: string;
+  defenseRingColor: string;
+  hidePenaltyCallout: boolean;
 }) {
   const totalDuration = ANIM_TIMING.kick * 0.74;
   const landingX =
     play.kickLandingSide && typeof play.kickLandingYardline === 'number'
       ? fieldPctToSvgX(yardToFieldPct(play.kickLandingYardline, play.kickLandingSide, awayAbbr))
       : toX;
+  const isPunt = /\bpunts?\b/i.test(play.description);
   const hasReturn = Math.abs(toX - landingX) > 2;
   const isTouchback = /touchback/i.test(play.description);
   const kickOutOfBounds = /\bout of bounds\b/i.test(play.description);
   const returnOutOfBounds = /\b(?:ran|pushed)\s+ob\b/i.test(play.description);
-  const hasReturnRunner = hasReturn && Boolean(play.actor?.name);
+  const hasReturnActor = Boolean(play.actor?.name);
+  const hasReturnRunner = hasReturn && hasReturnActor;
+  const endzoneHalfwayX =
+    landingX <= fromX ? (AWAY_EZ_LEFT + AWAY_EZ_RIGHT) / 2 : (HOME_EZ_LEFT + HOME_EZ_RIGHT) / 2;
+  const landingVisualX = isTouchback && !hasReturnRunner ? endzoneHalfwayX : landingX;
+  const showStaticReturnerAtLanding = !hasReturn && hasReturnActor;
   const kickDuration = hasReturn ? totalDuration * 0.62 : totalDuration;
   const returnDuration = hasReturn ? totalDuration * 0.58 : 0;
-  const kickMidX = (fromX + landingX) / 2;
+  const kickMidX = (fromX + landingVisualX) / 2;
   const landingY = kickOutOfBounds && !hasReturnRunner ? FIELD_TOP - 8 : FIELD_CENTER_Y;
   const kickPeakY =
     kickOutOfBounds && !hasReturnRunner ? FIELD_CENTER_Y - 140 : FIELD_CENTER_Y - 120;
-  const kickArcPath = `M ${fromX},${FIELD_CENTER_Y} Q ${kickMidX},${kickPeakY} ${landingX},${landingY}`;
+  const kickArcPath = `M ${fromX},${FIELD_CENTER_Y} Q ${kickMidX},${kickPeakY} ${landingVisualX},${landingY}`;
   const returnEndY = returnOutOfBounds ? FIELD_TOP - 8 : FIELD_CENTER_Y;
-  const returnCurveY = returnEndY + (toX > landingX ? 34 : -34);
+  const returnCurveY = returnEndY + (toX > landingVisualX ? 34 : -34);
   const returnPath =
     isTouchback && !hasReturnRunner
-      ? `M ${landingX},${landingY} L ${toX},${FIELD_CENTER_Y}`
-      : `M ${landingX},${landingY} Q ${(landingX + toX) / 2},${returnCurveY} ${toX},${returnEndY}`;
+      ? `M ${landingVisualX},${landingY} L ${toX},${FIELD_CENTER_Y}`
+      : `M ${landingVisualX},${landingY} Q ${(landingVisualX + toX) / 2},${returnCurveY} ${toX},${returnEndY}`;
   const finishColor = hasReturnRunner ? C.amber : C.cyan;
   const finishY = hasReturn ? returnEndY : landingY;
+  const kickerHeadshot = normalizeHeadshotUrl(play.qbActor?.headshotUrl);
+  const returnerHeadshot = normalizeHeadshotUrl(play.actor?.headshotUrl);
+  const puntDistanceYards =
+    parseKickDistanceYards(play.description) ??
+    Math.round(Math.abs(landingX - fromX) / YARDS_TO_PX);
+  const punterSummary = puntDistanceYards > 0 ? `${puntDistanceYards} Yard Punt` : 'Punt';
+  const punterStatsLine =
+    (play.qbActor?.lines ?? []).find((line) => /\bpunts?\b/i.test(line)) ??
+    (/\bpunts?\b/i.test(play.qbActor?.line ?? '') ? play.qbActor?.line : undefined) ??
+    '1 Punt';
   const resultLabelY =
     kickOutOfBounds && !hasReturn ? Math.max(FIELD_TOP + 12, landingY + 14) : finishY + 18;
-  const kickKindLabel = /\bpunts?\b/i.test(play.description) ? 'PUNT' : 'KICKOFF';
+  const hasPenalty = Boolean((play.penaltyYards ?? 0) > 0 || play.penaltyType);
 
   return (
     <g>
-      <KickAttemptLabel x={fromX} label={kickKindLabel} />
-
+      {hasPenalty && !hidePenaltyCallout && <PenaltyCallout x={fromX} play={play} delay={0.1} />}
+      {kickerHeadshot && (
+        <StaticHeadshotMarker
+          markerId="kick-start-kicker"
+          x={fromX}
+          y={FIELD_CENTER_Y}
+          headshotUrl={kickerHeadshot}
+          fallbackRadius={3.6}
+          fallbackFill={C.amber}
+          ringColor={offenseRingColor}
+          avatarRadius={6.3}
+          depthOffsetY={FIELD_HEADSHOT_ACTION_DEPTH_OFFSET_Y}
+          sizeMultiplier={FIELD_HEADSHOT_PASS_SIZE_MULTIPLIER}
+          style={{ opacity: 0, animation: 'fadeIn 0.16s ease 0s forwards' }}
+          dataAnim="kick-start-headshot"
+        />
+      )}
       <path
         d={kickArcPath}
         fill="none"
@@ -1163,9 +1859,16 @@ function KickAnimation({
         />
       </path>
 
-      <circle r="3.5" fill={C.cyan} opacity={0.95}>
-        <animateMotion dur={`${kickDuration}s`} fill="freeze" path={kickArcPath} />
-      </circle>
+      <MovingHeadshotMarker
+        markerId="kick-main"
+        path={kickArcPath}
+        duration={`${kickDuration}s`}
+        headshotUrl={undefined}
+        fallbackRadius={3.5}
+        fallbackFill={C.cyan}
+        ringColor={C.cyan}
+        avatarRadius={5.9}
+      />
 
       {hasReturn && (
         <>
@@ -1192,47 +1895,78 @@ function KickAnimation({
             />
           </path>
           {hasReturnRunner && (
-            <circle
-              r="4.2"
-              fill={C.amber}
+            <MovingHeadshotMarker
+              markerId="kick-return-runner"
+              path={returnPath}
+              duration={`${returnDuration}s`}
+              begin={`${kickDuration}s`}
+              headshotUrl={play.actor?.headshotUrl}
+              fallbackRadius={4.2}
+              fallbackFill={C.amber}
+              ringColor={defenseRingColor}
+              avatarRadius={6.4}
+              depthOffsetY={FIELD_HEADSHOT_ACTION_DEPTH_OFFSET_Y}
+              sizeMultiplier={FIELD_HEADSHOT_PASS_SIZE_MULTIPLIER}
               opacity={0.96}
-              visibility="hidden"
-              data-anim="kick-return-runner"
+              hiddenUntilBegin
+              hideFallbackUntilBegin
+              dataAnim="kick-return-runner"
               style={{
                 filter: `drop-shadow(0 0 6px ${C.amberGlow})`,
               }}
-            >
-              <set attributeName="visibility" to="visible" begin={`${kickDuration}s`} fill="freeze" />
-              <animateMotion
-                begin={`${kickDuration}s`}
-                dur={`${returnDuration}s`}
-                fill="freeze"
-                path={returnPath}
-              />
-            </circle>
+            />
           )}
         </>
       )}
 
-      <circle
-        cx={landingX}
-        cy={landingY}
-        r={hasReturn ? 3.2 : 5}
-        fill={C.cyan}
-        opacity={0}
-        visibility="hidden"
-        data-anim="kick-landing-dot"
-      >
-        <set attributeName="visibility" to="visible" begin={`${kickDuration + 0.04}s`} fill="freeze" />
-        <animate
-          attributeName="opacity"
-          begin={`${kickDuration + 0.04}s`}
-          dur="0.25s"
-          from="0"
-          to="1"
-          fill="freeze"
+      {showStaticReturnerAtLanding && (
+        <StaticHeadshotMarker
+          markerId="kick-return-static"
+          x={landingVisualX}
+          y={landingY}
+          headshotUrl={returnerHeadshot}
+          fallbackRadius={4.2}
+          fallbackFill={C.amber}
+          ringColor={defenseRingColor}
+          avatarRadius={6.4}
+          depthOffsetY={FIELD_HEADSHOT_ACTION_DEPTH_OFFSET_Y}
+          sizeMultiplier={FIELD_HEADSHOT_PASS_SIZE_MULTIPLIER}
+          dataAnim="kick-return-static-headshot"
+          style={{
+            opacity: 0,
+            filter: `drop-shadow(0 0 6px ${C.amberGlow})`,
+            animation: `fadeIn 0.24s ease ${kickDuration + 0.04}s forwards`,
+          }}
+          standupDelay={`${kickDuration + 0.04}s`}
         />
-      </circle>
+      )}
+
+      {!showStaticReturnerAtLanding && (
+        <circle
+          cx={landingX}
+          cy={landingY}
+          r={hasReturn ? 3.2 : 5}
+          fill={C.cyan}
+          opacity={0}
+          visibility="hidden"
+          data-anim="kick-landing-dot"
+        >
+          <set
+            attributeName="visibility"
+            to="visible"
+            begin={`${kickDuration + 0.04}s`}
+            fill="freeze"
+          />
+          <animate
+            attributeName="opacity"
+            begin={`${kickDuration + 0.04}s`}
+            dur="0.25s"
+            from="0"
+            to="1"
+            fill="freeze"
+          />
+        </circle>
+      )}
 
       <circle
         cx={toX}
@@ -1278,22 +2012,6 @@ function KickAnimation({
             : `${play.yardsGained >= 0 ? '+' : ''}${play.yardsGained} RET`
           : `${Math.round(Math.abs(landingX - fromX) / 7.36)} YDS${kickOutOfBounds ? ' OOB' : ''}`}
       </text>
-
-      {play.actor?.name && (
-        <ActorCard
-          x={toX}
-          y={finishY}
-          title={play.actor.name}
-          summary={play.actor.summary}
-          lines={play.actor.lines}
-          previousLines={play.actor.previousLines}
-          headshotUrl={play.actor.headshotUrl}
-          accent={C.amber}
-          delay={hasReturn ? kickDuration + returnDuration + 0.05 : kickDuration + 0.05}
-          side={toX >= landingX ? 'right' : 'left'}
-          anchor="above"
-        />
-      )}
     </g>
   );
 }
@@ -1307,161 +2025,101 @@ function FieldGoalAnimation({
   fromX,
   play,
   possIsAway,
+  offenseRingColor,
+  hidePenaltyCallout,
+  hideFgTrail = false,
 }: {
   fromX: number;
   play: PlayAnimationData;
   possIsAway: boolean;
+  offenseRingColor: string;
+  hidePenaltyCallout: boolean;
+  hideFgTrail?: boolean;
 }) {
-  const { goalLineX, backWallX } = getFgEndpoints(possIsAway);
+  const { goalLineX, uprightX } = getFgEndpoints(possIsAway);
   const isMade = play.fgResult === 'made';
   const isShort = play.fgResult === 'short';
-  const endX = isShort ? goalLineX : backWallX;
-  const midX = (fromX + endX) / 2;
-  const arcHeight = 160;
+  const endX = isShort ? goalLineX : uprightX;
   const duration = ANIM_TIMING.fieldgoal;
   const durationFast = duration * 0.74;
 
-  // Veer offset for wide kicks
+  // Veer offset for wide kicks — must land outside the upright gate (±FG_UPRIGHT_Y_HALF)
+  const wideMissOffset = FG_UPRIGHT_Y_HALF + 25;
   let endY = FIELD_CENTER_Y;
-  if (play.fgResult === 'wide_left') endY = FIELD_CENTER_Y - 60;
-  if (play.fgResult === 'wide_right') endY = FIELD_CENTER_Y + 60;
+  if (isMade) endY = FG_PORTAL_CENTER_Y;
+  else if (play.fgResult === 'wide_left') endY = FIELD_CENTER_Y - wideMissOffset;
+  else if (play.fgResult === 'wide_right') endY = FIELD_CENTER_Y + wideMissOffset;
 
-  const arcPath = `M ${fromX},${FIELD_CENTER_Y} Q ${midX},${FIELD_CENTER_Y - arcHeight} ${endX},${endY}`;
   const trailColor = isMade ? C.green : C.red;
   const cardSide: 'left' | 'right' = possIsAway ? 'left' : 'right';
+  const hasPenalty = Boolean((play.penaltyYards ?? 0) > 0 || play.penaltyType);
 
   return (
     <g>
-      <KickAttemptLabel x={fromX} label="FG ATTEMPT" />
-
-      <path
-        d={arcPath}
-        fill="none"
-        stroke={trailColor}
-        strokeWidth={2}
-        opacity={0.5}
-        pathLength={1}
-        strokeDasharray={1}
-        strokeDashoffset={1}
-      >
-        <animate
-          attributeName="stroke-dashoffset"
-          from="1"
-          to="0"
-          dur={`${durationFast}s`}
-          fill="freeze"
-        />
-      </path>
-
-      {/* Landing dot */}
-      <circle
-        cx={endX}
-        cy={endY}
-        r={5}
-        fill={trailColor}
-        opacity={0}
-        style={{ animation: `fadeIn 0.3s ease ${durationFast}s forwards` }}
-      />
-
-      {/* Result label */}
-      <text
-        x={endX}
-        y={endY - 14}
-        textAnchor="middle"
-        fill={trailColor}
-        fontSize={11}
-        fontFamily={F.display}
-        fontWeight={800}
-        letterSpacing={2}
-        style={{
-          opacity: 0,
-          animation: `slideUp 0.3s ease ${durationFast + 0.1}s forwards`,
-        }}
-      >
-        {isMade ? 'GOOD' : play.fgResult?.replace('_', ' ').toUpperCase()}
-      </text>
-      {play.fgDistance && (
-        <text
-          x={endX}
-          y={endY - 2}
-          textAnchor="middle"
-          fill={C.textDim}
-          fontSize={9}
-          fontFamily={F.mono}
-          style={{
-            opacity: 0,
-            animation: `slideUp 0.3s ease ${durationFast + 0.2}s forwards`,
-          }}
-        >
-          {play.fgDistance} YDS
-        </text>
-      )}
-      {play.actor?.name && (
-        <ActorCard
+      {hasPenalty && !hidePenaltyCallout && <PenaltyCallout x={fromX} play={play} delay={0.1} />}
+      {/* Kicker circle rendered by overlay when hideFgTrail; fallback here for standalone use */}
+      {!hideFgTrail && play.actor?.name && (
+        <StaticHeadshotMarker
+          markerId="fieldgoal-start-kicker"
           x={fromX}
-          y={FIELD_CENTER_Y + 4}
-          title={play.actor.name}
-          summary={play.actor.summary}
-          lines={play.actor.lines}
-          previousLines={play.actor.previousLines}
-          headshotUrl={play.actor.headshotUrl}
-          accent={isMade ? C.amber : C.red}
-          delay={durationFast + 0.24}
-          side={cardSide}
-          anchor="above"
+          y={FIELD_CENTER_Y}
+          headshotUrl={normalizeHeadshotUrl(play.actor.headshotUrl) || undefined}
+          playerName={play.actor.name}
+          fallbackRadius={3.8}
+          fallbackFill={C.amber}
+          ringColor={offenseRingColor}
+          avatarRadius={6.3}
+          depthOffsetY={FIELD_HEADSHOT_ACTION_DEPTH_OFFSET_Y}
+          sizeMultiplier={FIELD_HEADSHOT_PASS_SIZE_MULTIPLIER}
+          style={{ opacity: 0, animation: 'fadeIn 0.16s ease 0s forwards' }}
+          dataAnim="fieldgoal-start-headshot"
+        />
+      )}
+      {/* Arc trail + ball rendered by OverlayFgArc in FieldVisualization when hideFgTrail */}
+      {!hideFgTrail &&
+        (() => {
+          const midX = (fromX + endX) / 2;
+          // FG/XP should be nearly straight — barely any arc compared to a punt.
+          const arcHeight = isMade ? 28 : 20;
+          const arcPath = `M ${fromX},${FIELD_CENTER_Y} Q ${midX},${FIELD_CENTER_Y - arcHeight} ${endX},${endY}`;
+          return (
+            <path
+              d={arcPath}
+              fill="none"
+              stroke={trailColor}
+              strokeWidth={2}
+              opacity={0.5}
+              pathLength={1}
+              strokeDasharray={1}
+              strokeDashoffset={1}
+            >
+              <animate
+                attributeName="stroke-dashoffset"
+                from="1"
+                to="0"
+                dur={`${durationFast}s`}
+                fill="freeze"
+              />
+            </path>
+          );
+        })()}
+
+      {/* Landing dot — only for misses; made FGs land in portal (overlay handles it) */}
+      {!isMade && (
+        <circle
+          cx={endX}
+          cy={endY}
+          r={5}
+          fill={trailColor}
+          opacity={0}
+          style={{ animation: `fadeIn 0.3s ease ${durationFast}s forwards` }}
         />
       )}
     </g>
   );
 }
 
-function KickAttemptLabel({
-  x,
-  label,
-  delay = 0,
-}: {
-  x: number;
-  label: string;
-  delay?: number;
-}) {
-  const width = Math.max(220, Math.min(420, 88 + label.length * 25));
-  const height = 46;
-  const y = FIELD_TOP + 2;
-  return (
-    <g style={{ opacity: 0, animation: `fadeIn 0.16s ease ${delay}s forwards` }}>
-      <rect
-        x={x - width / 2}
-        y={y}
-        width={width}
-        height={height}
-        rx={2}
-        fill="rgba(7,11,20,.9)"
-        stroke={C.amberBorder}
-        strokeWidth={1.2}
-      />
-      <text
-        x={x}
-        y={y + 32}
-        textAnchor="middle"
-        fill={C.amber}
-        fontSize={30}
-        fontFamily={F.display}
-        fontWeight={700}
-        letterSpacing=".08em"
-      >
-        {label}
-      </text>
-    </g>
-  );
-}
-
-function PreTrySnapGuide({
-  x,
-  hideAt,
-}: {
-  x: number;
-  hideAt?: number;
-}) {
+function PreTrySnapGuide({ x, hideAt }: { x: number; hideAt?: number }) {
   const fadeOutStyle =
     hideAt == null ? undefined : { animation: `fadeOut 0.22s ease ${hideAt}s forwards` };
 
@@ -1480,7 +2138,15 @@ function PreTrySnapGuide({
       />
       <g data-anim="pretry-ball" style={fadeOutStyle}>
         <circle cx={x} cy={FIELD_CENTER_Y} r="28" fill="url(#ballG)" />
-        <circle cx={x} cy={FIELD_CENTER_Y} r="12" fill="none" stroke={C.amber} strokeWidth="1.4" opacity=".34" />
+        <circle
+          cx={x}
+          cy={FIELD_CENTER_Y}
+          r="12"
+          fill="none"
+          stroke={C.amber}
+          strokeWidth="1.4"
+          opacity=".34"
+        />
         <circle cx={x} cy={FIELD_CENTER_Y} r="7" fill={C.amber} filter="url(#gf)" opacity=".9" />
         <circle cx={x} cy={FIELD_CENTER_Y} r="2.4" fill="#fff" opacity=".82" />
       </g>
@@ -1490,16 +2156,12 @@ function PreTrySnapGuide({
 
 function PenaltyCallout({
   x,
-  y,
   play,
   delay = 0,
-  side,
 }: {
   x: number;
-  y: number;
   play: PlayAnimationData;
   delay?: number;
-  side: 'left' | 'right';
 }) {
   const teamLine = play.penaltyTeam ? `${play.penaltyTeam} PENALTY` : 'PENALTY';
   const typeLine = play.penaltyType || 'Penalty';
@@ -1510,264 +2172,70 @@ function PenaltyCallout({
   const longest = Math.max(...detailLines.map((line) => line.length), 14);
   const width = Math.max(180, Math.min(300, 84 + longest * 7.2));
   const height = 22 + detailLines.length * 16;
-  const desiredX = side === 'right' ? x + 14 : x - width - 14;
-  const boxX = Math.max(FIELD_LEFT + 4, Math.min(FIELD_RIGHT - width - 4, desiredX));
-  const desiredY = y - height - 12;
-  const boxY = Math.max(FIELD_TOP + 4, Math.min(FIELD_BOTTOM - height - 4, desiredY));
+  const boxX = Math.max(FIELD_LEFT + 4, Math.min(FIELD_RIGHT - width - 4, x - width / 2));
+  const boxY = FIELD_TOP - height - 2;
+  const standupStyle: CSSProperties = {
+    willChange: 'transform, opacity',
+    animation: `labelErect 0.28s ease-out ${delay}s both`,
+  };
 
   return (
-    <g style={{ opacity: 0, animation: `slideUp 0.24s ease ${delay}s forwards` }}>
-      <rect
-        x={boxX}
-        y={boxY}
-        width={width}
-        height={height}
-        rx={2}
-        fill="rgba(18,14,2,.96)"
-        stroke={C.amber}
-        strokeOpacity={0.7}
-        strokeWidth={1}
+    <g style={{ opacity: 0, animation: `fadeIn 0.16s ease ${delay}s forwards` }}>
+      {/* Drop shadow ellipses anchored at field top edge */}
+      <ellipse
+        cx={x}
+        cy={FIELD_TOP + 9}
+        rx={Math.max(80, width * 0.31)}
+        ry={8}
+        fill="rgba(0,0,0,0.30)"
       />
-      <text
-        x={boxX + 10}
-        y={boxY + 13}
-        textAnchor="start"
-        fill={C.amber}
-        fontSize={9}
-        fontFamily={F.display}
-        fontWeight={800}
-        letterSpacing=".16em"
-      >
-        FLAG
-      </text>
-      {detailLines.map((line, index) => (
-        <text
-          key={`${line}-${index}`}
-          x={boxX + 10}
-          y={boxY + 30 + index * 16}
-          textAnchor="start"
-          fill={index === 0 ? C.amber : C.textBright}
-          fontSize={index === 1 ? 14 : 12}
-          fontFamily={F.display}
-          fontWeight={index === 1 ? 700 : 600}
-          letterSpacing={index === 1 ? '.02em' : '.08em'}
-        >
-          {line}
-        </text>
-      ))}
-    </g>
-  );
-}
-
-function ActorCard({
-  x,
-  y,
-  title,
-  summary,
-  lines,
-  previousLines,
-  headshotUrl,
-  accent,
-  delay = 0,
-  side,
-  anchor = 'above',
-  disappearAfter,
-}: {
-  x: number;
-  y: number;
-  title: string;
-  summary?: string;
-  lines?: string[];
-  previousLines?: string[];
-  headshotUrl?: string;
-  accent: string;
-  delay?: number;
-  side: 'left' | 'right';
-  anchor?: 'above' | 'below';
-  disappearAfter?: number;
-}) {
-  const detailLines = (lines ?? []).filter((line) => line.trim().length > 0).slice(0, 4);
-  const priorLines = (previousLines ?? []).filter((line) => line.trim().length > 0).slice(0, 4);
-  const lineCount = Math.max(detailLines.length, priorLines.length);
-  const detailLineHeight = 20;
-  const headerHeight = 18 + (summary ? 18 : 0);
-  const hasAvatar = Boolean(headshotUrl);
-  const longestLineLength = Math.max(
-    title.length,
-    summary?.length ?? 0,
-    ...detailLines.map((line) => line.length),
-    ...priorLines.map((line) => line.length),
-    0
-  );
-  const baseWidth = (hasAvatar ? 82 : 28) + longestLineLength * 9.3;
-  const width = Math.max(hasAvatar ? 184 : 148, Math.min(380, Math.round(baseWidth)));
-  const contentHeight = headerHeight + lineCount * detailLineHeight;
-  const height = Math.max(56, contentHeight + 18);
-  const desiredX = side === 'right' ? x + 12 : x - width - 12;
-  const cardX = Math.max(4, Math.min(1000 - width - 4, desiredX));
-  const desiredY = anchor === 'above' ? y - height - 10 : y + 8;
-  const cardY = Math.max(FIELD_TOP + 4, Math.min(FIELD_BOTTOM - height - 4, desiredY));
-  const avatarSize = 32;
-  const avatarX = cardX + 8;
-  const avatarY = cardY + 8;
-  const textStartX = hasAvatar ? avatarX + avatarSize + 8 : cardX + 10;
-  const titleY = cardY + 18;
-  const summaryY = titleY + 18;
-  const detailsStartY = summary ? summaryY + 20 : titleY + 20;
-  const clipId = `actor-headshot-${Math.abs(Math.round(cardX))}-${Math.abs(Math.round(cardY))}-${title.replace(/[^a-z0-9]/gi, '').slice(0, 8)}`;
-  const animationParts = [`slideUp 0.28s ease ${delay}s forwards`];
-  if (disappearAfter != null) {
-    animationParts.push(`fadeOut 0.22s ease ${disappearAfter}s forwards`);
-  }
-
-  const charWidth = 8.7;
-
-  return (
-    <g style={{ opacity: 0, animation: animationParts.join(', ') }}>
-      <rect
-        x={cardX}
-        y={cardY}
-        width={width}
-        height={height}
-        rx={2}
-        fill="rgba(4,11,24,.94)"
-        stroke={accent}
-        strokeOpacity={0.4}
-        strokeWidth={1}
+      <ellipse
+        cx={x}
+        cy={FIELD_TOP + 12}
+        rx={Math.max(96, width * 0.38)}
+        ry={11}
+        fill="rgba(0,0,0,0.16)"
       />
-      {hasAvatar && (
-        <circle
-          cx={avatarX + avatarSize / 2}
-          cy={avatarY + avatarSize / 2}
-          r={avatarSize / 2}
-          fill="rgba(255,255,255,.04)"
-          stroke={accent}
-          strokeOpacity={0.5}
-          strokeWidth={0.8}
+      <g style={standupStyle}>
+        <rect
+          x={boxX}
+          y={boxY}
+          width={width}
+          height={height}
+          rx={2}
+          fill="rgba(18,14,2,.96)"
+          stroke={C.amber}
+          strokeOpacity={0.7}
+          strokeWidth={1}
         />
-      )}
-      {headshotUrl && (
-        <>
-          <defs>
-            <clipPath id={clipId}>
-              <circle
-                cx={avatarX + avatarSize / 2}
-                cy={avatarY + avatarSize / 2}
-                r={avatarSize / 2 - 0.4}
-              />
-            </clipPath>
-          </defs>
-          <image
-            href={headshotUrl}
-            x={avatarX}
-            y={avatarY}
-            width={avatarSize}
-            height={avatarSize}
-            preserveAspectRatio="xMidYMid slice"
-            clipPath={`url(#${clipId})`}
-          />
-        </>
-      )}
-      <text
-        x={textStartX}
-        y={titleY}
-        textAnchor="start"
-        fill={C.textBright}
-        fontSize={17}
-        fontFamily={F.display}
-        fontWeight={700}
-      >
-        {title}
-      </text>
-      {summary && (
         <text
-          x={textStartX}
-          y={summaryY}
+          x={boxX + 10}
+          y={boxY + 13}
           textAnchor="start"
-          fill={accent}
-          fontSize={16}
+          fill={C.amber}
+          fontSize={9}
           fontFamily={F.display}
-          fontWeight={700}
+          fontWeight={800}
+          letterSpacing=".16em"
         >
-          {summary}
+          FLAG
         </text>
-      )}
-      {Array.from({ length: lineCount }, (_, index) => {
-        const line = detailLines[index];
-        const prev = priorLines[index];
-        if (!line && !prev) return null;
-
-        const yPos = detailsStartY + index * detailLineHeight;
-        const shouldAnimateSwap = Boolean(line && prev && line !== prev);
-        const numericSwap = shouldAnimateSwap && line && prev ? buildNumericSwapPlan(prev, line) : null;
-
-        return (
-          <g key={`line-${index}-${line ?? 'empty'}-${prev ?? 'none'}`}>
-            {numericSwap && (
-              <>
-                <text
-                  x={textStartX}
-                  y={yPos}
-                  textAnchor="start"
-                  fill={C.textBright}
-                  fillOpacity={0.98}
-                  fontSize={15}
-                  fontFamily={F.mono}
-                  letterSpacing=".02em"
-                >
-                  {numericSwap.baseLine}
-                </text>
-                {numericSwap.changed.map((segment) => (
-                  <text
-                    key={`old-${segment.start}-${segment.prev}`}
-                    x={textStartX + segment.start * charWidth}
-                    y={yPos}
-                    textAnchor="start"
-                    fill={C.textBright}
-                    fillOpacity={0.95}
-                    fontSize={15}
-                    fontFamily={F.mono}
-                    letterSpacing=".02em"
-                    style={{ animation: `fadeOut 0.16s linear ${delay + 0.95}s forwards` }}
-                  >
-                    {segment.prev}
-                  </text>
-                ))}
-                {numericSwap.changed.map((segment) => (
-                  <text
-                    key={`new-${segment.start}-${segment.next}`}
-                    x={textStartX + segment.start * charWidth}
-                    y={yPos}
-                    textAnchor="start"
-                    fill={C.textBright}
-                    fillOpacity={0.98}
-                    fontSize={15}
-                    fontFamily={F.mono}
-                    letterSpacing=".02em"
-                    style={{ opacity: 0, animation: `fadeIn 0.18s ease ${delay + 1.1}s forwards` }}
-                  >
-                    {segment.next}
-                  </text>
-                ))}
-              </>
-            )}
-            {!numericSwap && line && (
-              <text
-                x={textStartX}
-                y={yPos}
-                textAnchor="start"
-                fill={C.textBright}
-                fillOpacity={0.98}
-                fontSize={15}
-                fontFamily={F.mono}
-                letterSpacing=".02em"
-              >
-                {line}
-              </text>
-            )}
-          </g>
-        );
-      })}
+        {detailLines.map((line, index) => (
+          <text
+            key={`${line}-${index}`}
+            x={boxX + 10}
+            y={boxY + 30 + index * 16}
+            textAnchor="start"
+            fill={index === 0 ? C.amber : C.textBright}
+            fontSize={index === 1 ? 14 : 12}
+            fontFamily={F.display}
+            fontWeight={index === 1 ? 700 : 600}
+            letterSpacing={index === 1 ? '.02em' : '.08em'}
+          >
+            {line}
+          </text>
+        ))}
+      </g>
     </g>
   );
 }
@@ -1824,9 +2292,64 @@ function buildNumericSwapPlan(previousLine: string, nextLine: string): NumericSw
   };
 }
 
+// ── Turnover on Downs Marker ───────────────────────────────────
+
+function TurnoverOnDownsMarker({ x }: { x: number }) {
+  const badgeWidth = 196;
+  const badgeHeight = 28;
+  const badgeY = FIELD_TOP - 34;
+  const delay = ANIM_TIMING.firstDownDelay;
+
+  return (
+    <g>
+      {/* Red pulsing line at the spot where possession changes */}
+      <line
+        x1={x}
+        y1={FIELD_TOP}
+        x2={x}
+        y2={FIELD_BOTTOM}
+        stroke={C.red}
+        strokeWidth={3}
+        opacity={0.6}
+        style={{ animation: `firstDownPulse 1.2s ease ${delay}s infinite` }}
+      />
+
+      {/* Badge */}
+      <g style={{ opacity: 0, animation: `slideUp 0.3s ease ${delay + 0.3}s forwards` }}>
+        <rect
+          x={x - badgeWidth / 2}
+          y={badgeY}
+          width={badgeWidth}
+          height={badgeHeight}
+          rx={2}
+          fill={C.red}
+          opacity={0.9}
+        />
+        <text
+          x={x}
+          y={badgeY + 19}
+          textAnchor="middle"
+          fill="#fff"
+          fontSize={14}
+          fontFamily={F.display}
+          fontWeight={800}
+          letterSpacing="0.06em"
+        >
+          TURNOVER ON DOWNS
+        </text>
+      </g>
+    </g>
+  );
+}
+
 // ── First Down Marker ─────────────────────────────────────────
 
 function FirstDownMarker({ x }: { x: number }) {
+  const badgeWidth = 136;
+  const badgeHeight = 28;
+  // Badge sits below the field (near/closer sideline) so it isn't covered by headshots
+  const badgeY = FIELD_BOTTOM + 4;
+
   return (
     <g>
       {/* Green pulsing line at new first-down position */}
@@ -1838,7 +2361,7 @@ function FirstDownMarker({ x }: { x: number }) {
         stroke={C.green}
         strokeWidth={3}
         opacity={0.6}
-        style={{ animation: `firstDownPulse 1.2s ease ${ANIM_TIMING.firstDownDelay}s forwards` }}
+        style={{ animation: `firstDownPulse 1.2s ease ${ANIM_TIMING.firstDownDelay}s infinite` }}
       />
 
       {/* Amber dashed sweep */}
@@ -1854,7 +2377,7 @@ function FirstDownMarker({ x }: { x: number }) {
         style={{ animation: `firstDownSweep 0.8s ease ${ANIM_TIMING.firstDownDelay}s forwards` }}
       />
 
-      {/* 1ST DOWN badge */}
+      {/* 1ST DOWN badge — near/bottom sideline, slides up from below */}
       <g
         style={{
           opacity: 0,
@@ -1862,24 +2385,122 @@ function FirstDownMarker({ x }: { x: number }) {
         }}
       >
         <rect
-          x={x - 34}
-          y={FIELD_TOP - 24}
-          width={68}
-          height={14}
+          x={x - badgeWidth / 2}
+          y={badgeY}
+          width={badgeWidth}
+          height={badgeHeight}
           rx={2}
           fill={C.green}
           opacity={0.9}
         />
         <text
           x={x}
-          y={FIELD_TOP - 13}
+          y={badgeY + 19}
           textAnchor="middle"
           fill={C.bg}
-          fontSize={8}
+          fontSize={16}
           fontFamily={F.display}
           fontWeight={800}
         >
           1ST DOWN
+        </text>
+      </g>
+    </g>
+  );
+}
+
+/** Safety: ball draws backward to the endzone goal line, pulsing red line + SAFETY badge. */
+function SafetyAnimation({ fromX, possIsAway }: { fromX: number; possIsAway: boolean }) {
+  // The goal line of the tackled team's own endzone
+  const goalLineX = possIsAway ? AWAY_EZ_RIGHT : HOME_EZ_LEFT;
+  const trailDur = 0.72;
+  const lineFadeDelay = trailDur - 0.12;
+  const badgeDelay = lineFadeDelay + 0.32;
+  const pathD = `M ${fromX},${FIELD_CENTER_Y} L ${goalLineX},${FIELD_CENTER_Y}`;
+
+  // Badge position: just inside the endzone, toward field center
+  const badgeW = 80;
+  const badgeH = 22;
+  const badgeX = possIsAway ? goalLineX + 6 : goalLineX - badgeW - 6;
+  const badgeY = FIELD_TOP - badgeH - 6;
+
+  return (
+    <g>
+      {/* Red trail drawing backward from LOS to goal line */}
+      <path
+        d={pathD}
+        fill="none"
+        stroke={C.red}
+        strokeWidth={2.5}
+        strokeDasharray="1"
+        pathLength={1}
+        strokeDashoffset={1}
+        opacity={0.82}
+      >
+        <animate
+          attributeName="stroke-dashoffset"
+          from="1"
+          to="0"
+          dur={`${trailDur}s`}
+          fill="freeze"
+        />
+      </path>
+      {/* Dot at the tackle/safety spot */}
+      <circle cx={goalLineX} cy={FIELD_CENTER_Y} r={5} fill={C.red} opacity={0}>
+        <animate
+          attributeName="opacity"
+          from="0"
+          to="1"
+          begin={`${trailDur - 0.05}s`}
+          dur="0.16s"
+          fill="freeze"
+        />
+      </circle>
+      {/* Pulsing vertical red safety line at the goal line */}
+      <line
+        x1={goalLineX}
+        y1={FIELD_TOP}
+        x2={goalLineX}
+        y2={FIELD_BOTTOM}
+        stroke={C.red}
+        strokeWidth={2.5}
+        strokeDasharray="8 5"
+        opacity={0}
+        style={{ animation: `fadeIn 0.22s ease ${lineFadeDelay}s forwards` }}
+      >
+        <animate
+          attributeName="strokeOpacity"
+          values="0.85;0.28;0.85"
+          dur="1.1s"
+          begin={`${lineFadeDelay + 0.24}s`}
+          repeatCount="indefinite"
+        />
+      </line>
+      {/* SAFETY badge */}
+      <g style={{ opacity: 0, animation: `fadeIn 0.2s ease ${badgeDelay}s forwards` }}>
+        <rect
+          x={badgeX}
+          y={badgeY}
+          width={badgeW}
+          height={badgeH}
+          rx={2}
+          fill="rgba(5,10,20,.93)"
+          stroke={C.red}
+          strokeWidth={1.2}
+          strokeOpacity={0.85}
+        />
+        <text
+          x={badgeX + badgeW / 2}
+          y={badgeY + badgeH / 2}
+          textAnchor="middle"
+          dominantBaseline="central"
+          fill={C.red}
+          fontSize={10}
+          fontFamily={F.mono}
+          fontWeight={700}
+          letterSpacing="0.12em"
+        >
+          SAFETY
         </text>
       </g>
     </g>

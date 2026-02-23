@@ -15,13 +15,7 @@ export default function LiveTicker() {
         score: `${state.away.abbr} ${state.awayScore.total} - ${state.home.abbr} ${state.homeScore.total}`,
         timestamp: `Q${play.quarter} ${play.clock}`,
       })),
-    [
-      state.plays,
-      state.away.abbr,
-      state.awayScore.total,
-      state.home.abbr,
-      state.homeScore.total,
-    ]
+    [state.plays, state.away.abbr, state.awayScore.total, state.home.abbr, state.homeScore.total]
   );
 
   return (

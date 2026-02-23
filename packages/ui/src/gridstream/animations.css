@@ -9,122 +9,301 @@
  * so durations stay in sync between CSS and JS-driven animations.
  */
 
+/* ── FG upright portals ──────────────────────────────────────────── */
+
+@keyframes portalFloat {
+  0%,
+  100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
 /* ── UI chrome ───────────────────────────────────────────────────── */
 
 @keyframes pulse {
-  0%, 100% { opacity: 1; }
-  50%       { opacity: 0.3; }
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.3;
+  }
 }
 
 @keyframes fadeIn {
-  from { opacity: 0; }
-  to   { opacity: 1; }
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }
 
 @keyframes fadeOut {
-  from { opacity: 1; }
-  to   { opacity: 0; }
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
 }
 
 @keyframes slideUp {
-  from { opacity: 0; transform: translateY(8px); }
-  to   { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 /* ── Field scanning overlay ─────────────────────────────────────── */
 
+@keyframes playSweepAnim {
+  0% {
+    transform: translateY(-100%);
+    opacity: 0;
+  }
+  8% {
+    opacity: 1;
+  }
+  80% {
+    opacity: 0.5;
+  }
+  100% {
+    transform: translateY(900%);
+    opacity: 0;
+  }
+}
+
 @keyframes scanPulse {
-  0%   { opacity: 0; transform: translateY(-100%); }
-  50%  { opacity: 0.03; }
-  100% { opacity: 0; transform: translateY(200%); }
+  0% {
+    opacity: 0;
+    transform: translateY(-100%);
+  }
+  50% {
+    opacity: 0.03;
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(200%);
+  }
 }
 
 /* ── Panel corner decorations ───────────────────────────────────── */
 
 @keyframes cornerFlash {
-  0%, 90%, 100% { opacity: 0.5; }
-  95%            { opacity: 1; }
+  0%,
+  90%,
+  100% {
+    opacity: 0.5;
+  }
+  95% {
+    opacity: 1;
+  }
 }
 
 /* ── Possession glow ────────────────────────────────────────────── */
 
 @keyframes possGlow {
-  0%, 100% { opacity: 0.4; }
-  50%       { opacity: 0.7; }
+  0%,
+  100% {
+    opacity: 0.4;
+  }
+  50% {
+    opacity: 0.7;
+  }
 }
 
 /* ── Ball and trail animations ──────────────────────────────────── */
 
 @keyframes ballTravel {
-  0%   { offset-distance: 0%; }
-  100% { offset-distance: 100%; }
+  0% {
+    offset-distance: 0%;
+  }
+  100% {
+    offset-distance: 100%;
+  }
 }
 
 @keyframes trailDraw {
-  0%   { stroke-dashoffset: 1000; }
-  100% { stroke-dashoffset: 0; }
+  0% {
+    stroke-dashoffset: 1000;
+  }
+  100% {
+    stroke-dashoffset: 0;
+  }
 }
 
 @keyframes trailFade {
-  0%   { opacity: 0.6; }
-  60%  { opacity: 0.6; }
-  100% { opacity: 0.1; }
+  0% {
+    opacity: 0.6;
+  }
+  60% {
+    opacity: 0.6;
+  }
+  100% {
+    opacity: 0.1;
+  }
 }
 
 @keyframes catchFlash {
-  0%   { r: 4; opacity: 1; }
-  50%  { r: 16; opacity: 0.4; }
-  100% { r: 20; opacity: 0; }
+  0% {
+    r: 4;
+    opacity: 1;
+  }
+  50% {
+    r: 16;
+    opacity: 0.4;
+  }
+  100% {
+    r: 20;
+    opacity: 0;
+  }
+}
+
+@keyframes markerStandUp {
+  from {
+    transform: translateY(-10px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+@keyframes cardStandUp {
+  from {
+    transform: translateY(-8px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+/* Fade-in-from-above for kick/attempt labels (PUNT, FG ATTEMPT, etc.) */
+@keyframes labelErect {
+  from {
+    transform: translateY(-8px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
 }
 
 @keyframes turnoverFlash {
-  0%   { opacity: 0; }
-  20%  { opacity: 0.12; }
-  100% { opacity: 0; }
+  0% {
+    opacity: 0;
+  }
+  20% {
+    opacity: 0.12;
+  }
+  100% {
+    opacity: 0;
+  }
 }
 
 /* ── First-down marker ──────────────────────────────────────────── */
 
 @keyframes firstDownPulse {
-  0%   { opacity: 0.6; stroke-width: 3; }
-  25%  { opacity: 1;   stroke-width: 4; }
-  50%  { opacity: 0.6; stroke-width: 3; }
-  75%  { opacity: 1;   stroke-width: 4; }
-  100% { opacity: 0.5; stroke-width: 2.5; }
+  0% {
+    opacity: 0.6;
+    stroke-width: 3;
+  }
+  25% {
+    opacity: 1;
+    stroke-width: 4;
+  }
+  50% {
+    opacity: 0.6;
+    stroke-width: 3;
+  }
+  75% {
+    opacity: 1;
+    stroke-width: 4;
+  }
+  100% {
+    opacity: 0.5;
+    stroke-width: 2.5;
+  }
 }
 
 @keyframes firstDownSweep {
-  0%   { stroke-dashoffset: 20; }
-  100% { stroke-dashoffset: 0; }
+  0% {
+    stroke-dashoffset: 20;
+  }
+  100% {
+    stroke-dashoffset: 0;
+  }
 }
 
 /* ── Field goal miss ────────────────────────────────────────────── */
 
 @keyframes fgMissVeer {
-  0%   { offset-distance: 0%; }
-  60%  { offset-distance: 70%; }
-  100% { offset-distance: 100%; }
+  0% {
+    offset-distance: 0%;
+  }
+  60% {
+    offset-distance: 70%;
+  }
+  100% {
+    offset-distance: 100%;
+  }
 }
 
 /* ── Sparkline draw-on ──────────────────────────────────────────── */
 
 @keyframes sparkDraw {
-  0%   { stroke-dashoffset: 500; }
-  100% { stroke-dashoffset: 0; }
+  0% {
+    stroke-dashoffset: 500;
+  }
+  100% {
+    stroke-dashoffset: 0;
+  }
 }
 
 /* ── Weather particles ──────────────────────────────────────────── */
 
 @keyframes rain {
-  0%   { transform: translateY(-10px) translateX(0); opacity: 0; }
-  10%  { opacity: 0.5; }
-  90%  { opacity: 0.5; }
-  100% { transform: translateY(260px) translateX(var(--drift, 25px)); opacity: 0; }
+  0% {
+    transform: translateY(-10px) translateX(0);
+    opacity: 0;
+  }
+  10% {
+    opacity: 0.5;
+  }
+  90% {
+    opacity: 0.5;
+  }
+  100% {
+    transform: translateY(260px) translateX(var(--drift, 25px));
+    opacity: 0;
+  }
 }
 
 @keyframes snow {
-  0%   { transform: translateY(-10px) translateX(0); opacity: 0; }
-  10%  { opacity: 0.45; }
-  90%  { opacity: 0.45; }
-  100% { transform: translateY(260px) translateX(var(--drift, 12px)); opacity: 0; }
+  0% {
+    transform: translateY(-10px) translateX(0);
+    opacity: 0;
+  }
+  10% {
+    opacity: 0.45;
+  }
+  90% {
+    opacity: 0.45;
+  }
+  100% {
+    transform: translateY(260px) translateX(var(--drift, 12px));
+    opacity: 0;
+  }
 }

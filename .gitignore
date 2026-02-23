@@ -25,6 +25,7 @@ target/
 
 .vscode/
 .idea/
+.idea/
 
 .terraform/
 *.tfstate
@@ -37,3 +38,4 @@ main
 *.dll
 *.so
 *.dylib
+.claude/settings.json

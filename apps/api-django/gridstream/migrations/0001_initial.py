@@ -329,7 +329,8 @@ class Migration(migrations.Migration):
                 (
                     "team",
                     models.ForeignKey(
-                        on_delete=django.db.models.deletion.CASCADE, to="gridstream.team"
+                        on_delete=django.db.models.deletion.CASCADE,
+                        to="gridstream.team",
                     ),
                 ),
             ],
@@ -633,7 +634,8 @@ class Migration(migrations.Migration):
                 (
                     "team",
                     models.ForeignKey(
-                        on_delete=django.db.models.deletion.CASCADE, to="gridstream.team"
+                        on_delete=django.db.models.deletion.CASCADE,
+                        to="gridstream.team",
                     ),
                 ),
             ],
@@ -795,7 +797,8 @@ class Migration(migrations.Migration):
                 (
                     "team",
                     models.ForeignKey(
-                        on_delete=django.db.models.deletion.CASCADE, to="gridstream.team"
+                        on_delete=django.db.models.deletion.CASCADE,
+                        to="gridstream.team",
                     ),
                 ),
             ],
@@ -949,7 +952,8 @@ class Migration(migrations.Migration):
                 (
                     "play",
                     models.ForeignKey(
-                        on_delete=django.db.models.deletion.CASCADE, to="gridstream.play"
+                        on_delete=django.db.models.deletion.CASCADE,
+                        to="gridstream.play",
                     ),
                 ),
                 (
@@ -1102,7 +1106,8 @@ class Migration(migrations.Migration):
                 "ordering": ["-season_year", "-week"],
                 "indexes": [
                     models.Index(
-                        fields=["game", "team"], name="gridstream_pla_game_id_ff111c_idx"
+                        fields=["game", "team"],
+                        name="gridstream_pla_game_id_ff111c_idx",
                     ),
                     models.Index(
                         fields=["player", "season_year", "week"],
@@ -1175,7 +1180,9 @@ class Migration(migrations.Migration):
         ),
         migrations.AddIndex(
             model_name="game",
-            index=models.Index(fields=["status"], name="gridstream_gam_status_b47c66_idx"),
+            index=models.Index(
+                fields=["status"], name="gridstream_gam_status_b47c66_idx"
+            ),
         ),
         migrations.AddIndex(
             model_name="game",

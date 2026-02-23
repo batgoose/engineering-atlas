@@ -18,26 +18,18 @@ const baseSituation: Situation = {
 describe('SituationBar', () => {
   it('keeps down-and-distance visible during team timeout', () => {
     const { container } = render(
-      <SituationBar
-        situation={baseSituation}
-        isFinal={false}
-        timeoutNotice="SEA Timeout"
-      />
+      <SituationBar situation={baseSituation} isFinal={false} timeoutNotice="SEA Timeout" />
     );
 
     expect(screen.getByText('1ST & 10')).toBeInTheDocument();
     expect(screen.getByText('AT')).toBeInTheDocument();
     expect(screen.getByText('SEA 35')).toBeInTheDocument();
-    expect(container.firstElementChild).toHaveStyle({ minHeight: '48px' });
+    expect(container.firstElementChild).toHaveStyle({ minHeight: '36px' });
   });
 
   it('does not replace down-and-distance with OFFICIAL TIMEOUT', () => {
     render(
-      <SituationBar
-        situation={baseSituation}
-        isFinal={false}
-        timeoutNotice="Official Timeout"
-      />
+      <SituationBar situation={baseSituation} isFinal={false} timeoutNotice="Official Timeout" />
     );
 
     expect(screen.getByText('1ST & 10')).toBeInTheDocument();
@@ -46,14 +38,19 @@ describe('SituationBar', () => {
   });
 
   it('keeps the same outer min height for normal down-and-distance state', () => {
-    const { container } = render(
-      <SituationBar
-        situation={baseSituation}
-        isFinal={false}
-      />
-    );
+    const { container } = render(<SituationBar situation={baseSituation} isFinal={false} />);
 
     expect(screen.getByText('1ST & 10')).toBeInTheDocument();
-    expect(container.firstElementChild).toHaveStyle({ minHeight: '48px' });
+    expect(container.firstElementChild).toHaveStyle({ minHeight: '36px' });
+  });
+
+  it('shows override text for special-teams situations', () => {
+    render(
+      <SituationBar situation={baseSituation} isFinal={false} overrideText="KICKOFF AT SEA 35" />
+    );
+
+    expect(screen.getByText('KICKOFF AT SEA 35')).toBeInTheDocument();
+    expect(screen.queryByText('1ST & 10')).not.toBeInTheDocument();
+    expect(screen.queryByText('AT')).not.toBeInTheDocument();
   });
 });

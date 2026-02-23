@@ -249,4 +249,141 @@ export const PLAY_ANIMATION_SCENARIOS: PlayAnimationScenario[] = [
       },
     }),
   },
+
+  // ── Penalty scenarios ──────────────────────────────────────────────────────
+
+  {
+    // Offensive holding negates a big run (no-play). Arrow should start at the
+    // snap LOS (NE 30) and move back 10 yards to NE 40.
+    id: 'rush-penalty-offensive-holding-noplay',
+    label: 'Rush — offensive holding (no play, enforced from LOS)',
+    awayAbbr: 'SEA',
+    play: makePlay({
+      type: 'rush',
+      direction: 'middle',
+      offenseTeam: 'SEA',
+      fromYardline: 30,
+      fromSide: 'NE',
+      toYardline: 19,
+      toSide: 'NE',
+      yardsGained: 11,
+      isNoPlay: true,
+      penaltyTeam: 'SEA',
+      penaltyType: 'Offensive Holding',
+      penaltyYards: 10,
+      // Enforced from LOS (NE 30) → penalty spot is NE 40 (10 yards back)
+      penaltyAdjustedYardline: 40,
+      penaltyAdjustedSide: 'NE',
+      description:
+        'K.Walker up the middle for 11 yards. PENALTY on SEA-J.Sundell, Offensive Holding, 10 yards, no play.',
+      actor: {
+        name: 'K.Walker',
+        summary: '11 Yard Rush',
+        lines: ['8 Rushes - 52 Yards'],
+      },
+    }),
+  },
+
+  {
+    // Defensive personal foul after a completed run (play stands, tack-on).
+    // Arrow should start at the end of the run (NE 24) and move forward 15 yards to NE 9.
+    id: 'rush-penalty-defensive-personal-foul-tackon',
+    label: 'Rush — defensive personal foul (play stands, tacked on from run end)',
+    awayAbbr: 'SEA',
+    play: makePlay({
+      type: 'rush',
+      direction: 'right',
+      offenseTeam: 'NE',
+      fromYardline: 38,
+      fromSide: 'NE',
+      toYardline: 24,
+      toSide: 'NE',
+      yardsGained: 14,
+      isNoPlay: false,
+      penaltyTeam: 'SEA',
+      penaltyType: 'Unnecessary Roughness',
+      penaltyYards: 15,
+      // Tacked on from end of run (NE 24) → 15 yards forward to NE 9
+      penaltyAdjustedYardline: 9,
+      penaltyAdjustedSide: 'NE',
+      description:
+        'R.Stevenson right end for 14 yards. PENALTY on SEA-D.Adams, Unnecessary Roughness, 15 yards.',
+      actor: {
+        name: 'R.Stevenson',
+        summary: '14 Yard Rush',
+        lines: ['12 Rushes - 61 Yards'],
+      },
+    }),
+  },
+
+  {
+    // Defensive holding on an incomplete pass (no-play). Arrow starts at the
+    // snap LOS (NE 45) and moves forward 5 yards to NE 40 (automatic 1st).
+    id: 'pass-penalty-defensive-holding-incomplete-noplay',
+    label: 'Incomplete pass — defensive holding (no play, enforced from LOS)',
+    awayAbbr: 'SEA',
+    play: makePlay({
+      type: 'pass',
+      direction: 'right',
+      offenseTeam: 'NE',
+      fromYardline: 45,
+      fromSide: 'NE',
+      toYardline: 36,
+      toSide: 'NE',
+      yardsGained: 0,
+      isComplete: false,
+      isNoPlay: true,
+      penaltyTeam: 'SEA',
+      penaltyType: 'Defensive Holding',
+      penaltyYards: 5,
+      // Enforced from LOS (NE 45) → 5 yards forward to NE 40
+      penaltyAdjustedYardline: 40,
+      penaltyAdjustedSide: 'NE',
+      description:
+        'D.Maye pass incomplete short right. PENALTY on SEA-T.Woolen, Defensive Holding, 5 yards, no play.',
+      qbActor: {
+        name: 'D.Maye',
+        summary: 'Incomplete Pass',
+        lines: ['18/32 Passing - 224 Yards'],
+      },
+    }),
+  },
+
+  {
+    // Defensive pass interference on a complete pass (play stands, tack-on from catch).
+    // Arrow starts at catch spot (SEA 22) and moves forward 15 yards to SEA 7.
+    id: 'pass-penalty-dpi-complete-tackon',
+    label: 'Complete pass — defensive PI (play stands, tacked on from catch)',
+    awayAbbr: 'SEA',
+    play: makePlay({
+      type: 'pass',
+      direction: 'left',
+      offenseTeam: 'SEA',
+      fromYardline: 38,
+      fromSide: 'SEA',
+      toYardline: 22,
+      toSide: 'SEA',
+      yardsGained: 16,
+      isComplete: true,
+      isNoPlay: false,
+      penaltyTeam: 'NE',
+      penaltyType: 'Defensive Pass Interference',
+      penaltyYards: 15,
+      // Tacked on from catch spot (SEA 22) → 15 yards forward to SEA 7
+      penaltyAdjustedYardline: 7,
+      penaltyAdjustedSide: 'SEA',
+      description:
+        'G.Smith pass short left to D.Metcalf for 16 yards. PENALTY on NE-J.Jones, Defensive Pass Interference, 15 yards.',
+      actor: {
+        name: 'D.Metcalf',
+        summary: '16 Yard Catch',
+        lines: ['5 Catches - 88 Yards'],
+      },
+      qbActor: {
+        name: 'G.Smith',
+        summary: '16 Yard Pass',
+        lines: ['21/35 Passing - 287 Yards'],
+      },
+    }),
+  },
 ];

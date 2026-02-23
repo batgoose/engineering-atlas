@@ -347,7 +347,9 @@ class TestGameBoxscore:
         resp = api_client.get(url)
 
         assert len(resp.data["team_stats"]) >= 1
-        sea_stats = next(row for row in resp.data["team_stats"] if row.get("team_abbr") == "SEA")
+        sea_stats = next(
+            row for row in resp.data["team_stats"] if row.get("team_abbr") == "SEA"
+        )
         assert sea_stats["team_abbr"] == "SEA"
         assert sea_stats["total_yards"] == 380
         assert sea_stats["points_scored"] == 26

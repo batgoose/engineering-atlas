@@ -270,6 +270,7 @@ export interface ReceiverInfo {
 
 export interface PlayActorInfo {
   name: string;
+  gsisId?: string;
   line?: string;
   summary?: string;
   lines?: string[];
@@ -281,6 +282,7 @@ export interface PlayAnimationData {
   type: AnimPlayType;
   direction: PassDirection;
   offenseTeam?: string;
+  startDown?: number;
   startDistance?: number;
   fromYardline: number;
   fromSide: string;
@@ -302,6 +304,7 @@ export interface PlayAnimationData {
   fgResult?: FgResult;
   fgDistance?: number;
   isTouchdown?: boolean;
+  isSafety?: boolean;
   penaltyTeam?: string;
   penaltyType?: string;
   penaltyPlayer?: string;
@@ -333,7 +336,9 @@ export type PositionGroup = 'QB' | 'WR' | 'RB' | 'TE' | 'K' | 'DEF';
 
 export interface FantasyRosterEntry {
   name: string;
+  gsisId?: string;
   position: PositionGroup;
+  headshotUrl?: string;
   points: number;
   pointsPpr?: number;
   pointsHalfPpr?: number;
@@ -364,6 +369,7 @@ export interface TeamStatLine {
 
 export interface LeaderEntry {
   name: string;
+  headshotUrl?: string;
   line: string; // stat summary, "22/34, 287 YDS, 2 TD"
 }
 

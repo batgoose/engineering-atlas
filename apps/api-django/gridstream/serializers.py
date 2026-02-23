@@ -30,6 +30,8 @@ from .models import (
     TeamGameStats,
     Playbook,
     PlaybookEntry,
+    PlayerFFRanking,
+    PlayerNextGenStats,
 )
 
 # =============================================================================
@@ -86,7 +88,7 @@ class TeamMinimalSerializer(serializers.ModelSerializer):
         ]
 
     def get_logo_url(self, obj):
-        # Prefer the default logo — fall back to first available
+        # Prefer dark logo (suitable for dark UI), then default, then first available
         if (
             hasattr(obj, "_prefetched_objects_cache")
             and "logos" in obj._prefetched_objects_cache
@@ -94,10 +96,12 @@ class TeamMinimalSerializer(serializers.ModelSerializer):
             logos = obj._prefetched_objects_cache["logos"]
         else:
             logos = list(obj.logos.all()[:4])
-        for logo in logos:
-            if logo.logo_type == "default":
-                return logo.url
-        return logos[0].url if logos else None
+        logo_map = {logo.logo_type: logo.url for logo in logos}
+        return (
+            logo_map.get("dark")
+            or logo_map.get("default")
+            or (logos[0].url if logos else None)
+        )
 
 
 class VenueSerializer(serializers.ModelSerializer):
@@ -669,6 +673,7 @@ class PlayerGameStatsSerializer(serializers.ModelSerializer):
         source="player.headshot_url", read_only=True
     )
     player_position = serializers.CharField(source="player.position", read_only=True)
+    player_gsis_id = serializers.CharField(source="player.gsis_id", read_only=True)
     team_abbr = serializers.CharField(source="team.abbreviation", read_only=True)
     opponent_abbr = serializers.CharField(
         source="opponent.abbreviation", read_only=True
@@ -682,6 +687,7 @@ class PlayerGameStatsSerializer(serializers.ModelSerializer):
             "player_name",
             "player_headshot",
             "player_position",
+            "player_gsis_id",
             "game",
             "team",
             "team_abbr",
@@ -842,6 +848,38 @@ class TeamGameStatsSerializer(serializers.ModelSerializer):
             "passing_epa",
             "rushing_epa",
             "fantasy_dst_points",
+        ]
+
+
+# =============================================================================
+# ADVANCED ANALYTICS
+# =============================================================================
+
+
+class PlayerFFRankingSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = PlayerFFRanking
+        fields = [
+            "season",
+            "week",
+            "position",
+            "rank",
+            "rank_sd",
+            "rank_best",
+            "rank_worst",
+            "position_rank",
+        ]
+
+
+class PlayerNextGenStatsSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = PlayerNextGenStats
+        fields = [
+            "season",
+            "week",
+            "season_type",
+            "stat_type",
+            "metrics",
         ]
 
 

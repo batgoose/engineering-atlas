@@ -19,8 +19,12 @@ interface WinProbSparklineProps {
 }
 
 export function WinProbSparkline({
-  timeline, timing, away, home,
-  width = 400, height = 80,
+  timeline,
+  timing,
+  away,
+  home,
+  width = 400,
+  height = 80,
 }: WinProbSparklineProps) {
   if (timeline.length < 2) return null;
 
@@ -35,22 +39,32 @@ export function WinProbSparkline({
 
   return (
     <div className="hud-panel" style={{ padding: '10px 16px' }}>
-      <div className="hud-label" style={{ marginBottom: 8 }}>WIN PROBABILITY</div>
+      <div className="hud-label" style={{ marginBottom: 8 }}>
+        WIN PROBABILITY
+      </div>
 
       <svg width={width} height={height} style={{ display: 'block' }}>
         {/* 50% baseline */}
         <line
-          x1={4} y1={height / 2} x2={width - 4} y2={height / 2}
-          stroke={C.panelBorder} strokeWidth={1} strokeDasharray="4 4"
+          x1={4}
+          y1={height / 2}
+          x2={width - 4}
+          y2={height / 2}
+          stroke={C.panelBorder}
+          strokeWidth={1}
+          strokeDasharray="4 4"
         />
 
         {/* Quarter tick marks */}
         {ticks.map((t, i) => (
           <line
             key={i}
-            x1={4 + t * (width - 8)} y1={0}
-            x2={4 + t * (width - 8)} y2={height}
-            stroke={C.panelBorder} strokeWidth={1}
+            x1={4 + t * (width - 8)}
+            y1={0}
+            x2={4 + t * (width - 8)}
+            y2={height}
+            stroke={C.panelBorder}
+            strokeWidth={1}
           />
         ))}
 
@@ -84,9 +98,12 @@ export function WinProbSparkline({
         {/* Current position dot */}
         {last && (
           <circle
-            cx={last.x} cy={last.y} r={3.5}
+            cx={last.x}
+            cy={last.y}
+            r={3.5}
             fill={`#${away.color}`}
-            stroke={C.bg} strokeWidth={1.5}
+            stroke={C.bg}
+            strokeWidth={1.5}
             style={{ animation: 'pulse 2s ease-in-out infinite' }}
           />
         )}

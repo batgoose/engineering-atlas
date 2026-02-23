@@ -155,12 +155,12 @@ describe('Gridstream timeline derivation', () => {
       clock: '14:37',
       down: 4,
       distance: 5,
-      yard_line: 37,          // ESPN "own-endzone" value (wrong for yardline100ToDisplay)
+      yard_line: 37, // ESPN "own-endzone" value (wrong for yardline100ToDisplay)
       possession_team_abbr: 'NE',
       play_type: 'punt',
       description: 'B.Baringer punts 39 yards to SEA 24, Center-J.Ashby, fair catch by R.Shaheed.',
       yards_gained: 39,
-      kick_distance: 39,      // explicit DB field available
+      kick_distance: 39, // explicit DB field available
     });
 
     const nextSnap = makePlay({
@@ -179,8 +179,11 @@ describe('Gridstream timeline derivation', () => {
     const animation = __gridstreamTestUtils.toPlayAnimation(
       puntPlay as any,
       nextSnap as any,
-      'SEA', 'NE',
-      new Map<string, any>(), new Map<string, any>(), new Map<string, any>(),
+      'SEA',
+      'NE',
+      new Map<string, any>(),
+      new Map<string, any>(),
+      new Map<string, any>()
     );
 
     expect(animation?.type).toBe('kick');
@@ -200,12 +203,12 @@ describe('Gridstream timeline derivation', () => {
       clock: '14:37',
       down: 4,
       distance: 5,
-      yard_line: 37,          // ESPN "own-endzone" value (wrong for yardline100ToDisplay)
+      yard_line: 37, // ESPN "own-endzone" value (wrong for yardline100ToDisplay)
       possession_team_abbr: 'NE',
       play_type: 'punt',
       description: 'B.Baringer punts 39 yards to SEA 24, Center-J.Ashby, fair catch by R.Shaheed.',
       yards_gained: 39,
-      kick_distance: null,    // ESPN does NOT set kick_distance
+      kick_distance: null, // ESPN does NOT set kick_distance
     });
 
     const nextSnap = makePlay({
@@ -224,8 +227,11 @@ describe('Gridstream timeline derivation', () => {
     const animation = __gridstreamTestUtils.toPlayAnimation(
       puntPlay as any,
       nextSnap as any,
-      'SEA', 'NE',
-      new Map<string, any>(), new Map<string, any>(), new Map<string, any>(),
+      'SEA',
+      'NE',
+      new Map<string, any>(),
+      new Map<string, any>(),
+      new Map<string, any>()
     );
 
     expect(animation?.type).toBe('kick');
@@ -234,6 +240,59 @@ describe('Gridstream timeline derivation', () => {
     expect(animation?.fromYardline).toBe(37);
     expect(animation?.kickLandingSide).toBe('SEA');
     expect(animation?.kickLandingYardline).toBe(24);
+  });
+
+  it('animates no-play penalties even when feed down is missing (down=0)', () => {
+    const penaltyPlay = makePlay({
+      id: 7001,
+      sequence: 7001,
+      quarter: 2,
+      clock: '3:09',
+      down: 0,
+      distance: 0,
+      yard_line: 83,
+      down_distance_text: '3rd & 7 at NE 17',
+      possession_team_abbr: 'NE',
+      play_type: 'no_play',
+      description: 'PENALTY on NE-W.Campbell, False Start, 5 yards, enforced at NE 17 - No Play.',
+      short_description:
+        'PENALTY on NE-W.Campbell, False Start, 5 yards, enforced at NE 17 - No Play.',
+      yards_gained: 0,
+      penalty: true,
+      penalty_yards: 5,
+    });
+
+    const nextSnap = makePlay({
+      id: 7002,
+      sequence: 7002,
+      quarter: 2,
+      clock: '3:02',
+      down: 3,
+      distance: 12,
+      yard_line: 88,
+      down_distance_text: '3rd & 12 at NE 12',
+      possession_team_abbr: 'NE',
+      play_type: 'pass',
+      description: 'D.Maye pass incomplete short right.',
+      short_description: 'D.Maye pass incomplete short right.',
+    });
+
+    const animation = __gridstreamTestUtils.toPlayAnimation(
+      penaltyPlay as any,
+      nextSnap as any,
+      'SEA',
+      'NE',
+      new Map<string, any>(),
+      new Map<string, any>(),
+      new Map<string, any>()
+    );
+
+    expect(animation).toBeTruthy();
+    expect(animation?.type).toBe('pass');
+    expect(animation?.isNoPlay).toBe(true);
+    expect(animation?.penaltyYards).toBe(5);
+    expect(animation?.penaltyType).toBe('False Start');
+    expect(animation?.penaltyTeam).toBe('NE');
   });
 
   it('uses 0 return yards for punt returns with no gain', () => {
@@ -248,7 +307,8 @@ describe('Gridstream timeline derivation', () => {
       down_distance_text: '4th & 15',
       possession_team_abbr: 'SEA',
       play_type: 'punt',
-      description: 'SEA M.Dickson punts 45 yards to NE 32, Center-C.Stoll. M.Jones to NE 32 for no gain (D.Thomas).',
+      description:
+        'SEA M.Dickson punts 45 yards to NE 32, Center-C.Stoll. M.Jones to NE 32 for no gain (D.Thomas).',
       short_description: 'M.Dickson punts 45 yards to NE 32. M.Jones to NE 32 for no gain.',
       yards_gained: 45,
       kick_distance: 45,
@@ -273,11 +333,7 @@ describe('Gridstream timeline derivation', () => {
 
     const runningTotals = new Map<string, any>();
     const runningMeta = new Map<string, any>();
-    __gridstreamTestUtils.updateRunningTotalsFromPlay(
-      puntPlay as any,
-      runningTotals,
-      runningMeta,
-    );
+    __gridstreamTestUtils.updateRunningTotalsFromPlay(puntPlay as any, runningTotals, runningMeta);
 
     const animation = __gridstreamTestUtils.toPlayAnimation(
       puntPlay as any,
@@ -286,7 +342,7 @@ describe('Gridstream timeline derivation', () => {
       'NE',
       new Map<string, any>(),
       runningTotals,
-      new Map<string, any>(),
+      new Map<string, any>()
     );
 
     expect(animation?.type).toBe('kick');
@@ -370,7 +426,12 @@ describe('Gridstream timeline derivation', () => {
         NE: [],
       },
       leaders: [
-        { team_abbr: 'SEA', category: 'passing', athlete_name: 'Final QB', display_value: '30/40 · 400 YDS · 4 TD' },
+        {
+          team_abbr: 'SEA',
+          category: 'passing',
+          athlete_name: 'Final QB',
+          display_value: '30/40 · 400 YDS · 4 TD',
+        },
       ],
     };
 
@@ -378,7 +439,7 @@ describe('Gridstream timeline derivation', () => {
       detail as any,
       plays as any,
       [],
-      boxscore as any,
+      boxscore as any
     );
 
     const firstFrame = timeline.frames[0];
@@ -479,7 +540,7 @@ describe('Gridstream timeline derivation', () => {
       detail as any,
       plays as any,
       [],
-      boxscore as any,
+      boxscore as any
     );
 
     const secondFrame = timeline.frames[1];
@@ -503,12 +564,7 @@ describe('Gridstream timeline derivation', () => {
     const meta = new Map<string, any>();
     meta.set('jmyers', { name: 'J.Myers', teamAbbr: 'SEA', position: 'K' });
 
-    const fantasy = __gridstreamTestUtils.mapFantasyFromRunningTotals(
-      totals,
-      meta,
-      'SEA',
-      'NE',
-    );
+    const fantasy = __gridstreamTestUtils.mapFantasyFromRunningTotals(totals, meta, 'SEA', 'NE');
 
     expect(fantasy.away).toHaveLength(1);
     expect(fantasy.away[0]?.position).toBe('K');
@@ -551,7 +607,7 @@ describe('Gridstream timeline derivation', () => {
           sacks: 1,
         },
       },
-      { away: 9, home: 0 },
+      { away: 9, home: 0 }
     );
 
     const awayDef = fantasy.away.find((entry: any) => entry.position === 'DEF');
@@ -565,47 +621,62 @@ describe('Gridstream timeline derivation', () => {
 
   it('scores all fantasy positions using ESPN-style formulas (PPR/HALF/STD)', () => {
     const totals = new Map<string, any>();
-    totals.set('qb', makeTotals({
-      passAtt: 30,
-      passComp: 20,
-      passYds: 250,
-      passTd: 2,
-      passInt: 1,
-      rushAtt: 4,
-      rushYds: 20,
-      rushTd: 1,
-      fumblesLost: 1,
-    }));
-    totals.set('rb', makeTotals({
-      rushAtt: 18,
-      rushYds: 90,
-      rushTd: 1,
-      rec: 3,
-      recYds: 20,
-    }));
-    totals.set('wr', makeTotals({
-      rushAtt: 1,
-      rushYds: 10,
-      rec: 6,
-      recYds: 80,
-      recTd: 1,
-      fumblesLost: 1,
-    }));
-    totals.set('te', makeTotals({
-      rec: 5,
-      recYds: 50,
-      recTd: 1,
-    }));
-    totals.set('k', makeTotals({
-      fgAtt: 4,
-      fgMade: 3,
-      fgMade0to39: 1,
-      fgMade40to49: 1,
-      fgMade50to59: 1,
-      fgMissed: 1,
-      xpAtt: 2,
-      xpMade: 2,
-    }));
+    totals.set(
+      'qb',
+      makeTotals({
+        passAtt: 30,
+        passComp: 20,
+        passYds: 250,
+        passTd: 2,
+        passInt: 1,
+        rushAtt: 4,
+        rushYds: 20,
+        rushTd: 1,
+        fumblesLost: 1,
+      })
+    );
+    totals.set(
+      'rb',
+      makeTotals({
+        rushAtt: 18,
+        rushYds: 90,
+        rushTd: 1,
+        rec: 3,
+        recYds: 20,
+      })
+    );
+    totals.set(
+      'wr',
+      makeTotals({
+        rushAtt: 1,
+        rushYds: 10,
+        rec: 6,
+        recYds: 80,
+        recTd: 1,
+        fumblesLost: 1,
+      })
+    );
+    totals.set(
+      'te',
+      makeTotals({
+        rec: 5,
+        recYds: 50,
+        recTd: 1,
+      })
+    );
+    totals.set(
+      'k',
+      makeTotals({
+        fgAtt: 4,
+        fgMade: 3,
+        fgMade0to39: 1,
+        fgMade40to49: 1,
+        fgMade50to59: 1,
+        fgMissed: 1,
+        xpAtt: 2,
+        xpMade: 2,
+      })
+    );
 
     const meta = new Map<string, any>();
     meta.set('qb', { name: 'Q.Back', teamAbbr: 'SEA', position: 'QB' });
@@ -643,7 +714,7 @@ describe('Gridstream timeline derivation', () => {
           safeties: 0,
           defensiveTds: 0,
         },
-      },
+      }
     );
 
     const qb = fantasy.away.find((entry) => entry.name === 'Q.Back');
@@ -704,7 +775,8 @@ describe('Gridstream timeline derivation', () => {
         clock: '13:10',
         possession_team_abbr: 'NE',
         play_type: 'pass',
-        description: 'NE D.Maye pass deep middle intended for K.Boutte INTERCEPTED by U.Nwosu at NE 45. U.Nwosu for 45 yards, TOUCHDOWN.',
+        description:
+          'NE D.Maye pass deep middle intended for K.Boutte INTERCEPTED by U.Nwosu at NE 45. U.Nwosu for 45 yards, TOUCHDOWN.',
         interception: true,
         touchdown: true,
         home_score_after: 0,
@@ -740,7 +812,8 @@ describe('Gridstream timeline derivation', () => {
         clock: '12:00',
         possession_team_abbr: 'NE',
         play_type: 'run',
-        description: 'NE R.Stevenson left guard to NE 22 for 2 yards, FUMBLES (forced by B.Wagner), recovered by SEA-C.Bryant.',
+        description:
+          'NE R.Stevenson left guard to NE 22 for 2 yards, FUMBLES (forced by B.Wagner), recovered by SEA-C.Bryant.',
         fumble_lost: true,
         home_score_after: 0,
         away_score_after: 7,
@@ -762,7 +835,7 @@ describe('Gridstream timeline derivation', () => {
       plays as any,
       'SEA',
       'NE',
-      { away: 7, home: 0 },
+      { away: 7, home: 0 }
     );
 
     expect(defenseTotals.SEA.sacks).toBe(1);
@@ -790,7 +863,8 @@ describe('Gridstream timeline derivation', () => {
         down_distance_text: '2nd & 3 at NE 44',
         possession_team_abbr: 'NE',
         play_type: 'pass',
-        description: 'NE (Shotgun) D.Maye pass deep middle intended for K.Williams INTERCEPTED by J.Love at SEA 27. J.Love pushed ob at NE 38 for 35 yards (T.Henderson), TOUCHDOWN.',
+        description:
+          'NE (Shotgun) D.Maye pass deep middle intended for K.Williams INTERCEPTED by J.Love at SEA 27. J.Love pushed ob at NE 38 for 35 yards (T.Henderson), TOUCHDOWN.',
         short_description: 'D.Maye pass intercepted and returned for touchdown.',
         interception: true,
         touchdown: true,
@@ -800,7 +874,7 @@ describe('Gridstream timeline derivation', () => {
         away_score_after: 19,
       }) as any,
       totals,
-      meta,
+      meta
     );
 
     const maye = totals.get('dmaye');
@@ -838,7 +912,7 @@ describe('Gridstream timeline derivation', () => {
         away_score_after: 29,
       }) as any,
       totals,
-      meta,
+      meta
     );
 
     __gridstreamTestUtils.updateRunningTotalsFromPlay(
@@ -863,7 +937,7 @@ describe('Gridstream timeline derivation', () => {
         away_score_after: 29,
       }) as any,
       totals,
-      meta,
+      meta
     );
 
     const maye = totals.get('dmaye');

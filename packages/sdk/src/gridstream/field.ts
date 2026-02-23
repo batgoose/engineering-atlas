@@ -19,6 +19,24 @@ export const HOME_EZ_RIGHT = 950;
 
 export const FIELD_CENTER_Y = 210;
 
+/** Half the span of the FG upright gate in SVG units (centred on FIELD_CENTER_Y).
+ *  Gate runs from FIELD_CENTER_Y - FG_UPRIGHT_Y_HALF to FIELD_CENTER_Y + FG_UPRIGHT_Y_HALF.
+ *  Wide-miss endY values should land outside this range.
+ *  55px chosen to appear ~90px on screen after the 32-degree perspective compression. */
+export const FG_UPRIGHT_Y_HALF = 55;
+
+/** Depth of the gate frame in SVG X units (how far the prongs extend into the field). */
+export const FG_UPRIGHT_DEPTH = 18;
+
+/** X position of the FG upright gate BACK WALL within each endzone.
+ *  Ball arcs terminate here; the open face (where the ball enters) is FG_UPRIGHT_DEPTH further in. */
+export const AWAY_FG_UPRIGHT_X = AWAY_EZ_LEFT + 5; // = 55  (near back wall of away EZ — matches portal X)
+export const HOME_FG_UPRIGHT_X = HOME_EZ_RIGHT - 5; // = 945 (near back wall of home EZ — matches portal X)
+
+/** Field SVG Y coordinate targeted by made FG/XP arcs so the ball sweeps INTO the portal interior.
+ *  Must stay in sync with PORTAL_CENTER_Y in FieldVisualization. */
+export const FG_PORTAL_CENTER_Y = FIELD_CENTER_Y - 50; // = 160
+
 /** Perspective transform for the field container — exact v11 values */
 export const FIELD_PERSPECTIVE = {
   perspective: '800px',
@@ -36,11 +54,7 @@ export const FIELD_PERSPECTIVE = {
  *   away team at their own 20 → yardToFieldPct(20, 'KC', 'KC') = 20
  *   home team at their own 34 → yardToFieldPct(34, 'SF', 'KC') = 100 - 34 = 66
  */
-export function yardToFieldPct(
-  yardLine: number,
-  side: string,
-  awayAbbr: string,
-): number {
+export function yardToFieldPct(yardLine: number, side: string, awayAbbr: string): number {
   return side === awayAbbr ? yardLine : 100 - yardLine;
 }
 
@@ -51,6 +65,9 @@ export function fieldPctToSvgX(pct: number): number {
 export function getFgEndpoints(possIsAway: boolean) {
   return {
     goalLineX: possIsAway ? HOME_EZ_LEFT : AWAY_EZ_RIGHT,
+    /** X where the ball arc terminates for made/wide kicks — the upright gate centre. */
+    uprightX: possIsAway ? HOME_FG_UPRIGHT_X : AWAY_FG_UPRIGHT_X,
+    /** Absolute back wall of the endzone; still used by extra-point animations. */
     backWallX: possIsAway ? HOME_EZ_RIGHT : AWAY_EZ_LEFT,
   };
 }

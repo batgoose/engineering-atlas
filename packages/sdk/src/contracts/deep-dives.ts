@@ -71,7 +71,7 @@ export interface DeepDiveFooter {
 
 const deepDiveRegistry: Record<string, () => DeepDiveProps> = {
   'nfl-ingestor': buildNFLIngestorProps,
-  'gridstream': buildGridStreamProps,
+  gridstream: buildGridStreamProps,
 };
 
 /**
@@ -245,7 +245,8 @@ export function buildGridStreamProps(): DeepDiveProps {
     },
     footer: {
       heading: 'Full Pipeline Source',
-      description: 'Explore the ESPN adapter, event types, hub implementation, and test suites on GitHub.',
+      description:
+        'Explore the ESPN adapter, event types, hub implementation, and test suites on GitHub.',
       repoUrl: 'https://github.com/batgoose/engineering-atlas/tree/main/apps/service-go/gridstream',
       backHref: '/demos',
       backLabel: 'Back to Demos',

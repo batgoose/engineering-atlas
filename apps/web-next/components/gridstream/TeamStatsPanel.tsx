@@ -32,14 +32,32 @@ export function TeamStatsPanel({ stats, away, home }: TeamStatsPanelProps) {
 
   return (
     <div style={{ padding: '12px 0' }}>
-      <div style={{ display: 'flex', padding: '0 20px 10px', borderBottom: `1px solid rgba(0,229,255,.05)` }}>
+      <div
+        style={{
+          display: 'flex',
+          padding: '0 20px 10px',
+          borderBottom: `1px solid rgba(0,229,255,.05)`,
+        }}
+      >
         <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 10 }}>
           <TeamBadge team={away} size={22} hasPossession={false} />
-          <span className="hud-label" style={{ color: C.text }}>{away.abbr}</span>
+          <span className="hud-label" style={{ color: C.text }}>
+            {away.abbr}
+          </span>
         </div>
         <div style={{ width: 140 }} />
-        <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 10 }}>
-          <span className="hud-label" style={{ color: C.text }}>{home.abbr}</span>
+        <div
+          style={{
+            flex: 1,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'flex-end',
+            gap: 10,
+          }}
+        >
+          <span className="hud-label" style={{ color: C.text }}>
+            {home.abbr}
+          </span>
           <TeamBadge team={home} size={22} hasPossession={false} />
         </div>
       </div>
@@ -49,18 +67,71 @@ export function TeamStatsPanel({ stats, away, home }: TeamStatsPanelProps) {
         const aB = aN !== null && hN !== null && aN > hN;
         const hB = hN !== null && aN !== null && hN > aN;
         return (
-          <div key={i} style={{ display: 'flex', alignItems: 'center', padding: '10px 20px', borderBottom: `1px solid rgba(0,229,255,.02)` }}>
+          <div
+            key={i}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              padding: '10px 20px',
+              borderBottom: `1px solid rgba(0,229,255,.02)`,
+            }}
+          >
             <div style={{ flex: 1 }}>
-              <span style={{ fontFamily: F.display, fontSize: 14, fontWeight: 700, color: aB ? C.cyan : C.textDim, textShadow: aB ? `0 0 6px ${C.cyanGlow}` : 'none' }}>{r.a}</span>
+              <span
+                style={{
+                  fontFamily: F.display,
+                  fontSize: 14,
+                  fontWeight: 700,
+                  color: aB ? C.cyan : C.textDim,
+                  textShadow: aB ? `0 0 6px ${C.cyanGlow}` : 'none',
+                }}
+              >
+                {r.a}
+              </span>
               {r.max && aN != null && (
-                <div className="stat-bar"><div style={{ height: '100%', width: `${(aN / r.max) * 100}%`, background: aB ? `linear-gradient(90deg,${C.cyan}60,${C.cyan}20)` : 'rgba(255,255,255,.06)', transition: 'width .6s' }} /></div>
+                <div className="stat-bar">
+                  <div
+                    style={{
+                      height: '100%',
+                      width: `${(aN / r.max) * 100}%`,
+                      background: aB
+                        ? `linear-gradient(90deg,${C.cyan}60,${C.cyan}20)`
+                        : 'rgba(255,255,255,.06)',
+                      transition: 'width .6s',
+                    }}
+                  />
+                </div>
               )}
             </div>
-            <div style={{ width: 140, textAlign: 'center' }}><span className="hud-label">{r.label}</span></div>
+            <div style={{ width: 140, textAlign: 'center' }}>
+              <span className="hud-label">{r.label}</span>
+            </div>
             <div style={{ flex: 1, textAlign: 'right' }}>
-              <span style={{ fontFamily: F.display, fontSize: 14, fontWeight: 700, color: hB ? C.cyan : C.textDim, textShadow: hB ? `0 0 6px ${C.cyanGlow}` : 'none' }}>{r.h}</span>
+              <span
+                style={{
+                  fontFamily: F.display,
+                  fontSize: 14,
+                  fontWeight: 700,
+                  color: hB ? C.cyan : C.textDim,
+                  textShadow: hB ? `0 0 6px ${C.cyanGlow}` : 'none',
+                }}
+              >
+                {r.h}
+              </span>
               {r.max && hN != null && (
-                <div className="stat-bar"><div style={{ height: '100%', width: `${(hN / r.max) * 100}%`, marginLeft: 'auto', background: hB ? `linear-gradient(270deg,${C.cyan}60,${C.cyan}20)` : 'rgba(255,255,255,.06)', transition: 'width .6s' }} /></div>
+                <div className="stat-bar">
+                  <div
+                    style={{
+                      height: '100%',
+                      width: `${(hN / r.max) * 100}%`,
+                      marginLeft: 'auto',
+                      background: hB
+                        ? `linear-gradient(270deg,${C.cyan}60,${C.cyan}20)`
+                        : 'rgba(255,255,255,.06)',
+                      transition: 'width .6s',
+                    }}
+                  />
+                </div>
               )}
             </div>
           </div>

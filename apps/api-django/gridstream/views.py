@@ -44,15 +44,19 @@ from rest_framework.exceptions import NotFound
 try:
     from drf_spectacular.utils import extend_schema, extend_schema_view
 except Exception:  # pragma: no cover - exercised only when package absent
+
     def extend_schema(*args, **kwargs):
         def _decorator(obj):
             return obj
+
         return _decorator
 
     def extend_schema_view(**kwargs):
         def _decorator(obj):
             return obj
+
         return _decorator
+
 
 from .models import (
     Team,
@@ -68,6 +72,8 @@ from .models import (
     TeamGameStats,
     Playbook,
     PlaybookEntry,
+    PlayerFFRanking,
+    PlayerNextGenStats,
 )
 from .serializers import (
     TeamListSerializer,
@@ -90,6 +96,8 @@ from .serializers import (
     StandingsEntrySerializer,
     PlaybookSerializer,
     PlaybookEntrySerializer,
+    PlayerFFRankingSerializer,
+    PlayerNextGenStatsSerializer,
 )
 from .filters import (
     GameFilter,
@@ -357,6 +365,87 @@ class PlayerViewSet(viewsets.ReadOnlyModelViewSet):
 
         cache_set(ck, result, TTL_LONG)
         return Response(result)
+
+    @action(detail=False, methods=["get"], url_path="advanced")
+    def advanced(self, request):
+        """
+        GET /players/advanced/?gsis_id={gsis_id}&season={year}&week={week}
+
+        Returns ECR (FantasyPros Expert Consensus Rankings) and NFL Next Gen
+        Stats for a player in a specific week. Used by the PlayerStatsPanel to
+        enrich the click-through player info with positional rankings and
+        advanced tracking metrics.
+
+        Response shape:
+        {
+          "ecr": {
+            "position": "WR", "rank": 8.0, "rank_sd": 1.4,
+            "rank_best": 5, "rank_worst": 12, "position_rank": 3
+          } | null,
+          "ngs_passing":   { ...metrics } | null,
+          "ngs_rushing":   { ...metrics } | null,
+          "ngs_receiving": { ...metrics } | null
+        }
+        """
+        gsis_id = request.query_params.get("gsis_id", "").strip()
+        season = request.query_params.get("season")
+        week = request.query_params.get("week")
+
+        if not gsis_id:
+            return Response({"error": "gsis_id is required"}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            player = Player.objects.using("nfl").get(gsis_id=gsis_id)
+        except Player.DoesNotExist:
+            return Response(
+                {"ecr": None, "ngs_passing": None, "ngs_rushing": None, "ngs_receiving": None}
+            )
+
+        season_int = int(season) if season else None
+        week_int = int(week) if week else None
+
+        # ECR ranking — exact week, then nearest prior week in season, then any week in season
+        ecr_data = None
+        if season_int and week_int:
+            ecr = (
+                PlayerFFRanking.objects.using("nfl")
+                .filter(player=player, season=season_int, week__lte=week_int)
+                .order_by("-week")
+                .first()
+            )
+            if ecr is None:
+                # Try any week in the season (e.g. current week > game week)
+                ecr = (
+                    PlayerFFRanking.objects.using("nfl")
+                    .filter(player=player, season=season_int)
+                    .order_by("week")
+                    .first()
+                )
+            if ecr:
+                ecr_data = PlayerFFRankingSerializer(ecr).data
+
+        # NGS — try exact week first, fall back to season aggregate (week=0)
+        ngs_result = {}
+        for stat_type in ("passing", "rushing", "receiving"):
+            ngs = None
+            if season_int and week_int:
+                ngs = (
+                    PlayerNextGenStats.objects.using("nfl")
+                    .filter(player=player, season=season_int, week=week_int, stat_type=stat_type)
+                    .first()
+                )
+            if ngs is None and season_int:
+                # Fall back to season aggregate
+                ngs = (
+                    PlayerNextGenStats.objects.using("nfl")
+                    .filter(player=player, season=season_int, week=0, stat_type=stat_type)
+                    .first()
+                )
+            ngs_result[f"ngs_{stat_type}"] = (
+                PlayerNextGenStatsSerializer(ngs).data["metrics"] if ngs else None
+            )
+
+        return Response({"ecr": ecr_data, **ngs_result})
 
 
 # =============================================================================
@@ -662,9 +751,9 @@ class GameViewSet(viewsets.ReadOnlyModelViewSet):
             for drive in drives_qs:
                 team_abbr = getattr(drive.team, "abbreviation", "")
                 if team_abbr in stats:
-                    stats[team_abbr]["time_of_possession_seconds"] += _parse_clock_seconds(
-                        drive.time_elapsed
-                    )
+                    stats[team_abbr][
+                        "time_of_possession_seconds"
+                    ] += _parse_clock_seconds(drive.time_elapsed)
 
             for play in plays_qs:
                 offense_abbr = (
@@ -831,7 +920,9 @@ class GameViewSet(viewsets.ReadOnlyModelViewSet):
             derived_team_stats = _derive_team_stats_from_plays()
             team_stats_source = "derived"
             if team_stats_data:
-                combined = {row.get("team_abbr"): dict(row) for row in derived_team_stats}
+                combined = {
+                    row.get("team_abbr"): dict(row) for row in derived_team_stats
+                }
                 for row in team_stats_data:
                     abbr = row.get("team_abbr")
                     if not abbr:
