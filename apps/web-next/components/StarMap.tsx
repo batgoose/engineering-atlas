@@ -3,6 +3,7 @@
 
 import { useRef, useState, useMemo, useEffect, Suspense } from 'react';
 import { Canvas, useFrame, extend } from '@react-three/fiber';
+import type { ThreeEvent } from '@react-three/fiber';
 import { OrbitControls, Html } from '@react-three/drei';
 import { EffectComposer, Bloom } from '@react-three/postprocessing';
 import { UnrealBloomPass } from 'three-stdlib';
@@ -17,7 +18,7 @@ const loader = new THREE.TextureLoader();
 extend({ UnrealBloomPass });
 declare module '@react-three/fiber' {
   interface ThreeElements {
-    unrealBloomPass: any;
+    unrealBloomPass: unknown;
   }
 }
 
@@ -80,7 +81,7 @@ export function StarMap({
         dpr={1}
       >
         <color attach="background" args={['#0a0a12']} />
-        <fog attach="fog" args={['#0a0a12', 40, 90] as any} />
+        <fog attach="fog" args={['#0a0a12', 40, 90] as [string, number, number]} />
 
         <Suspense fallback={null}>
           <ambientLight intensity={0.25} />
@@ -369,7 +370,7 @@ function ConstellationBackdrop({
     >
       <mesh
         visible={false}
-        onPointerOver={(e: any) => {
+        onPointerOver={(e: ThreeEvent<PointerEvent>) => {
           e.stopPropagation();
           onHover(true);
           document.body.style.cursor = 'pointer';
@@ -499,7 +500,7 @@ function Star({
     <group position={position}>
       <sprite
         ref={meshRef}
-        onPointerOver={(e: any) => {
+        onPointerOver={(e: ThreeEvent<PointerEvent>) => {
           e.stopPropagation();
           onHover(competency);
           document.body.style.cursor = 'pointer';
@@ -508,7 +509,7 @@ function Star({
           onHover(null);
           document.body.style.cursor = 'default';
         }}
-        onClick={(e: any) => {
+        onClick={(e: ThreeEvent<MouseEvent>) => {
           e.stopPropagation();
           onClick(competency);
         }}

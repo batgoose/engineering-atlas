@@ -62,7 +62,11 @@ export function InstancedCompetencyStars({
   return (
     <instancedMesh
       ref={meshRef}
-      args={[undefined as any, undefined as any, count]}
+      args={[
+        undefined as unknown as THREE.BufferGeometry,
+        undefined as unknown as THREE.Material,
+        count,
+      ]}
       frustumCulled={false}
       renderOrder={10}
     >

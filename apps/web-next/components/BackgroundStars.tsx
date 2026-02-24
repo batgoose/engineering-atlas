@@ -37,7 +37,14 @@ export function BackgroundStars({ count = 400 }) {
   });
 
   return (
-    <instancedMesh ref={meshRef} args={[undefined as any, undefined as any, count]}>
+    <instancedMesh
+      ref={meshRef}
+      args={[
+        undefined as unknown as THREE.BufferGeometry,
+        undefined as unknown as THREE.Material,
+        count,
+      ]}
+    >
       <sphereGeometry args={[0.06, 4, 4]} />
       <meshBasicMaterial color="#334466" transparent opacity={0.6} />
     </instancedMesh>
