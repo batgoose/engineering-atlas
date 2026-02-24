@@ -14,6 +14,57 @@ Wait for health checks to pass before proceeding.
 
 ---
 
+## v2 One-Command Bootstrap (New)
+
+`bootstrap_nfl_v2` is the staged runner for the new v2 flow:
+
+```bash
+docker compose exec api-django python manage.py bootstrap_nfl_v2 --database nfl_v2
+```
+
+Raw ingest metadata is written to `raw.raw_ingest_batch` (source URL, checksum,
+`loaded_at`, row counts). If an ingest command does not write batch metadata,
+`bootstrap_nfl_v2` inserts a fallback batch row.
+
+Useful flags:
+
+```bash
+# skip Rust ingest if raw plays already loaded in nfl_v2
+docker compose exec api-django python manage.py bootstrap_nfl_v2 --database nfl_v2 --skip-raw-ingest
+
+# strict QA + write machine-readable report
+docker compose exec api-django python manage.py bootstrap_nfl_v2 --database nfl_v2 --qa-json-out /app/reports/nfl_v2_health.json --strict-qa
+```
+
+---
+
+## Versioned Bootstrap (v3+)
+
+For new versioned NFL databases (`nfl_v3`, `nfl_v4`, ...), use the helper
+scripts so you do not need to hand-roll compose services and command order.
+
+```bash
+# create compose overlay with postgres + pgbouncer for v3
+scripts/nfl/create_version_overlay.sh --version 3
+
+# bootstrap v3 end-to-end (migrate + raw ingest + transforms + QA)
+scripts/nfl/bootstrap_versioned_db.sh --version 3
+```
+
+Optional:
+
+```bash
+# limit raw ingest window
+scripts/nfl/bootstrap_versioned_db.sh --version 3 --start-year 2020 --end-year 2025
+
+# include ESPN sync and strict QA
+scripts/nfl/bootstrap_versioned_db.sh --version 3 --include-espn-sync --strict-qa
+```
+
+Detailed runbook: `docs/nfl-v3-bootstrap-runbook.md`
+
+---
+
 ## Phase 0: Schema Creation
 
 Run Django migrations against both databases. The Atlas database holds core app models (auth, sessions, competencies, artifacts). The NFL database holds all Gridstream models.
@@ -42,13 +93,19 @@ docker compose exec api-django python manage.py seed_data
 
 ## Phase 2: Rust Parser — Raw nflverse Play-by-Play
 
-The Rust service downloads nflverse parquet files from GitHub and bulk-loads them into the raw `plays` table in `postgres-nfl`. This table is independent of Django's managed models — it's the source-of-truth archive that the Django import commands read from.
+The Rust service downloads nflverse **parquet** files from GitHub and bulk-loads full-row JSON payloads into `raw.raw_nflverse_pbp` in the target NFL DB (v2 path uses `postgres-nfl-v2`). It also writes per-season batch metadata to `raw.raw_ingest_batch` (URL, checksum, `loaded_at`, row counts, status).
 
 ```bash
 docker compose run --rm service-rust
 ```
 
-This is a one-shot container (`restart: no` in compose). It will download ~1.2GB of parquet data, parse it, and INSERT into the `plays` table. Takes 5-10 minutes depending on network speed. The raw `plays` table ends up with ~1.28M rows spanning 1999-2025, with 372 columns.
+This is a one-shot container (`restart: no` in compose). By default it ingests 1999→current season. You can limit range with env vars:
+
+```bash
+docker compose run --rm -e NFL_PBP_START_YEAR=2024 -e NFL_PBP_END_YEAR=2024 service-rust
+```
+
+The `raw.raw_nflverse_pbp` table stores full-source payloads (372-field row fidelity).
 
 **Data source:** nflverse GitHub releases (downloaded at runtime, not committed)
 
@@ -90,13 +147,18 @@ docker compose exec api-django python manage.py sync_rosters
 
 ## Phase 4: Historical Game Data (Import Commands)
 
-These read from the raw nflverse `plays` table (Phase 2) and populate the Django-managed models. Each command supports `--season YYYY` to import a single season and `--dry-run` to preview without writing.
+These read from raw nflverse data and populate Django-managed models.
+Each command supports `--season YYYY` to import a single season and
+`--dry-run` to preview without writing.
+
+Note: this section documents the legacy v1 import flow. The v2 rebuild is moving to `raw.*` source tables directly; treat these imports as transitional while 2.x refactors are completed.
 
 Run in this order — games first, then drives, then plays, then stats:
 
 ```bash
-# 4a. Games — schedule, scores, metadata (~7,300 games)
-#     Source: raw `plays` table (groups by game_id)
+# 4a. Games — schedule, scores, IDs, context (~7,300 games)
+#     Source: nflverse `games.csv` (authoritative schedule/results)
+#     Populates: ESPN IDs, division flag, coaches, referee, rest days, lines
 docker compose exec api-django python manage.py import_games
 
 # 4b. Drives — drive summaries (~168K drives)
@@ -109,18 +171,47 @@ docker compose exec api-django python manage.py import_drives
 #     Depends on: Games, Drives (FKs)
 docker compose exec api-django python manage.py import_plays
 
-# 4d. Player game stats — box score rows (~140K rows)
-#     Source: raw `plays` table (aggregates per player per game)
-#     Depends on: Games, Players, Teams
+# 4d. Player stats raw ingest (v2 path)
+#     Source: nflverse stats_player weekly release files
+#     Writes: raw.raw_nflverse_player_stats + raw.raw_ingest_batch
+#     Note: no longer populates gridstream_playergamestats directly
 docker compose exec api-django python manage.py import_player_game_stats
 
-# 4e. Team game stats — team box score lines (~14.5K rows)
-#     Source: raw `plays` table (aggregates per team per game)
-#     Depends on: Games, Teams
+# 4e. Team stats raw ingest (v2 path)
+#     Source: nflverse stats_team weekly release files
+#     Writes: raw.raw_nflverse_team_stats + raw.raw_ingest_batch
+#     Note: no longer populates gridstream_teamgamestats directly
 docker compose exec api-django python manage.py import_team_game_stats
+
+# 4f. Standings raw ingest (v2 path)
+#     Source: nfldata standings.csv
+#     Writes: raw.raw_nflverse_standings + raw.raw_ingest_batch
+docker compose exec api-django python manage.py import_nflverse_standings
+
+# 4g. Draft picks raw ingest (v2 path)
+#     Source: nfldata draft_picks.csv
+#     Writes: raw.raw_nflverse_draft_picks + raw.raw_ingest_batch
+docker compose exec api-django python manage.py import_nflverse_draft_picks
+
+# 4h. Draft values raw ingest (v2 path)
+#     Source: nfldata draft_values.csv
+#     Writes: raw.raw_nflverse_draft_values + raw.raw_ingest_batch
+docker compose exec api-django python manage.py import_nflverse_draft_values
+
+# 4i. Trades raw ingest (v2 path)
+#     Source: nfldata trades.csv
+#     Writes: raw.raw_nflverse_trades + raw.raw_ingest_batch
+docker compose exec api-django python manage.py import_nflverse_trades
+
+# 4j. ESPN probabilities raw ingest (v2 path)
+#     Source: latest raw.raw_espn_summary payloads (winprobability timeline)
+#     Writes: raw.raw_espn_probabilities + raw.raw_ingest_batch
+docker compose exec api-django python manage.py import_espn_probabilities
 ```
 
-All import commands are idempotent — safe to re-run. They use `update_or_create` so re-running updates existing records rather than duplicating.
+All import commands are idempotent — safe to re-run. Legacy model-population
+commands use `update_or_create`; v2 raw import commands use season-scoped
+delete/reload semantics.
 
 **Time estimate for full import:** ~15-20 minutes total.
 
@@ -186,12 +277,13 @@ docker compose exec api-django python manage.py enrich_players
 docker compose exec api-django python manage.py seed_social_accounts
 docker compose exec api-django python manage.py sync_rosters
 
-# Historical imports from raw plays table
+# Historical imports (games.csv + raw plays + stats datasets)
 docker compose exec api-django python manage.py import_games
 docker compose exec api-django python manage.py import_drives
 docker compose exec api-django python manage.py import_plays
 docker compose exec api-django python manage.py import_player_game_stats
 docker compose exec api-django python manage.py import_team_game_stats
+docker compose exec api-django python manage.py import_espn_probabilities
 
 # ESPN live data (optional, current season)
 docker compose exec api-django python manage.py sync_espn_games --full

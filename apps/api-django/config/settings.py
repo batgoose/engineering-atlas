@@ -1,4 +1,5 @@
 import os
+import re
 import sys
 from pathlib import Path
 import environ
@@ -106,10 +107,31 @@ WSGI_APPLICATION = "config.wsgi.application"
 # databases
 # default is atlas core app, nfl is the gridstream app plus raw nflverse plays
 
+NFL_DATABASE_URL = env("NFL_DATABASE_URL")
+NFL_DATABASE_V1_URL = env("NFL_DATABASE_V1_URL", default=NFL_DATABASE_URL)
+NFL_DATABASE_V2_URL = env(
+    "NFL_DATABASE_V2_URL",
+    default="postgresql://admin:password@pgbouncer-nfl-v2:5432/nfl_data_v2",
+)
+
 DATABASES = {
     "default": env.db(),
     "nfl": env.db("NFL_DATABASE_URL"),
+    "nfl_v1": env.db("NFL_DATABASE_V1_URL", default=NFL_DATABASE_V1_URL),
+    "nfl_v2": env.db("NFL_DATABASE_V2_URL", default=NFL_DATABASE_V2_URL),
 }
+
+# Auto-register additional NFL version aliases from env vars like:
+#   NFL_DATABASE_V3_URL=postgresql://...  -> DATABASES["nfl_v3"]
+#   NFL_DATABASE_V4_URL=postgresql://...  -> DATABASES["nfl_v4"]
+for env_key in sorted(os.environ):
+    match = re.match(r"^NFL_DATABASE_V([0-9]+)_URL$", env_key)
+    if not match:
+        continue
+    alias = f"nfl_v{match.group(1)}"
+    if alias in DATABASES:
+        continue
+    DATABASES[alias] = env.db(env_key)
 
 DATABASE_ROUTERS = ["gridstream.db_router.GridstreamRouter"]
 
@@ -141,6 +163,13 @@ REST_FRAMEWORK = {
 }
 
 REDIS_URL = env("REDIS_URL", default="redis://localhost:6379/0")
+
+# Phase 5: strict canonical boxscore mode by default.
+# When true, /games/{id}/boxscore can derive a narrow fallback payload from
+# plays/player rows if canonical team stats or leaders are missing.
+GRIDSTREAM_BOXSCORE_RESILIENCE_MODE = env.bool(
+    "GRIDSTREAM_BOXSCORE_RESILIENCE_MODE", default=False
+)
 
 MINIO_ENDPOINT = env("MINIO_ENDPOINT", default="localhost:9000")
 MINIO_ACCESS_KEY = env("MINIO_ACCESS_KEY", default="atlas_admin")

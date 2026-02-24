@@ -1,0 +1,44 @@
+---
+- name: Bootstrap Versioned NFL Database
+  hosts: localhost
+  gather_facts: false
+  vars:
+    repo_root: "{{ playbook_dir }}/../../.."
+    nfl_version: 3
+    nfl_overlay_force: false
+    nfl_start_year: ""
+    nfl_end_year: ""
+    nfl_include_espn_sync: false
+    nfl_strict_qa: false
+  tasks:
+    - name: Ensure compose overlay exists for target version
+      ansible.builtin.command:
+        cmd: >-
+          {{ repo_root }}/scripts/nfl/create_version_overlay.sh
+          --version {{ nfl_version }}
+      args:
+        chdir: "{{ repo_root }}"
+        creates: "{{ repo_root }}/docker-compose.nfl-v{{ nfl_version }}.yml"
+      when: not nfl_overlay_force
+
+    - name: Regenerate compose overlay for target version
+      ansible.builtin.command:
+        cmd: >-
+          {{ repo_root }}/scripts/nfl/create_version_overlay.sh
+          --version {{ nfl_version }}
+          --force
+      args:
+        chdir: "{{ repo_root }}"
+      when: nfl_overlay_force
+
+    - name: Bootstrap target version
+      ansible.builtin.command:
+        cmd: >-
+          {{ repo_root }}/scripts/nfl/bootstrap_versioned_db.sh
+          --version {{ nfl_version }}
+          {% if nfl_start_year|string|length > 0 %} --start-year {{ nfl_start_year }} {% endif %}
+          {% if nfl_end_year|string|length > 0 %} --end-year {{ nfl_end_year }} {% endif %}
+          {% if nfl_include_espn_sync %} --include-espn-sync {% endif %}
+          {% if nfl_strict_qa %} --strict-qa {% endif %}
+      args:
+        chdir: "{{ repo_root }}"

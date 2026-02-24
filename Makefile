@@ -1,4 +1,4 @@
-.PHONY: format format-python format-js format-rust format-go format-check check lint lint-python lint-js lint-go lint-fix lint-fix-js test
+.PHONY: format format-python format-js format-rust format-go format-check check lint lint-python lint-js lint-go lint-fix lint-fix-js test nfl-overlay nfl-bootstrap
 
 format: format-python format-js format-rust format-go
 
@@ -66,3 +66,9 @@ shell-go:
 
 check-nfl:
 	docker compose exec api-django python manage.py check_data_health --verbose
+
+nfl-overlay:
+	./scripts/nfl/create_version_overlay.sh --version $(if $(VERSION),$(VERSION),3)
+
+nfl-bootstrap:
+	./scripts/nfl/bootstrap_versioned_db.sh --version $(if $(VERSION),$(VERSION),3)
