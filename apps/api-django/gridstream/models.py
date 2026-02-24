@@ -749,6 +749,56 @@ class Season(models.Model):
         return str(self.year)
 
 
+class TeamStanding(models.Model):
+    """Persisted season standings sourced from nfldata standings.csv."""
+
+    season = models.ForeignKey(
+        Season, on_delete=models.CASCADE, related_name="team_standings"
+    )
+    team = models.ForeignKey(
+        Team, on_delete=models.CASCADE, related_name="team_standings"
+    )
+
+    conference = models.CharField(max_length=5, blank=True)
+    division = models.CharField(max_length=20, blank=True)
+
+    wins = models.IntegerField(default=0)
+    losses = models.IntegerField(default=0)
+    ties = models.IntegerField(default=0)
+    pct = models.FloatField(default=0.0)
+
+    div_rank = models.IntegerField(null=True, blank=True)
+    seed = models.IntegerField(null=True, blank=True)
+
+    points_for = models.IntegerField(null=True, blank=True)
+    points_against = models.IntegerField(null=True, blank=True)
+    point_diff = models.IntegerField(default=0)
+
+    sov = models.FloatField(null=True, blank=True)
+    sos = models.FloatField(null=True, blank=True)
+
+    streak = models.CharField(max_length=12, blank=True)
+    last_5 = models.CharField(max_length=12, blank=True)
+    playoff_clincher = models.CharField(max_length=30, blank=True)
+
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        app_label = "gridstream"
+        ordering = ["season_id", "conference", "division", "div_rank", "-pct"]
+        unique_together = ["season", "team"]
+        indexes = [
+            models.Index(fields=["season", "conference", "division"]),
+            models.Index(fields=["season", "seed"]),
+        ]
+
+    def __str__(self):
+        return (
+            f"{self.season_id} {self.team.abbreviation} "
+            f"{self.wins}-{self.losses}-{self.ties}"
+        )
+
+
 class Game(models.Model):
     """
     Comprehensive NFL game model.
@@ -797,6 +847,7 @@ class Game(models.Model):
     venue = models.ForeignKey(
         Venue, on_delete=models.SET_NULL, null=True, blank=True, related_name="games"
     )
+    div_game = models.BooleanField(default=False)
     is_division_game = models.BooleanField(default=False)
     game_note = models.CharField(max_length=100, blank=True)  # "AFC Championship"
 
@@ -836,10 +887,16 @@ class Game(models.Model):
     )
 
     # ── Odds ─────────────────────────────────────────────
+    spread_line = models.FloatField(null=True, blank=True)
+    total_line = models.FloatField(null=True, blank=True)
     spread = models.FloatField(null=True, blank=True)  # negative = home favored
     total = models.FloatField(null=True, blank=True)  # over/under
     home_moneyline = models.IntegerField(null=True, blank=True)
     away_moneyline = models.IntegerField(null=True, blank=True)
+    home_spread_odds = models.IntegerField(null=True, blank=True)
+    away_spread_odds = models.IntegerField(null=True, blank=True)
+    over_odds = models.IntegerField(null=True, blank=True)
+    under_odds = models.IntegerField(null=True, blank=True)
     spread_open = models.FloatField(null=True, blank=True)
     total_open = models.FloatField(null=True, blank=True)
     odds_provider = models.CharField(max_length=50, blank=True)
@@ -862,12 +919,17 @@ class Game(models.Model):
     # ── Team Context ─────────────────────────────────────
     home_record = models.CharField(max_length=15, blank=True)  # "12-5"
     away_record = models.CharField(max_length=15, blank=True)
+    home_rest = models.IntegerField(null=True, blank=True)
+    away_rest = models.IntegerField(null=True, blank=True)
+    referee = models.CharField(max_length=80, blank=True)
+    attendance = models.IntegerField(null=True, blank=True)
     home_coach = models.CharField(max_length=60, blank=True)
     away_coach = models.CharField(max_length=60, blank=True)
     home_qb_name = models.CharField(max_length=60, blank=True)
     away_qb_name = models.CharField(max_length=60, blank=True)
     home_qb_espn_id = models.CharField(max_length=20, blank=True)
     away_qb_espn_id = models.CharField(max_length=20, blank=True)
+    overtime = models.BooleanField(default=False)
 
     # ── Simulation ───────────────────────────────────────
     is_simulation = models.BooleanField(default=False)
@@ -945,6 +1007,60 @@ class GameLink(models.Model):
 
     def __str__(self):
         return f"{self.game} - {self.link_type}: {self.label}"
+
+
+class GameOfficial(models.Model):
+    """Per-game officiating crew entries from ESPN gameInfo.officials."""
+
+    game = models.ForeignKey(Game, on_delete=models.CASCADE, related_name="officials")
+    sequence = models.IntegerField(default=0)
+    name = models.CharField(max_length=80)
+    position = models.CharField(max_length=50, blank=True)
+
+    class Meta:
+        ordering = ["game", "sequence", "name"]
+        unique_together = ["game", "name", "position"]
+        indexes = [
+            models.Index(fields=["game", "position"]),
+        ]
+        app_label = "gridstream"
+
+    def __str__(self):
+        role = self.position or "Official"
+        return f"{self.game.espn_event_id} {role}: {self.name}"
+
+
+class PlayerInjury(models.Model):
+    """Game-day injury report rows from ESPN summary.injuries."""
+
+    game = models.ForeignKey(Game, on_delete=models.CASCADE, related_name="injuries")
+    team = models.ForeignKey(Team, on_delete=models.SET_NULL, null=True, blank=True)
+    player = models.ForeignKey(
+        Player, on_delete=models.SET_NULL, null=True, blank=True, related_name="+"
+    )
+    sequence = models.IntegerField(default=0)
+
+    player_name = models.CharField(max_length=80, blank=True)
+    player_espn_id = models.CharField(max_length=20, blank=True, db_index=True)
+    status = models.CharField(max_length=40, blank=True)
+    description = models.CharField(max_length=200, blank=True)
+    game_day_availability = models.CharField(max_length=40, blank=True)
+
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["game", "team", "sequence", "player_name"]
+        indexes = [
+            models.Index(fields=["game", "team"]),
+            models.Index(fields=["game", "player_espn_id"]),
+        ]
+        app_label = "gridstream"
+
+    def __str__(self):
+        team_abbr = self.team.abbreviation if self.team else "UNK"
+        name = self.player_name or self.player_espn_id or "Unknown"
+        status = self.status or self.game_day_availability or "unknown"
+        return f"{self.game.espn_event_id} {team_abbr} {name} ({status})"
 
 
 # =============================================================================
@@ -1087,6 +1203,28 @@ class Play(models.Model):
     penalty_yards = models.IntegerField(null=True, blank=True)
     complete_pass = models.BooleanField(default=False)
     first_down = models.BooleanField(default=False)
+    timeout = models.BooleanField(default=False)
+    timeout_team = models.CharField(max_length=5, blank=True)
+    home_timeouts_remaining = models.IntegerField(null=True, blank=True)
+    away_timeouts_remaining = models.IntegerField(null=True, blank=True)
+
+    # ── Play family flags ───────────────────────────────
+    pass_attempt = models.BooleanField(default=False)
+    rush_attempt = models.BooleanField(default=False)
+    kickoff_attempt = models.BooleanField(default=False)
+    punt_attempt = models.BooleanField(default=False)
+    extra_point_attempt = models.BooleanField(default=False)
+    two_point_attempt = models.BooleanField(default=False)
+    special_teams_play = models.BooleanField(default=False)
+    st_play_type = models.CharField(max_length=30, blank=True)
+    touchback = models.BooleanField(default=False)
+    out_of_bounds = models.BooleanField(default=False)
+    punt_inside_twenty = models.BooleanField(default=False)
+    punt_fair_catch = models.BooleanField(default=False)
+    kickoff_fair_catch = models.BooleanField(default=False)
+    kickoff_in_endzone = models.BooleanField(default=False)
+    return_yards = models.IntegerField(null=True, blank=True)
+    return_team = models.CharField(max_length=5, blank=True)
 
     # ── Formation (nflverse — nullable) ──────────────────
     shotgun = models.BooleanField(null=True, blank=True)
@@ -1129,6 +1267,22 @@ class Play(models.Model):
     rusher_player_id = models.CharField(max_length=20, blank=True)
     receiver_player_name = models.CharField(max_length=60, blank=True)
     receiver_player_id = models.CharField(max_length=20, blank=True)
+    punt_returner_player_name = models.CharField(max_length=60, blank=True)
+    punt_returner_player_id = models.CharField(max_length=20, blank=True)
+    kickoff_returner_player_name = models.CharField(max_length=60, blank=True)
+    kickoff_returner_player_id = models.CharField(max_length=20, blank=True)
+    interception_player_name = models.CharField(max_length=60, blank=True)
+    interception_player_id = models.CharField(max_length=20, blank=True)
+    fumble_recovery_1_player_name = models.CharField(max_length=60, blank=True)
+    fumble_recovery_1_team = models.CharField(max_length=5, blank=True)
+    fumble_recovery_1_yards = models.IntegerField(null=True, blank=True)
+    sack_player_name = models.CharField(max_length=60, blank=True)
+    sack_player_id = models.CharField(max_length=20, blank=True)
+    tackle_for_loss_1_player_name = models.CharField(max_length=60, blank=True)
+    pass_defense_1_player_name = models.CharField(max_length=60, blank=True)
+    penalty_player_name = models.CharField(max_length=60, blank=True)
+    penalty_player_id = models.CharField(max_length=20, blank=True)
+    penalty_team = models.CharField(max_length=5, blank=True)
 
     # ── Kicking ──────────────────────────────────────────
     field_goal_result = models.CharField(max_length=10, blank=True)
@@ -1136,8 +1290,25 @@ class Play(models.Model):
 
     # ── Analytics (nflverse — nullable) ──────────────────
     epa = models.FloatField(null=True, blank=True)
+    total_home_epa = models.FloatField(null=True, blank=True)
+    total_away_epa = models.FloatField(null=True, blank=True)
     wpa = models.FloatField(null=True, blank=True)
     success = models.FloatField(null=True, blank=True)
+    home_wp = models.FloatField(null=True, blank=True)
+    away_wp = models.FloatField(null=True, blank=True)
+    vegas_wp = models.FloatField(null=True, blank=True)
+    vegas_home_wp = models.FloatField(null=True, blank=True)
+    ep = models.FloatField(null=True, blank=True)
+    cp = models.FloatField(null=True, blank=True)
+    cpoe = models.FloatField(null=True, blank=True)
+    td_prob = models.FloatField(null=True, blank=True)
+    fg_prob = models.FloatField(null=True, blank=True)
+    no_score_prob = models.FloatField(null=True, blank=True)
+    score_differential = models.IntegerField(null=True, blank=True)
+    drive_start_transition = models.CharField(max_length=40, blank=True)
+    drive_end_transition = models.CharField(max_length=40, blank=True)
+    drive_yards_penalized = models.IntegerField(null=True, blank=True)
+    series_result = models.CharField(max_length=30, blank=True)
 
     # ── Timestamps ───────────────────────────────────────
     wall_clock = models.DateTimeField(null=True, blank=True)
@@ -1155,6 +1326,41 @@ class Play(models.Model):
 
     def __str__(self):
         return f"Play {self.sequence} Q{self.quarter}: {self.short_description or self.play_type}"
+
+
+class WinProbabilityPlay(models.Model):
+    """Per-play win probability timeline point."""
+
+    game = models.ForeignKey(
+        Game, on_delete=models.CASCADE, related_name="win_probability"
+    )
+    play = models.ForeignKey(
+        Play,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="win_probability_points",
+    )
+    espn_play_id = models.CharField(max_length=20, blank=True, db_index=True)
+    sequence = models.IntegerField()
+    seconds_left = models.IntegerField(null=True, blank=True)
+    home_win_pct = models.FloatField(null=True, blank=True)
+    away_win_pct = models.FloatField(null=True, blank=True)
+    tie_pct = models.FloatField(null=True, blank=True)
+    source = models.CharField(max_length=30, default="espn_summary")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["game", "sequence"]
+        unique_together = ["game", "sequence"]
+        indexes = [
+            models.Index(fields=["game", "play"]),
+            models.Index(fields=["game", "espn_play_id"]),
+        ]
+        app_label = "gridstream"
+
+    def __str__(self):
+        return f"{self.game.espn_event_id} seq {self.sequence}: {self.home_win_pct}"
 
 
 class ScoringPlay(models.Model):

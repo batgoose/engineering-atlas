@@ -244,6 +244,11 @@ export interface WpTimelinePoint {
   gameMin: number;
 }
 
+export interface EpaTotals {
+  away: number;
+  home: number;
+}
+
 export interface ScoreByQuarter {
   q1: number;
   q2: number;
@@ -433,6 +438,7 @@ export interface LiveGameState {
   // Win Probability
   wpTimeline: WpTimelinePoint[];
   awayWinPct: number;
+  epaTotals?: EpaTotals;
 
   // Last Play (for animation)
   lastPlay: PlayAnimationData | null;

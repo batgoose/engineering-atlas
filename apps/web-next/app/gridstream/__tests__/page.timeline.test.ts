@@ -4,7 +4,6 @@ import type {
   ApiBoxscore,
   ApiGameDetailExtended,
   ApiPlayDetail,
-  ApiPlayerGameStats,
   RunningPlayerMeta,
   RunningPlayerTotals,
 } from '@atlas/sdk/gridstream/api-transforms';
@@ -170,6 +169,10 @@ describe('Gridstream timeline derivation', () => {
       description: 'B.Baringer punts 39 yards to SEA 24, Center-J.Ashby, fair catch by R.Shaheed.',
       yards_gained: 39,
       kick_distance: 39, // explicit DB field available
+      punt_attempt: true,
+      punt_fair_catch: true,
+      return_team: 'SEA',
+      end_yard_line: 76,
     });
 
     const nextSnap = makePlay({
@@ -218,6 +221,10 @@ describe('Gridstream timeline derivation', () => {
       description: 'B.Baringer punts 39 yards to SEA 24, Center-J.Ashby, fair catch by R.Shaheed.',
       yards_gained: 39,
       kick_distance: null, // ESPN does NOT set kick_distance
+      punt_attempt: true,
+      punt_fair_catch: true,
+      return_team: 'SEA',
+      end_yard_line: 76,
     });
 
     const nextSnap = makePlay({
@@ -269,6 +276,10 @@ describe('Gridstream timeline derivation', () => {
       yards_gained: 0,
       penalty: true,
       penalty_yards: 5,
+      penalty_type: 'False Start',
+      penalty_team: 'NE',
+      penalty_player_name: 'W.Campbell',
+      pass_attempt: true,
     });
 
     const nextSnap = makePlay({
@@ -321,6 +332,11 @@ describe('Gridstream timeline derivation', () => {
       short_description: 'M.Dickson punts 45 yards to NE 32. M.Jones to NE 32 for no gain.',
       yards_gained: 45,
       kick_distance: 45,
+      punt_attempt: true,
+      return_team: 'NE',
+      return_yards: 0,
+      punt_returner_player_name: 'M.Jones',
+      end_yard_line: 68,
     });
 
     const nextSnap = makePlay({
@@ -466,6 +482,90 @@ describe('Gridstream timeline derivation', () => {
     // Fantasy should only include players with production at that play.
     expect(firstFrame.fantasyAway.some((player) => player.name === 'S.Darnold')).toBe(true);
     expect(firstFrame.fantasyAway.some((player) => player.name === 'K.Walker')).toBe(false);
+  });
+
+  it('uses canonical cumulative EPA totals from play payload when available', () => {
+    const detail = makeDetail({});
+    const plays = [
+      makePlay({
+        id: 2101,
+        sequence: 2101,
+        quarter: 1,
+        clock: '14:55',
+        possession_team_abbr: 'SEA',
+        play_type: 'pass',
+        description: 'SEA pass for 8 yards.',
+        yards_gained: 8,
+        complete_pass: true,
+        epa: 8.0, // intentionally unrealistic to verify canonical override.
+        total_away_epa: 1.2,
+        total_home_epa: -1.2,
+      }),
+      makePlay({
+        id: 2102,
+        sequence: 2102,
+        quarter: 1,
+        clock: '14:20',
+        possession_team_abbr: 'NE',
+        play_type: 'run',
+        description: 'NE run for 4 yards.',
+        yards_gained: 4,
+        epa: 9.0,
+        total_away_epa: 0.9,
+        total_home_epa: -0.9,
+      }),
+    ];
+
+    const timeline = __gridstreamTestUtils.buildTimeline(detail, plays, [], {
+      team_stats: [],
+      player_stats: {},
+      leaders: [],
+    } as unknown as ApiBoxscore);
+
+    expect(timeline.frames[0]?.epaTotals?.away).toBeCloseTo(1.2, 6);
+    expect(timeline.frames[0]?.epaTotals?.home).toBeCloseTo(-1.2, 6);
+    expect(timeline.frames[1]?.epaTotals?.away).toBeCloseTo(0.9, 6);
+    expect(timeline.frames[1]?.epaTotals?.home).toBeCloseTo(-0.9, 6);
+  });
+
+  it('falls back to rolling offense EPA when cumulative totals are missing', () => {
+    const detail = makeDetail({});
+    const plays = [
+      makePlay({
+        id: 2201,
+        sequence: 2201,
+        quarter: 1,
+        clock: '14:50',
+        possession_team_abbr: 'SEA',
+        play_type: 'pass',
+        description: 'SEA pass for 10 yards.',
+        yards_gained: 10,
+        complete_pass: true,
+        epa: 1.5,
+      }),
+      makePlay({
+        id: 2202,
+        sequence: 2202,
+        quarter: 1,
+        clock: '14:10',
+        possession_team_abbr: 'NE',
+        play_type: 'run',
+        description: 'NE run for 3 yards.',
+        yards_gained: 3,
+        epa: -0.5,
+      }),
+    ];
+
+    const timeline = __gridstreamTestUtils.buildTimeline(detail, plays, [], {
+      team_stats: [],
+      player_stats: {},
+      leaders: [],
+    } as unknown as ApiBoxscore);
+
+    expect(timeline.frames[0]?.epaTotals?.away).toBeCloseTo(1.5, 6);
+    expect(timeline.frames[0]?.epaTotals?.home).toBeCloseTo(0, 6);
+    expect(timeline.frames[1]?.epaTotals?.away).toBeCloseTo(1.5, 6);
+    expect(timeline.frames[1]?.epaTotals?.home).toBeCloseTo(-0.5, 6);
   });
 
   it('keeps fantasy positions from player metadata and includes mixed rushing/receiving breakdown', () => {

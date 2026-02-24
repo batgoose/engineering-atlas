@@ -133,12 +133,74 @@ class TestPlaySerializerLayers:
     def test_detail_play_serializer_includes_analytics(self, plays):
         from gridstream.serializers import PlayDetailSerializer
 
-        data = PlayDetailSerializer(plays[1]).data  # The 30-yard pass
+        play = plays[1]  # The 30-yard pass
+        play.timeout = True
+        play.timeout_team = "SEA"
+        play.home_timeouts_remaining = 2
+        play.away_timeouts_remaining = 3
+        play.punt_returner_player_name = "D. Dallas"
+        play.kickoff_returner_player_name = "D. Dallas"
+        play.interception_player_name = "K. Curl"
+        play.fumble_recovery_1_player_name = "B. Wagner"
+        play.sack_player_name = "M. Parsons"
+        play.penalty_player_name = "J. Reed"
+        play.home_wp = 0.67
+        play.away_wp = 0.33
+        play.total_home_epa = 12.4
+        play.total_away_epa = -6.9
+        play.ep = 2.4
+        play.score_differential = 6
+        play.drive_start_transition = "Following Punt"
+        play.series_result = "First Down"
+        play.save(
+            using="nfl",
+            update_fields=[
+                "timeout",
+                "timeout_team",
+                "home_timeouts_remaining",
+                "away_timeouts_remaining",
+                "punt_returner_player_name",
+                "kickoff_returner_player_name",
+                "interception_player_name",
+                "fumble_recovery_1_player_name",
+                "sack_player_name",
+                "penalty_player_name",
+                "home_wp",
+                "away_wp",
+                "total_home_epa",
+                "total_away_epa",
+                "ep",
+                "score_differential",
+                "drive_start_transition",
+                "series_result",
+            ],
+        )
+
+        data = PlayDetailSerializer(play).data
         assert "epa" in data
         assert "air_yards" in data
         assert "wpa" in data
         assert "pass_location" in data
+        assert "timeout" in data
+        assert "punt_returner_player_name" in data
+        assert "kickoff_returner_player_name" in data
+        assert "interception_player_name" in data
+        assert "fumble_recovery_1_player_name" in data
+        assert "sack_player_name" in data
+        assert "penalty_player_name" in data
+        assert "home_wp" in data
+        assert "away_wp" in data
+        assert "total_home_epa" in data
+        assert "total_away_epa" in data
+        assert "ep" in data
+        assert "score_differential" in data
+        assert "series_result" in data
+        assert "drive_start_transition" in data
         assert data["air_yards"] == 20.0
+        assert data["timeout"] is True
+        assert data["home_wp"] == pytest.approx(0.67)
+        assert data["total_home_epa"] == pytest.approx(12.4)
+        assert data["total_away_epa"] == pytest.approx(-6.9)
 
 
 class TestPlayerGameStatsSerializer:

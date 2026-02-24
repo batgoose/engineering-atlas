@@ -50,7 +50,6 @@ import {
   defensePointsAllowedBand,
   defenseFantasyPoints,
   deriveDefenseFantasyTotalsFromPlays,
-  estimateAwayWinPct,
   computeGameProgress,
 } from '@atlas/sdk/gridstream/transforms';
 import {
@@ -172,6 +171,36 @@ function toPossessionSide(
   if (abbr === awayAbbr) return 'away';
   if (abbr === homeAbbr) return 'home';
   return null;
+}
+
+function clampWinPct(value: number): number {
+  if (!Number.isFinite(value)) return 50;
+  return Math.max(0, Math.min(100, Math.round(value)));
+}
+
+function normalizeWinProbabilityValue(value: number | null | undefined): number | null {
+  if (value == null || !Number.isFinite(value)) return null;
+  const normalized = Math.abs(value) <= 1 ? value * 100 : value;
+  return clampWinPct(normalized);
+}
+
+function normalizeEpaValue(value: number | null | undefined): number | null {
+  if (value == null || !Number.isFinite(value)) return null;
+  return value;
+}
+
+function resolveAwayWinPctFromPlay(play: ApiPlayDetail, fallback: number): number {
+  const awayWp = normalizeWinProbabilityValue(play.away_wp);
+  if (awayWp != null) return awayWp;
+  const homeWp = normalizeWinProbabilityValue(play.home_wp);
+  if (homeWp != null) return clampWinPct(100 - homeWp);
+  return fallback;
+}
+
+function resolveFinalAwayWinPct(awayScore: number, homeScore: number): number {
+  if (awayScore > homeScore) return 100;
+  if (homeScore > awayScore) return 0;
+  return 50;
 }
 
 function teamAbbrFromPossessionId(detail: ApiGameDetailExtended): string {
@@ -624,13 +653,11 @@ function buildTimeline(
   });
 
   const detailPossession = teamAbbrFromPossessionId(detail);
-  const baseWp = estimateAwayWinPct(
-    awayScoreFinal.total,
-    homeScoreFinal.total,
-    quarter,
-    clock,
-    finalGame
-  );
+  const baseWp = plays[0]
+    ? resolveAwayWinPctFromPlay(plays[0], 50)
+    : finalGame
+      ? resolveFinalAwayWinPct(awayScoreFinal.total, homeScoreFinal.total)
+      : 50;
 
   const baseState: LiveGameState = {
     connected: false,
@@ -663,6 +690,7 @@ function buildTimeline(
     spread: ctx.spread ?? null,
     wpTimeline: [{ wp: baseWp, gameMin: Math.max(0, timing.elapsedMin) }],
     awayWinPct: baseWp,
+    epaTotals: { away: 0, home: 0 },
     lastPlay: null,
     animationKey: 0,
     plays: [],
@@ -712,7 +740,7 @@ function buildTimeline(
   const frames: LiveGameState[] = [];
   const playSequences: number[] = [];
   const missionLog: MissionLogEntry[] = [];
-  const wpTimelinePoints: LiveGameState['wpTimeline'] = [{ wp: 50, gameMin: 0 }];
+  const wpTimelinePoints: LiveGameState['wpTimeline'] = [{ wp: baseWp, gameMin: 0 }];
   const runningTotalsByKey = new Map<string, RunningPlayerTotals>();
   const playerMetaByFullKey = new Map<string, RunningPlayerMeta>();
 
@@ -720,6 +748,8 @@ function buildTimeline(
   const homeScoreRunning: ScoreByQuarter = { q1: 0, q2: 0, q3: 0, q4: 0, ot: 0, total: 0 };
   let awayTotal = 0;
   let homeTotal = 0;
+  let awayTotalEpa = 0;
+  let homeTotalEpa = 0;
   let lastQuarter = 1;
   let awayTimeouts = 3;
   let homeTimeouts = 3;
@@ -743,18 +773,35 @@ function buildTimeline(
 
     const timeoutUsage = parseTimeoutUsage(play, awayAbbr, homeAbbr);
     if (timeoutUsage) {
-      if (timeoutUsage.team === awayAbbr) {
-        if (timeoutUsage.ordinal != null) awayTimeouts = Math.max(0, 3 - timeoutUsage.ordinal);
-        else awayTimeouts = Math.max(0, awayTimeouts - 1);
+      if (timeoutUsage.awayRemaining != null) {
+        awayTimeouts = timeoutUsage.awayRemaining;
+      } else if (timeoutUsage.team === awayAbbr) {
+        awayTimeouts = Math.max(0, awayTimeouts - 1);
       }
-      if (timeoutUsage.team === homeAbbr) {
-        if (timeoutUsage.ordinal != null) homeTimeouts = Math.max(0, 3 - timeoutUsage.ordinal);
-        else homeTimeouts = Math.max(0, homeTimeouts - 1);
+      if (timeoutUsage.homeRemaining != null) {
+        homeTimeouts = timeoutUsage.homeRemaining;
+      } else if (timeoutUsage.team === homeAbbr) {
+        homeTimeouts = Math.max(0, homeTimeouts - 1);
       }
     }
 
     const awayAfter = safeInt(play.away_score_after, awayTotal);
     const homeAfter = safeInt(play.home_score_after, homeTotal);
+    const playEpa = normalizeEpaValue(play.epa);
+    const canonicalAwayTotalEpa = normalizeEpaValue(play.total_away_epa);
+    const canonicalHomeTotalEpa = normalizeEpaValue(play.total_home_epa);
+    const offenseTeam = normalizeAbbr(play.possession_team_abbr);
+
+    if (canonicalAwayTotalEpa != null) {
+      awayTotalEpa = canonicalAwayTotalEpa;
+    } else if (playEpa != null && offenseTeam === awayAbbr) {
+      awayTotalEpa += playEpa;
+    }
+    if (canonicalHomeTotalEpa != null) {
+      homeTotalEpa = canonicalHomeTotalEpa;
+    } else if (playEpa != null && offenseTeam === homeAbbr) {
+      homeTotalEpa += playEpa;
+    }
 
     const awayDelta = awayAfter - awayTotal;
     const homeDelta = homeAfter - homeTotal;
@@ -882,14 +929,9 @@ function buildTimeline(
       };
     }
 
-    const awayWinPct = estimateAwayWinPct(
-      awayAfter,
-      homeAfter,
-      playQuarter,
-      normalizeClock(play.clock, '0:00'),
-      false
-    );
     const previousPoint = wpTimelinePoints[wpTimelinePoints.length - 1];
+    const fallbackWp = previousPoint?.wp ?? baseWp;
+    const awayWinPct = resolveAwayWinPctFromPlay(play, fallbackWp);
     const elapsedMin = Math.max(previousPoint?.gameMin ?? 0, timingNow.elapsedMin);
     if (!previousPoint || previousPoint.gameMin !== elapsedMin || previousPoint.wp !== awayWinPct) {
       wpTimelinePoints.push({ wp: awayWinPct, gameMin: elapsedMin });
@@ -952,6 +994,10 @@ function buildTimeline(
       currentDrive,
       wpTimeline: wpTimelinePoints.map((point) => ({ ...point })),
       awayWinPct,
+      epaTotals: {
+        away: awayTotalEpa,
+        home: homeTotalEpa,
+      },
       lastPlay: playAnimation,
       animationKey: index + 1,
       plays: [...missionLog],
@@ -976,13 +1022,10 @@ function buildTimeline(
       .find((frame) => frame.situation.yardLine > 0 || frame.lastPlay !== null) ??
     frames[frames.length - 1] ??
     baseState;
-  const finalAwayWinPct = estimateAwayWinPct(
-    awayScoreFinal.total,
-    homeScoreFinal.total,
-    quarter,
-    clock,
-    finalGame
-  );
+  const latestAwayWinPct = wpTimelinePoints[wpTimelinePoints.length - 1]?.wp ?? baseWp;
+  const finalAwayWinPct = finalGame
+    ? resolveFinalAwayWinPct(awayScoreFinal.total, homeScoreFinal.total)
+    : latestAwayWinPct;
 
   const liveState: LiveGameState = {
     ...lastFrame,

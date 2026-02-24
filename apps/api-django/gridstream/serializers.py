@@ -23,9 +23,12 @@ from .models import (
     Game,
     GameLeader,
     GameLink,
+    GameOfficial,
+    PlayerInjury,
     Drive,
     Play,
     ScoringPlay,
+    TeamStanding,
     PlayerGameStats,
     TeamGameStats,
     Playbook,
@@ -88,7 +91,7 @@ class TeamMinimalSerializer(serializers.ModelSerializer):
         ]
 
     def get_logo_url(self, obj):
-        # Prefer dark logo (suitable for dark UI), then default, then first available
+        # Prefer default logo, then dark, then first available.
         if (
             hasattr(obj, "_prefetched_objects_cache")
             and "logos" in obj._prefetched_objects_cache
@@ -98,8 +101,8 @@ class TeamMinimalSerializer(serializers.ModelSerializer):
             logos = list(obj.logos.all()[:4])
         logo_map = {logo.logo_type: logo.url for logo in logos}
         return (
-            logo_map.get("dark")
-            or logo_map.get("default")
+            logo_map.get("default")
+            or logo_map.get("dark")
             or (logos[0].url if logos else None)
         )
 
@@ -409,6 +412,38 @@ class GameHashtagSerializer(serializers.ModelSerializer):
         fields = ["tag", "platform", "is_primary"]
 
 
+class GameOfficialSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = GameOfficial
+        fields = ["id", "sequence", "name", "position"]
+
+
+class PlayerInjurySerializer(serializers.ModelSerializer):
+    team_abbr = serializers.CharField(
+        source="team.abbreviation", read_only=True, default=None
+    )
+    player_display_name = serializers.CharField(
+        source="player.display_name", read_only=True, default=None
+    )
+
+    class Meta:
+        model = PlayerInjury
+        fields = [
+            "id",
+            "sequence",
+            "team",
+            "team_abbr",
+            "player",
+            "player_display_name",
+            "player_name",
+            "player_espn_id",
+            "status",
+            "description",
+            "game_day_availability",
+            "updated_at",
+        ]
+
+
 class GameListSerializer(serializers.ModelSerializer):
     """
     Scoreboard-optimized game serializer.
@@ -492,6 +527,8 @@ class GameDetailSerializer(GameListSerializer):
     links = GameLinkSerializer(many=True, read_only=True)
     hashtags = GameHashtagSerializer(many=True, read_only=True)
     scoring_plays = serializers.SerializerMethodField()
+    officials = GameOfficialSerializer(many=True, read_only=True)
+    injuries = PlayerInjurySerializer(many=True, read_only=True)
     venue_detail = VenueSerializer(source="venue", read_only=True)
 
     class Meta(GameListSerializer.Meta):
@@ -501,14 +538,22 @@ class GameDetailSerializer(GameListSerializer):
             "weather_humidity",
             "weather_detail",
             "weather_condition_id",
+            "spread_line",
+            "total_line",
             "spread_open",
             "total_open",
+            "home_spread_odds",
+            "away_spread_odds",
+            "over_odds",
+            "under_odds",
             "odds_provider",
             "home_qb_espn_id",
             "away_qb_espn_id",
             "links",
             "hashtags",
             "scoring_plays",
+            "officials",
+            "injuries",
             "is_simulation",
             "updated_at",
         ]
@@ -630,13 +675,68 @@ class PlayDetailSerializer(PlaySerializer):
             "passer_player_id",
             "rusher_player_id",
             "receiver_player_id",
+            "punt_returner_player_name",
+            "punt_returner_player_id",
+            "kickoff_returner_player_name",
+            "kickoff_returner_player_id",
+            "interception_player_name",
+            "interception_player_id",
+            "fumble_recovery_1_player_name",
+            "fumble_recovery_1_team",
+            "fumble_recovery_1_yards",
+            "sack_player_name",
+            "sack_player_id",
+            "tackle_for_loss_1_player_name",
+            "pass_defense_1_player_name",
+            "penalty_player_name",
+            "penalty_player_id",
+            "penalty_team",
+            # Timeout and game state
+            "timeout",
+            "timeout_team",
+            "home_timeouts_remaining",
+            "away_timeouts_remaining",
+            # Play family / return detail
+            "pass_attempt",
+            "rush_attempt",
+            "kickoff_attempt",
+            "punt_attempt",
+            "extra_point_attempt",
+            "two_point_attempt",
+            "special_teams_play",
+            "st_play_type",
+            "touchback",
+            "out_of_bounds",
+            "punt_inside_twenty",
+            "punt_fair_catch",
+            "kickoff_fair_catch",
+            "kickoff_in_endzone",
+            "return_yards",
+            "return_team",
             # Kicking
             "field_goal_result",
             "kick_distance",
             # Analytics
             "epa",
+            "total_home_epa",
+            "total_away_epa",
             "wpa",
             "success",
+            "home_wp",
+            "away_wp",
+            "vegas_wp",
+            "vegas_home_wp",
+            "ep",
+            "cp",
+            "cpoe",
+            "td_prob",
+            "fg_prob",
+            "no_score_prob",
+            "score_differential",
+            "drive_start_transition",
+            "drive_end_transition",
+            "drive_yards_penalized",
+            "series_result",
             "wall_clock",
         ]
 
@@ -884,29 +984,39 @@ class PlayerNextGenStatsSerializer(serializers.ModelSerializer):
 
 
 # =============================================================================
-# STANDINGS (computed — not a model)
+# STANDINGS
 # =============================================================================
 
 
-class StandingsEntrySerializer(serializers.Serializer):
-    """Computed standings row — built from Game results in the viewset."""
+class TeamStandingSerializer(serializers.ModelSerializer):
+    team = TeamMinimalSerializer(read_only=True)
+    season = serializers.IntegerField(source="season_id", read_only=True)
+    win_pct = serializers.FloatField(source="pct", read_only=True)
 
-    team = TeamMinimalSerializer()
-    conference = serializers.CharField()
-    division = serializers.CharField()
-    wins = serializers.IntegerField()
-    losses = serializers.IntegerField()
-    ties = serializers.IntegerField()
-    win_pct = serializers.FloatField()
-    division_wins = serializers.IntegerField()
-    division_losses = serializers.IntegerField()
-    conference_wins = serializers.IntegerField()
-    conference_losses = serializers.IntegerField()
-    points_for = serializers.IntegerField()
-    points_against = serializers.IntegerField()
-    point_diff = serializers.IntegerField()
-    streak = serializers.CharField()
-    last_5 = serializers.CharField()
+    class Meta:
+        model = TeamStanding
+        fields = [
+            "season",
+            "team",
+            "conference",
+            "division",
+            "wins",
+            "losses",
+            "ties",
+            "pct",
+            "win_pct",
+            "div_rank",
+            "seed",
+            "points_for",
+            "points_against",
+            "point_diff",
+            "sov",
+            "sos",
+            "streak",
+            "last_5",
+            "playoff_clincher",
+            "updated_at",
+        ]
 
 
 # =============================================================================

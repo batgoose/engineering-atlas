@@ -1,9 +1,8 @@
 """
 Import individual plays from raw nflverse play-by-play data.
 
-Maps the 52 available columns to the Play model. Fields that require
-columns not present in our schema (desc, first_down_*, fumble_lost,
-pass_location, run_location, run_gap, wp, cpoe, etc.) are left null.
+Primary source is `raw.raw_nflverse_pbp` (full payload JSON). If that table is
+missing, this command falls back to the legacy `plays` projection.
 
 Strategy: Delete existing plays for the season, then bulk_create.
 This is much faster than update_or_create for 50k+ rows per season.
@@ -16,6 +15,9 @@ Usage:
     python manage.py import_plays --season 2024 --batch-size 10000
 """
 
+import json
+
+from django.core.management.base import CommandError
 from django.db import transaction
 
 from gridstream.models import Drive, Game, Play, Team
@@ -27,6 +29,8 @@ TEAM_ABBR_MAP = {"STL": "LA", "SD": "LAC", "OAK": "LV"}
 
 class Command(ImportBaseCommand):
     help = "Import plays from raw nflverse play-by-play data."
+    RAW_SOURCE_TABLE = "raw.raw_nflverse_pbp"
+    LEGACY_SOURCE_TABLE = "plays"
 
     def handle(self, *args, **options):
         self.batch_size = options["batch_size"]
@@ -36,9 +40,10 @@ class Command(ImportBaseCommand):
         if self.dry_run:
             self.stdout.write(self.style.WARNING("DRY RUN"))
 
-        if not self.raw_table_exists("plays"):
-            self.stderr.write(self.style.ERROR("No 'plays' table found."))
-            return
+        source_mode = self._resolve_source_mode()
+        source_label = (
+            self.RAW_SOURCE_TABLE if source_mode == "raw" else self.LEGACY_SOURCE_TABLE
+        )
 
         self.team_cache = {t.abbreviation: t for t in Team.objects.using("nfl").all()}
         for old, new in TEAM_ABBR_MAP.items():
@@ -55,10 +60,11 @@ class Command(ImportBaseCommand):
             if d.game and d.game.nflverse_game_id:
                 self.drive_cache[(d.game.nflverse_game_id, d.drive_number)] = d
 
-        seasons = self.resolve_seasons(requested)
-        sw = self.season_where()
+        seasons = self._resolve_source_seasons(requested, source_mode)
 
-        self.stdout.write(f"Importing plays for {len(seasons)} seasons")
+        self.stdout.write(
+            f"Importing plays for {len(seasons)} seasons from {source_label}"
+        )
 
         total_created = 0
 
@@ -66,11 +72,9 @@ class Command(ImportBaseCommand):
             self.log_season_header(year)
 
             # Count
-            with self.get_nfl_cursor() as cursor:
-                cursor.execute(f"SELECT COUNT(*) FROM plays WHERE {sw}", [year])
-                row_count = cursor.fetchone()[0]
+            row_count = self._count_source_rows(year, source_mode)
 
-            self.stdout.write(f"  {row_count:,} plays in raw table")
+            self.stdout.write(f"  {row_count:,} plays in source table")
 
             if self.dry_run:
                 total_created += row_count
@@ -94,39 +98,25 @@ class Command(ImportBaseCommand):
             progress = 0
 
             with self.timed_operation(f"Importing {row_count:,} plays for {year}"):
-                with self.get_nfl_cursor() as cursor:
-                    cursor.execute(
-                        f"SELECT * FROM plays WHERE {sw} ORDER BY game_id, play_id",
-                        [year],
-                    )
-                    col_names = [d[0] for d in cursor.description]
+                for row in self._iter_source_rows(year, source_mode):
+                    play = self._build_play(row)
+                    if play:
+                        batch.append(play)
 
-                    while True:
-                        rows = cursor.fetchmany(self.batch_size)
-                        if not rows:
-                            break
-                        for raw_row in rows:
-                            row = dict(zip(col_names, raw_row))
-                            play = self._build_play(row)
-                            if play:
-                                batch.append(play)
-
-                            if len(batch) >= self.batch_size:
-                                with transaction.atomic(using="nfl"):
-                                    Play.objects.using("nfl").bulk_create(batch)
-                                created += len(batch)
-                                batch = []
-
-                            progress += 1
-                            if progress % 50000 == 0:
-                                self.stdout.write(
-                                    f"    ... {progress:,} / {row_count:,}"
-                                )
-
-                    if batch:
+                    if len(batch) >= self.batch_size:
                         with transaction.atomic(using="nfl"):
                             Play.objects.using("nfl").bulk_create(batch)
                         created += len(batch)
+                        batch = []
+
+                    progress += 1
+                    if progress % 50000 == 0:
+                        self.stdout.write(f"    ... {progress:,} / {row_count:,}")
+
+                if batch:
+                    with transaction.atomic(using="nfl"):
+                        Play.objects.using("nfl").bulk_create(batch)
+                    created += len(batch)
 
             self.stdout.write(f"  Plays created: {created:,}")
             total_created += created
@@ -135,18 +125,138 @@ class Command(ImportBaseCommand):
             self.style.SUCCESS(f"\nDone! {total_created:,} plays imported.")
         )
 
+    def _resolve_source_mode(self):
+        with self.get_nfl_cursor() as cursor:
+            cursor.execute(
+                "SELECT to_regclass('raw.raw_nflverse_pbp'), to_regclass('plays')"
+            )
+            raw_table, legacy_table = cursor.fetchone()
+
+        if raw_table:
+            return "raw"
+        if legacy_table:
+            return "legacy"
+
+        raise CommandError(
+            "No source table found. Expected raw.raw_nflverse_pbp or plays."
+        )
+
+    def _resolve_source_seasons(self, requested, source_mode):
+        if source_mode == "raw":
+            with self.get_nfl_cursor() as cursor:
+                cursor.execute(
+                    "SELECT DISTINCT season FROM raw.raw_nflverse_pbp "
+                    "WHERE season IS NOT NULL ORDER BY season"
+                )
+                available = [r[0] for r in cursor.fetchall()]
+            if requested:
+                missing = set(requested) - set(available)
+                if missing:
+                    self.stderr.write(
+                        self.style.WARNING(
+                            f"Not in {self.RAW_SOURCE_TABLE}: {sorted(missing)}"
+                        )
+                    )
+                return sorted(set(requested) & set(available))
+            return available
+
+        return self.resolve_seasons(requested, table=self.LEGACY_SOURCE_TABLE)
+
+    def _count_source_rows(self, season, source_mode):
+        with self.get_nfl_cursor() as cursor:
+            if source_mode == "raw":
+                cursor.execute(
+                    """
+                    SELECT COUNT(*)
+                    FROM raw.raw_nflverse_pbp
+                    WHERE season = %s
+                        AND game_id IS NOT NULL
+                        AND game_id <> ''
+                        AND COALESCE(NULLIF(payload->>'play_id', ''), NULLIF(play_id, '')) IS NOT NULL
+                    """,
+                    [season],
+                )
+            else:
+                sw = self.season_where(self.LEGACY_SOURCE_TABLE)
+                cursor.execute(
+                    f"SELECT COUNT(*) FROM {self.LEGACY_SOURCE_TABLE} WHERE {sw}",
+                    [season],
+                )
+            return cursor.fetchone()[0]
+
+    def _iter_source_rows(self, season, source_mode):
+        if source_mode == "raw":
+            sql = """
+                SELECT
+                    game_id,
+                    COALESCE(NULLIF(payload->>'play_id', ''), NULLIF(play_id, '')) AS play_id,
+                    posteam,
+                    defteam,
+                    payload
+                FROM raw.raw_nflverse_pbp
+                WHERE season = %s
+                    AND game_id IS NOT NULL
+                    AND game_id <> ''
+                    AND COALESCE(NULLIF(payload->>'play_id', ''), NULLIF(play_id, '')) IS NOT NULL
+                ORDER BY
+                    game_id,
+                    CASE
+                        WHEN COALESCE(NULLIF(payload->>'play_id', ''), NULLIF(play_id, ''))
+                            ~ '^-?[0-9]+(\\.[0-9]+)?$'
+                        THEN COALESCE(NULLIF(payload->>'play_id', ''), NULLIF(play_id, ''))::double precision
+                        ELSE NULL
+                    END,
+                    COALESCE(NULLIF(payload->>'play_id', ''), NULLIF(play_id, ''))
+            """
+        else:
+            sw = self.season_where(self.LEGACY_SOURCE_TABLE)
+            sql = (
+                f"SELECT * FROM {self.LEGACY_SOURCE_TABLE} WHERE {sw} "
+                "ORDER BY game_id, play_id"
+            )
+
+        with self.get_nfl_cursor() as cursor:
+            cursor.execute(sql, [season])
+            col_names = [d[0] for d in cursor.description]
+
+            while True:
+                rows = cursor.fetchmany(self.batch_size)
+                if not rows:
+                    break
+                for raw_row in rows:
+                    yield dict(zip(col_names, raw_row))
+
+    def _row_value(self, row, key, default=None):
+        value = row.get(key)
+        if value not in (None, ""):
+            return value
+
+        payload = row.get("payload")
+        if isinstance(payload, str):
+            try:
+                payload = json.loads(payload)
+                row["payload"] = payload
+            except json.JSONDecodeError:
+                payload = None
+        if isinstance(payload, dict):
+            payload_value = payload.get(key)
+            if payload_value not in (None, ""):
+                return payload_value
+
+        return default
+
     def _build_play(self, row):
-        game_id_str = row.get("game_id", "")
+        game_id_str = self.safe_str(self._row_value(row, "game_id", ""))
         game = self.game_cache.get(game_id_str)
         if not game:
             return None
 
-        play_id = self.safe_int(row.get("play_id"))
+        play_id = self.safe_int(self._row_value(row, "play_id"))
         if play_id is None:
             return None
 
-        posteam_abbr = self.safe_str(row.get("posteam", ""))
-        defteam_abbr = self.safe_str(row.get("defteam", ""))
+        posteam_abbr = self.safe_str(self._row_value(row, "posteam", ""))
+        defteam_abbr = self.safe_str(self._row_value(row, "defteam", ""))
         possession_team = self.team_cache.get(posteam_abbr) or self.team_cache.get(
             TEAM_ABBR_MAP.get(posteam_abbr, "")
         )
@@ -155,15 +265,15 @@ class Command(ImportBaseCommand):
         )
 
         # Drive link
-        drive_num = self.safe_int(row.get("drive"))
+        drive_num = self.safe_int(self._row_value(row, "drive"))
         drive = self.drive_cache.get((game_id_str, drive_num)) if drive_num else None
 
         # Clock display
-        qtr_secs = self.safe_int(row.get("quarter_seconds_remaining"), 0)
+        qtr_secs = self.safe_int(self._row_value(row, "quarter_seconds_remaining"), 0)
         clock_display = f"{qtr_secs // 60}:{qtr_secs % 60:02d}" if qtr_secs else ""
 
         # Play type normalization
-        play_type = self.safe_str(row.get("play_type", ""))
+        play_type = self.safe_str(self._row_value(row, "play_type", ""))
 
         return Play(
             game=game,
@@ -171,49 +281,71 @@ class Command(ImportBaseCommand):
             nflverse_play_id=float(play_id),
             sequence=play_id,  # play_id is already int (cast from double)
             # Situation
-            quarter=self.safe_int(row.get("qtr")),
+            quarter=self.safe_int(self._row_value(row, "qtr")),
             clock=clock_display,
-            game_seconds_remaining=self.safe_int(row.get("game_seconds_remaining")),
-            half_seconds_remaining=self.safe_int(row.get("half_seconds_remaining")),
+            game_seconds_remaining=self.safe_int(
+                self._row_value(row, "game_seconds_remaining")
+            ),
+            half_seconds_remaining=self.safe_int(
+                self._row_value(row, "half_seconds_remaining")
+            ),
             quarter_seconds_remaining=qtr_secs,
-            down=self.safe_int(row.get("down")),
-            distance=self.safe_int(row.get("ydstogo")),
-            yard_line=self.safe_int(row.get("yardline_100")),
-            side_of_field=self.safe_str(row.get("side_of_field", "")),
+            down=self.safe_int(self._row_value(row, "down")),
+            distance=self.safe_int(self._row_value(row, "ydstogo")),
+            yard_line=self.safe_int(self._row_value(row, "yardline_100")),
+            side_of_field=self.safe_str(self._row_value(row, "side_of_field", "")),
             # Teams
             possession_team=possession_team,
             defensive_team=defensive_team,
             # Play info
             play_type=play_type,
-            yards_gained=self.safe_float(row.get("yards_gained")),
+            yards_gained=self.safe_float(self._row_value(row, "yards_gained")),
             # Flags (stored as real 0/1 in the raw table)
-            touchdown=self.safe_bool(row.get("touchdown")),
-            interception=self.safe_bool(row.get("interception")),
-            fumble=self.safe_bool(row.get("fumble")),
-            sack=self.safe_bool(row.get("sack")),
-            penalty=self.safe_bool(row.get("penalty")),
-            complete_pass=self.safe_bool(row.get("complete_pass")),
+            touchdown=self.safe_bool(self._row_value(row, "touchdown")),
+            interception=self.safe_bool(self._row_value(row, "interception")),
+            fumble=self.safe_bool(self._row_value(row, "fumble")),
+            sack=self.safe_bool(self._row_value(row, "sack")),
+            penalty=self.safe_bool(self._row_value(row, "penalty")),
+            complete_pass=self.safe_bool(self._row_value(row, "complete_pass")),
             # Formation
-            shotgun=self.safe_bool(row.get("shotgun")),
-            no_huddle=self.safe_bool(row.get("no_huddle")),
+            shotgun=self.safe_bool(self._row_value(row, "shotgun")),
+            no_huddle=self.safe_bool(self._row_value(row, "no_huddle")),
             # Pass detail
-            air_yards=self.safe_float(row.get("air_yards")),
-            yards_after_catch=self.safe_float(row.get("yards_after_catch")),
+            air_yards=self.safe_float(self._row_value(row, "air_yards")),
+            yards_after_catch=self.safe_float(
+                self._row_value(row, "yards_after_catch")
+            ),
             # Kicking
-            field_goal_result=self.safe_str(row.get("field_goal_result", "")),
-            kick_distance=self.safe_float(row.get("kick_distance")),
+            field_goal_result=self.safe_str(
+                self._row_value(row, "field_goal_result", "")
+            ),
+            kick_distance=self.safe_float(self._row_value(row, "kick_distance")),
             # Penalty detail
-            penalty_type=self.safe_str(row.get("penalty_type", "")),
-            penalty_yards=self.safe_int(row.get("penalty_yards")),
+            penalty_type=self.safe_str(self._row_value(row, "penalty_type", "")),
+            penalty_yards=self.safe_int(self._row_value(row, "penalty_yards")),
             # Player references
-            passer_player_id=self.safe_str(row.get("passer_player_id", "")),
-            passer_player_name=self.safe_str(row.get("passer_player_name", "")),
-            rusher_player_id=self.safe_str(row.get("rusher_player_id", "")),
-            rusher_player_name=self.safe_str(row.get("rusher_player_name", "")),
-            receiver_player_id=self.safe_str(row.get("receiver_player_id", "")),
-            receiver_player_name=self.safe_str(row.get("receiver_player_name", "")),
+            passer_player_id=self.safe_str(
+                self._row_value(row, "passer_player_id", "")
+            ),
+            passer_player_name=self.safe_str(
+                self._row_value(row, "passer_player_name", "")
+            ),
+            rusher_player_id=self.safe_str(
+                self._row_value(row, "rusher_player_id", "")
+            ),
+            rusher_player_name=self.safe_str(
+                self._row_value(row, "rusher_player_name", "")
+            ),
+            receiver_player_id=self.safe_str(
+                self._row_value(row, "receiver_player_id", "")
+            ),
+            receiver_player_name=self.safe_str(
+                self._row_value(row, "receiver_player_name", "")
+            ),
             # Analytics
-            epa=self.safe_float(row.get("epa")),
-            wpa=self.safe_float(row.get("wpa")),
-            success=self.safe_float(row.get("success")),
+            epa=self.safe_float(self._row_value(row, "epa")),
+            total_home_epa=self.safe_float(self._row_value(row, "total_home_epa")),
+            total_away_epa=self.safe_float(self._row_value(row, "total_away_epa")),
+            wpa=self.safe_float(self._row_value(row, "wpa")),
+            success=self.safe_float(self._row_value(row, "success")),
         )
