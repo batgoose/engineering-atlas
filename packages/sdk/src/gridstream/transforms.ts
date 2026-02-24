@@ -812,6 +812,8 @@ export function mapFantasyFromRunningTotals(
   for (const [fullKey, meta] of metaByFullKey.entries()) {
     const totals = totalsByKey.get(fullKey);
     if (!totals) continue;
+    const isPunterOnly = totals.punts > 0 && totals.fgAtt === 0 && totals.xpAtt === 0;
+    if (isPunterOnly) continue;
     const statsRow = playerStatsLookup
       ? playerStatsRowForPlayer(meta.name, playerStatsLookup)
       : null;

@@ -375,6 +375,113 @@ describe('Gridstream timeline derivation', () => {
     expect(animation?.actor?.summary).toBe('0 Yard Return');
   });
 
+  it('infers first down on 4th-down conversions when feed first_down/end_down flags are missing', () => {
+    const play = makePlay({
+      id: 8101,
+      sequence: 8101,
+      quarter: 4,
+      clock: '0:21',
+      down: 4,
+      distance: 7,
+      yard_line: 50,
+      possession_team_abbr: 'BAL',
+      play_type: 'pass',
+      description:
+        'BAL (:21) (Shotgun) 8-L.Jackson pass deep left to 80-I.Likely to PIT 24 for 26 yards (5-J.Ramsey) [90-T.Watt].',
+      short_description: 'L.Jackson pass deep left to I.Likely for 26 yards.',
+      yards_gained: 0,
+      first_down: false,
+      end_down: null,
+      end_yard_line: 24,
+      complete_pass: true,
+      pass_attempt: true,
+    });
+
+    const nextSnap = makePlay({
+      id: 8102,
+      sequence: 8102,
+      quarter: 4,
+      clock: '0:15',
+      down: 1,
+      distance: 10,
+      yard_line: 24,
+      possession_team_abbr: 'BAL',
+      play_type: 'pass',
+      description: 'BAL L.Jackson pass incomplete short right.',
+      short_description: 'L.Jackson incomplete pass.',
+      pass_attempt: true,
+    });
+
+    const animation = __gridstreamTestUtils.toPlayAnimation(
+      play,
+      nextSnap,
+      'BAL',
+      'PIT',
+      new Map(),
+      new Map(),
+      new Map()
+    );
+
+    expect(animation?.type).toBe('pass');
+    expect(animation?.isFirstDown).toBe(true);
+  });
+
+  it('classifies defensive fumble recovery as turnover when fumble_lost flag is false', () => {
+    const play = makePlay({
+      id: 8201,
+      sequence: 8201,
+      quarter: 4,
+      clock: '3:10',
+      down: 3,
+      distance: 1,
+      yard_line: 40,
+      possession_team_abbr: 'WAS',
+      play_type: 'run',
+      description:
+        '(3:10) (Shotgun) 73-T.Scott reported in as eligible. 5-J.Daniels FUMBLES (Aborted) at CHI 45, RECOVERED by CHI-26-N.Wright at CHI 44.',
+      short_description:
+        'J.Daniels FUMBLES (Aborted) at CHI 45, RECOVERED by CHI-26-N.Wright at CHI 44.',
+      fumble_lost: false,
+      interception: false,
+      end_yard_line: null,
+      return_yards: null,
+      fumble_recovery_1_team: '',
+      fumble_recovery_1_yards: null,
+    });
+
+    const nextSnap = makePlay({
+      id: 8202,
+      sequence: 8202,
+      quarter: 4,
+      clock: '3:02',
+      down: 1,
+      distance: 10,
+      yard_line: 56,
+      possession_team_abbr: 'CHI',
+      play_type: 'run',
+      description: 'CHI run up the middle for 2 yards.',
+      short_description: 'CHI run for 2 yards.',
+    });
+
+    const animation = __gridstreamTestUtils.toPlayAnimation(
+      play,
+      nextSnap,
+      'CHI',
+      'WAS',
+      new Map(),
+      new Map(),
+      new Map()
+    );
+
+    expect(animation?.type).toBe('turnover');
+    expect(animation?.isTurnover).toBe(true);
+    expect(animation?.turnoverBy).toBe('CHI');
+    expect(animation?.turnoverSpotSide).toBe('CHI');
+    expect(animation?.turnoverSpotYardline).toBe(45);
+    expect(animation?.toSide).toBe('CHI');
+    expect(animation?.toYardline).toBe(44);
+  });
+
   it('builds frame team metrics/personnel/fantasy from game state at that play', () => {
     const detail = makeDetail({});
     const plays = [
@@ -658,8 +765,8 @@ describe('Gridstream timeline derivation', () => {
     const shaheed = secondFrame.fantasyAway.find((player) => player.name === 'R.Shaheed');
     expect(shaheed).toBeTruthy();
     expect(shaheed?.position).toBe('WR');
-    expect(shaheed?.breakdown).toContain('1 rec · 7 yds');
-    expect(shaheed?.breakdown).toContain('1 car · 4 yds');
+    expect(shaheed?.breakdown).toContain('REC 1 REC, 7 YDS');
+    expect(shaheed?.breakdown).toContain('RUSH 1 CAR, 4 YDS');
     expect(shaheed?.pointsPpr).toBeGreaterThan(shaheed?.pointsHalfPpr ?? -999);
     expect(shaheed?.pointsHalfPpr).toBeGreaterThan(shaheed?.pointsStandard ?? -999);
   });
@@ -1054,5 +1161,249 @@ describe('Gridstream timeline derivation', () => {
     expect(maye.passTd).toBe(1);
     expect(maye.passComp).toBe(2);
     expect(maye.passYds).toBe(13);
+  });
+
+  it('uses fallback mission-log text when play descriptions are blank', () => {
+    const detail = makeDetail({
+      status: 'in_progress',
+      quarter: 1,
+      clock: '12:00',
+      possession_team: 2,
+    });
+
+    const plays = [
+      makePlay({
+        id: 9901,
+        sequence: 9901,
+        quarter: 1,
+        clock: '12:00',
+        down: 2,
+        distance: 6,
+        yard_line: 68,
+        down_distance_text: '2nd & 6',
+        possession_team_abbr: 'NE',
+        play_type: 'pass',
+        description: '',
+        short_description: '',
+        yards_gained: 9,
+        pass_attempt: true,
+      }),
+    ];
+
+    const timeline = __gridstreamTestUtils.buildTimeline(detail, plays, [], null);
+    expect(timeline.frames).toHaveLength(1);
+    expect(timeline.frames[0]?.plays[0]?.text).toBe('PASS +9 yds');
+  });
+
+  it('normalizes structured weather detail into usable weather state', () => {
+    const detail = makeDetail({
+      weather_temp: null,
+      weather_condition: '',
+      weather_wind: '',
+      weather_detail: 'roof=outdoors; surface=grass; temp=25; wind=3 mph',
+      venue_detail: {
+        id: 101,
+        name: 'Acrisure Stadium',
+        city: 'Pittsburgh',
+        state: 'PA',
+        is_indoor: false,
+        surface: 'grass',
+      },
+    });
+
+    const timeline = __gridstreamTestUtils.buildTimeline(detail, [], [], null);
+    expect(timeline.liveState.weather.temperature).toBe(25);
+    expect(timeline.liveState.weather.condition).toBe('Outdoor');
+    expect(timeline.liveState.weather.wind).toBe('3 mph');
+  });
+
+  it('tracks receiving totals from structured receiver field when description has jersey prefixes', () => {
+    const detail = makeDetail({
+      status: 'in_progress',
+      possession_team: 2, // NE (home)
+    });
+
+    const plays = [
+      makePlay({
+        id: 9911,
+        sequence: 9911,
+        quarter: 1,
+        clock: '11:56',
+        down: 1,
+        distance: 10,
+        yard_line: 60,
+        down_distance_text: '1st & 10',
+        possession_team_abbr: 'NE',
+        play_type: 'pass',
+        description:
+          '(11:56) (Shotgun) 8-A.Rodgers pass short left to 14-K.Gainwell to PIT 40 for 12 yards.',
+        short_description: '',
+        passer_player_name: 'A.Rodgers',
+        receiver_player_name: 'K.Gainwell',
+        complete_pass: true,
+        yards_gained: 12,
+      }),
+    ];
+
+    const timeline = __gridstreamTestUtils.buildTimeline(detail, plays, [], null);
+    const leaders = timeline.frames[0]?.leaders;
+    expect(leaders?.home.receiving.name).toBe('K.Gainwell');
+    expect(leaders?.home.receiving.line).toBe('1 REC · 12 YDS');
+  });
+
+  it('does not classify punt-only players as kicker fantasy entries', () => {
+    const totals = new Map<string, RunningPlayerTotals>();
+    const meta = new Map<string, RunningPlayerMeta>();
+
+    __gridstreamTestUtils.updateRunningTotalsFromPlay(
+      makePlay({
+        id: 9921,
+        sequence: 9921,
+        quarter: 2,
+        clock: '9:10',
+        down: 4,
+        distance: 8,
+        yard_line: 62,
+        down_distance_text: '4th & 8',
+        possession_team_abbr: 'NE',
+        play_type: 'punt',
+        description: '(9:10) J.Stout punts 48 yards to SEA 10, fair catch by R.Shaheed.',
+        short_description: '',
+        yards_gained: 48,
+        kick_distance: 48,
+      }),
+      totals,
+      meta
+    );
+
+    expect(totals.get('jstout')?.punts).toBe(1);
+    const fantasy = __gridstreamTestUtils.mapFantasyFromRunningTotals(totals, meta, 'SEA', 'NE');
+    expect(fantasy.home.some((entry) => entry.position === 'K')).toBe(false);
+  });
+
+  it('derives score and WP from scoring timeline when play score fields are stale', () => {
+    const detail = makeDetail({
+      status: 'in_progress',
+      away_score: 7,
+      home_score: 0,
+      away_score_q1: 7,
+      away_score_q2: 0,
+      away_score_q3: 0,
+      away_score_q4: 0,
+      home_score_q1: 0,
+      home_score_q2: 0,
+      home_score_q3: 0,
+      home_score_q4: 0,
+      quarter: 1,
+      clock: '10:20',
+      scoring_plays: [
+        {
+          team_abbr: 'SEA',
+          quarter: 1,
+          description: 'SEA touchdown',
+          home_score_after: 0,
+          away_score_after: 7,
+          sequence: 1,
+          clock: '10:54',
+        } as unknown as NonNullable<ApiGameDetailExtended['scoring_plays']>[number],
+      ],
+    });
+
+    const plays = [
+      makePlay({
+        id: 12001,
+        sequence: 12001,
+        quarter: 1,
+        clock: '11:05',
+        play_type: 'pass',
+        possession_team_abbr: 'SEA',
+        description: 'SEA pass complete for 20 yards, TOUCHDOWN.',
+        short_description: 'SEA touchdown pass.',
+        touchdown: true,
+        away_score_after: 0,
+        home_score_after: 0,
+      }),
+      makePlay({
+        id: 12002,
+        sequence: 12002,
+        quarter: 1,
+        clock: '10:54',
+        play_type: 'extra_point',
+        possession_team_abbr: 'SEA',
+        description: 'SEA extra point is GOOD.',
+        short_description: 'SEA extra point is GOOD.',
+        away_score_after: 0,
+        home_score_after: 0,
+      }),
+      makePlay({
+        id: 12003,
+        sequence: 12003,
+        quarter: 1,
+        clock: '10:20',
+        play_type: 'kickoff',
+        possession_team_abbr: 'SEA',
+        description: 'SEA kickoff.',
+        short_description: 'SEA kickoff.',
+        away_score_after: 0,
+        home_score_after: 0,
+      }),
+    ];
+
+    const timeline = __gridstreamTestUtils.buildTimeline(detail, plays, [], null);
+    expect(timeline.frames).toHaveLength(3);
+
+    const scoreFrame = timeline.frames[1]!;
+    expect(scoreFrame.awayScore.total).toBe(7);
+    expect(scoreFrame.homeScore.total).toBe(0);
+    expect(scoreFrame.awayScore.q1).toBe(7);
+    expect(scoreFrame.awayWinPct).toBeGreaterThan(50);
+  });
+
+  it('parses timeout usage from timeout text when timeout fields are null', () => {
+    const detail = makeDetail({
+      status: 'in_progress',
+      quarter: 2,
+      clock: '0:50',
+    });
+
+    const plays = [
+      makePlay({
+        id: 12101,
+        sequence: 12101,
+        quarter: 2,
+        clock: '1:12',
+        play_type: 'pass',
+        possession_team_abbr: 'SEA',
+        description: 'SEA pass complete for 6 yards.',
+      }),
+      makePlay({
+        id: 12102,
+        sequence: 12102,
+        quarter: 2,
+        clock: '1:05',
+        play_type: 'no_play',
+        possession_team_abbr: 'NE',
+        timeout: null as unknown as boolean,
+        timeout_team: null as unknown as string,
+        home_timeouts_remaining: null,
+        away_timeouts_remaining: null,
+        description: 'Timeout #1 by NE at 01:05.',
+        short_description: 'Timeout #1 by NE at 01:05.',
+      }),
+      makePlay({
+        id: 12103,
+        sequence: 12103,
+        quarter: 2,
+        clock: '0:58',
+        play_type: 'pass',
+        possession_team_abbr: 'NE',
+        description: 'NE pass incomplete.',
+      }),
+    ];
+
+    const timeline = __gridstreamTestUtils.buildTimeline(detail, plays, [], null);
+    expect(timeline.frames).toHaveLength(3);
+    expect(timeline.frames[1]?.homeTimeouts).toBe(2);
+    expect(timeline.frames[1]?.awayTimeouts).toBe(3);
   });
 });

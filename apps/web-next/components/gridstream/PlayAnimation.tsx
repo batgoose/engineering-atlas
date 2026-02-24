@@ -653,6 +653,7 @@ export function PlayAnimation({
           toX={toX}
           dirY={dirY}
           play={play}
+          awayAbbr={awayAbbr}
           offenseRingColor={offenseRingColor}
           defenseRingColor={defenseRingColor}
         />
@@ -683,6 +684,43 @@ export function PlayAnimation({
     default:
       return null;
   }
+}
+
+function isTurnoverOnDowns(play: PlayAnimationData): boolean {
+  if ((play.startDown ?? 0) !== 4) return false;
+  if (play.type !== 'pass' && play.type !== 'rush') return false;
+  if (play.isFirstDown || play.isTurnover || play.isTouchdown || play.isNoPlay) return false;
+  if (/\b(two-point conversion|extra point)\b/i.test(play.description)) return false;
+  return true;
+}
+
+function parseFieldSpotToX(
+  sideRaw: string | undefined,
+  yardRaw: string | undefined,
+  awayAbbr: string
+): number | null {
+  const side = (sideRaw ?? '').trim().toUpperCase();
+  const yard = Number.parseInt((yardRaw ?? '').trim(), 10);
+  if (!side || Number.isNaN(yard)) return null;
+  const clampedYard = Math.max(0, Math.min(50, yard));
+  return fieldPctToSvgX(yardToFieldPct(clampedYard, side, awayAbbr));
+}
+
+function parseFumbleSpotsToX(
+  description: string,
+  awayAbbr: string
+): {
+  takeawayX: number | null;
+  recoveryX: number | null;
+} {
+  const fumbleMatch = description.match(
+    /\bfumbles?(?:\s*\([^)]*\))?\s+at\s+([A-Z]{2,3})\s+(\d{1,2})\b/i
+  );
+  const recoveryMatch = description.match(/\brecovered by\s+.+?\s+at\s+([A-Z]{2,3})\s+(\d{1,2})\b/i);
+  return {
+    takeawayX: parseFieldSpotToX(fumbleMatch?.[1], fumbleMatch?.[2], awayAbbr),
+    recoveryX: parseFieldSpotToX(recoveryMatch?.[1], recoveryMatch?.[2], awayAbbr),
+  };
 }
 
 // ── Pass ──────────────────────────────────────────────────────
@@ -786,6 +824,7 @@ function PassAnimation({
 
   const postTryDelay = duration + 4.85;
   const hasPostTrySequence = Boolean(postScoreTry);
+  const showTurnoverOnDowns = isTurnoverOnDowns(play) && !hasPostTrySequence;
   // On TD + XP/2PT plays we intentionally clear primary pass visuals before rendering try.
   const hidePrimaryAt = hasPostTrySequence
     ? Math.max(duration + 0.6, postTryDelay - 0.35)
@@ -826,9 +865,7 @@ function PassAnimation({
     <g>
       {hasPostTrySequence && <PreTrySnapGuide x={fromX} hideAt={hidePrimaryAt} />}
       {play.isFirstDown && !hasPostTrySequence && <FirstDownMarker x={toX} />}
-      {!play.isFirstDown && !play.isTurnover && play.startDown === 4 && !hasPostTrySequence && (
-        <TurnoverOnDownsMarker x={toX} />
-      )}
+      {showTurnoverOnDowns && <TurnoverOnDownsMarker x={toX} />}
       {qbReleaseHeadshot && !isSack && (
         <StaticHeadshotMarker
           markerId="pass-qb-release"
@@ -1108,6 +1145,7 @@ function RushAnimation({
   const penaltyDelay = duration + 0.12;
   const postTryDelay = duration + 4.85;
   const hasPostTrySequence = Boolean(postScoreTry);
+  const showTurnoverOnDowns = isTurnoverOnDowns(play) && !hasPostTrySequence;
   const hidePrimaryAt = hasPostTrySequence
     ? Math.max(duration + 0.6, postTryDelay - 0.35)
     : undefined;
@@ -1135,9 +1173,7 @@ function RushAnimation({
     <g>
       {hasPostTrySequence && <PreTrySnapGuide x={fromX} hideAt={hidePrimaryAt} />}
       {play.isFirstDown && !hasPostTrySequence && <FirstDownMarker x={touchdownTargetX} />}
-      {!play.isFirstDown && !play.isTurnover && play.startDown === 4 && !hasPostTrySequence && (
-        <TurnoverOnDownsMarker x={touchdownTargetX} />
-      )}
+      {showTurnoverOnDowns && <TurnoverOnDownsMarker x={touchdownTargetX} />}
 
       {/* Moving runner marker */}
       {hasRushHeadshot && (
@@ -1572,6 +1608,7 @@ function TurnoverAnimation({
   toX,
   dirY,
   play,
+  awayAbbr,
   offenseRingColor,
   defenseRingColor,
 }: {
@@ -1580,12 +1617,25 @@ function TurnoverAnimation({
   toX: number;
   dirY: number;
   play: PlayAnimationData;
+  awayAbbr: string;
   offenseRingColor: string;
   defenseRingColor: string;
 }) {
   const text = play.description.toLowerCase();
   const isInterception = text.includes('intercept');
-  const hasReturn = Math.abs(toX - turnoverX) > 2;
+  const isFumble = /\bfumble(?:s|d)?\b/i.test(text);
+  const parsedFumbleSpots = isFumble ? parseFumbleSpotsToX(play.description, awayAbbr) : null;
+  const resolvedTurnoverX = parsedFumbleSpots?.takeawayX ?? turnoverX;
+  const resolvedToX = parsedFumbleSpots?.recoveryX ?? toX;
+  const isFumbleRecoverySwap =
+    isFumble &&
+    !isInterception &&
+    /\brecovered by\b/i.test(text) &&
+    !/\bfor\s+\d+\s+yards?\b/i.test(text) &&
+    !/\btouchdown\b/i.test(text);
+  const hasReturn = isFumbleRecoverySwap
+    ? Math.abs(resolvedToX - resolvedTurnoverX) > 0.5
+    : Math.abs(resolvedToX - resolvedTurnoverX) > 2;
   const totalDuration = Math.max(ANIM_TIMING.turnover * 2, 1.65);
   const firstDuration = totalDuration * 0.52;
   const returnDuration = hasReturn ? totalDuration * 0.58 : 0;
@@ -1595,11 +1645,21 @@ function TurnoverAnimation({
     ? returnStartDelay + returnDuration + 0.08
     : turnoverLabelDelay + 0.14;
   const turnoverY = isInterception ? dirY : FIELD_CENTER_Y;
+  const firstTargetX = resolvedTurnoverX;
+  const firstTargetY = isInterception ? turnoverY : FIELD_CENTER_Y;
   const firstPath = isInterception
-    ? `M ${fromX},${FIELD_CENTER_Y} Q ${(fromX + turnoverX) / 2},${Math.min(FIELD_CENTER_Y, turnoverY) - Math.max(36, Math.min(128, Math.abs(turnoverX - fromX) * 0.32))} ${turnoverX},${turnoverY}`
-    : `M ${fromX},${FIELD_CENTER_Y} Q ${(fromX + turnoverX) / 2},${FIELD_CENTER_Y - 20} ${turnoverX},${FIELD_CENTER_Y}`;
-  const returnPath = `M ${turnoverX},${turnoverY} Q ${(turnoverX + toX) / 2},${FIELD_CENTER_Y + (toX > turnoverX ? 36 : -36)} ${toX},${FIELD_CENTER_Y}`;
-  const firstColor = isInterception ? C.cyan : C.amber;
+    ? `M ${fromX},${FIELD_CENTER_Y} Q ${(fromX + firstTargetX) / 2},${Math.min(FIELD_CENTER_Y, turnoverY) - Math.max(36, Math.min(128, Math.abs(firstTargetX - fromX) * 0.32))} ${firstTargetX},${turnoverY}`
+    : isFumbleRecoverySwap
+      ? `M ${fromX},${FIELD_CENTER_Y} L ${firstTargetX},${firstTargetY}`
+      : `M ${fromX},${FIELD_CENTER_Y} Q ${(fromX + firstTargetX) / 2},${FIELD_CENTER_Y - 20} ${firstTargetX},${firstTargetY}`;
+  const returnStartX = resolvedTurnoverX;
+  const returnEndX = resolvedToX;
+  const returnStartY = turnoverY;
+  const returnEndY = FIELD_CENTER_Y;
+  const returnPath = isFumbleRecoverySwap
+    ? `M ${returnStartX},${returnStartY} L ${returnEndX},${returnEndY}`
+    : `M ${returnStartX},${returnStartY} Q ${(returnStartX + returnEndX) / 2},${FIELD_CENTER_Y + (returnEndX > returnStartX ? 36 : -36)} ${returnEndX},${returnEndY}`;
+  const firstColor = C.cyan;
   const takeoverHeadshot = isInterception
     ? play.qbActor?.headshotUrl || play.actor?.headshotUrl
     : play.actor?.headshotUrl;
@@ -1621,8 +1681,8 @@ function TurnoverAnimation({
         d={firstPath}
         fill="none"
         stroke={firstColor}
-        strokeWidth={2.1}
-        opacity={0.58}
+        strokeWidth={isFumbleRecoverySwap ? 2.8 : 2.1}
+        opacity={isFumbleRecoverySwap ? 0.8 : 0.58}
         pathLength={1}
         strokeDasharray={1}
         strokeDashoffset={1}
@@ -1651,7 +1711,7 @@ function TurnoverAnimation({
 
       {/* Takeaway marker */}
       <circle
-        cx={turnoverX}
+        cx={resolvedTurnoverX}
         cy={turnoverY}
         r={4.6}
         fill={C.red}
@@ -1666,9 +1726,9 @@ function TurnoverAnimation({
             d={returnPath}
             fill="none"
             stroke={C.red}
-            strokeWidth={2.3}
+            strokeWidth={isFumbleRecoverySwap ? 2.8 : 2.3}
             opacity={0}
-            strokeDasharray="5 4"
+            strokeDasharray={isFumbleRecoverySwap ? undefined : '5 4'}
             strokeDashoffset="1000"
             style={{
               animation: [
@@ -1697,8 +1757,8 @@ function TurnoverAnimation({
             }}
           />
           <circle
-            cx={toX}
-            cy={FIELD_CENTER_Y}
+            cx={returnEndX}
+            cy={returnEndY}
             r={4.6}
             fill={C.red}
             opacity={0}
@@ -1718,7 +1778,7 @@ function TurnoverAnimation({
       >
         {play.turnoverBy && (
           <text
-            x={turnoverX}
+            x={resolvedTurnoverX}
             y={turnoverY - 22}
             textAnchor="middle"
             fill={C.red}
@@ -1730,7 +1790,7 @@ function TurnoverAnimation({
           </text>
         )}
         <text
-          x={turnoverX}
+          x={resolvedTurnoverX}
           y={turnoverY - 10}
           textAnchor="middle"
           fill={C.red}
@@ -2295,9 +2355,6 @@ function _buildNumericSwapPlan(previousLine: string, nextLine: string): NumericS
 // ── Turnover on Downs Marker ───────────────────────────────────
 
 function TurnoverOnDownsMarker({ x }: { x: number }) {
-  const badgeWidth = 196;
-  const badgeHeight = 28;
-  const badgeY = FIELD_TOP - 34;
   const delay = ANIM_TIMING.firstDownDelay;
 
   return (
@@ -2313,31 +2370,6 @@ function TurnoverOnDownsMarker({ x }: { x: number }) {
         opacity={0.6}
         style={{ animation: `firstDownPulse 1.2s ease ${delay}s infinite` }}
       />
-
-      {/* Badge */}
-      <g style={{ opacity: 0, animation: `slideUp 0.3s ease ${delay + 0.3}s forwards` }}>
-        <rect
-          x={x - badgeWidth / 2}
-          y={badgeY}
-          width={badgeWidth}
-          height={badgeHeight}
-          rx={2}
-          fill={C.red}
-          opacity={0.9}
-        />
-        <text
-          x={x}
-          y={badgeY + 19}
-          textAnchor="middle"
-          fill="#fff"
-          fontSize={14}
-          fontFamily={F.display}
-          fontWeight={800}
-          letterSpacing="0.06em"
-        >
-          TURNOVER ON DOWNS
-        </text>
-      </g>
     </g>
   );
 }

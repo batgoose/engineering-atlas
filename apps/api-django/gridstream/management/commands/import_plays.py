@@ -274,6 +274,27 @@ class Command(ImportBaseCommand):
 
         # Play type normalization
         play_type = self.safe_str(self._row_value(row, "play_type", ""))
+        description = self.safe_str(
+            self._row_value(
+                row,
+                "desc",
+                self._row_value(
+                    row,
+                    "description",
+                    self._row_value(row, "play_description", ""),
+                ),
+            ),
+        )
+        short_description = self.safe_str(
+            self._row_value(
+                row,
+                "short_description",
+                self._row_value(row, "short_desc", description),
+            ),
+            default=description,
+        )
+        if len(short_description) > 200:
+            short_description = short_description[:197].rstrip() + "..."
 
         return Play(
             game=game,
@@ -299,6 +320,8 @@ class Command(ImportBaseCommand):
             defensive_team=defensive_team,
             # Play info
             play_type=play_type,
+            description=description,
+            short_description=short_description,
             yards_gained=self.safe_float(self._row_value(row, "yards_gained")),
             # Flags (stored as real 0/1 in the raw table)
             touchdown=self.safe_bool(self._row_value(row, "touchdown")),

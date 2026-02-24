@@ -466,6 +466,34 @@ function OverlayHeadshotMarker({
   );
 }
 
+function parseFieldSpotToPct(
+  sideRaw: string | undefined,
+  yardRaw: string | undefined,
+  awayAbbr: string
+): number | null {
+  const side = (sideRaw ?? '').trim().toUpperCase();
+  const yard = Number.parseInt((yardRaw ?? '').trim(), 10);
+  if (!side || Number.isNaN(yard)) return null;
+  return yardToFieldPct(Math.max(0, Math.min(50, yard)), side, awayAbbr);
+}
+
+function parseFumbleSpotsToPct(
+  description: string,
+  awayAbbr: string
+): {
+  takeawayPct: number | null;
+  recoveryPct: number | null;
+} {
+  const fumbleMatch = description.match(
+    /\bfumbles?(?:\s*\([^)]*\))?\s+at\s+([A-Z]{2,3})\s+(\d{1,2})\b/i
+  );
+  const recoveryMatch = description.match(/\brecovered by\s+.+?\s+at\s+([A-Z]{2,3})\s+(\d{1,2})\b/i);
+  return {
+    takeawayPct: parseFieldSpotToPct(fumbleMatch?.[1], fumbleMatch?.[2], awayAbbr),
+    recoveryPct: parseFieldSpotToPct(recoveryMatch?.[1], recoveryMatch?.[2], awayAbbr),
+  };
+}
+
 function buildFieldHeadshotMarkers(
   play: PlayAnimationData,
   awayAbbr: string,
@@ -720,19 +748,34 @@ function buildFieldHeadshotMarkers(
       play.actor ?? undefined
     );
   } else if (play.type === 'turnover') {
-    const turnoverPct =
+    const turnoverPctRaw =
       play.turnoverSpotSide && typeof play.turnoverSpotYardline === 'number'
         ? yardToFieldPct(play.turnoverSpotYardline, play.turnoverSpotSide, awayAbbr)
         : yardToFieldPct(play.toYardline, play.toSide, awayAbbr);
+    const parsedFumbleSpots = /\bfumble(?:s|d)?\b/i.test(play.description)
+      ? parseFumbleSpotsToPct(play.description, awayAbbr)
+      : null;
+    const turnoverPct = parsedFumbleSpots?.takeawayPct ?? turnoverPctRaw;
+    const finalPct =
+      parsedFumbleSpots?.recoveryPct ?? yardToFieldPct(play.toYardline, play.toSide, awayAbbr);
     const turnoverX = fieldPctToSvgX(turnoverPct);
-    const hasReturn = Math.abs(toX - turnoverX) > 2;
+    const finalX = fieldPctToSvgX(finalPct);
+    const text = play.description.toLowerCase();
+    const isInterception = text.includes('intercept');
+    const isFumbleRecoverySwap =
+      /\bfumble(?:s|d)?\b/i.test(text) &&
+      !isInterception &&
+      /\brecovered by\b/i.test(text) &&
+      !/\bfor\s+\d+\s+yards?\b/i.test(text) &&
+      !/\btouchdown\b/i.test(text);
+    const hasReturn = isFumbleRecoverySwap
+      ? Math.abs(finalX - turnoverX) > 0.5
+      : Math.abs(finalX - turnoverX) > 2;
     const totalDuration = Math.max(ANIM_TIMING.turnover * 2, 1.65);
     const firstDuration = totalDuration * 0.52;
     const returnDuration = hasReturn ? totalDuration * 0.58 : 0;
     const returnStartDelay = firstDuration + 0.22;
     const turnoverDelay = hasReturn ? returnStartDelay + returnDuration : firstDuration + 0.08;
-    const text = play.description.toLowerCase();
-    const isInterception = text.includes('intercept');
     const takeoverHeadshot = isInterception
       ? play.qbActor?.headshotUrl || play.actor?.headshotUrl
       : play.actor?.headshotUrl;
@@ -742,7 +785,7 @@ function buildFieldHeadshotMarkers(
       : (play.actor ?? undefined);
     pushMarker(
       'turnover',
-      hasReturn ? toX : turnoverX,
+      hasReturn ? finalX : turnoverX,
       FIELD_CENTER_Y,
       takeoverHeadshot,
       defenseColors,

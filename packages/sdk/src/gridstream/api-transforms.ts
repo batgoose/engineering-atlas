@@ -545,6 +545,81 @@ function normalizeSeasonType(raw: string | null | undefined): 'REG' | 'POST' | '
   return 'REG'; // default: covers 'reg', 'regular', '', and unknown values
 }
 
+function looksStructuredWeather(value: string | null | undefined): boolean {
+  if (!value) return false;
+  return /\b(?:roof|surface|temp(?:erature)?|wind|humidity)\s*[:=]/i.test(value);
+}
+
+function normalizeWeatherLabel(value: string | null | undefined): string | undefined {
+  if (!value) return undefined;
+  const cleaned = value.replace(/\s+/g, ' ').trim();
+  if (!cleaned || looksStructuredWeather(cleaned)) return undefined;
+  return cleaned;
+}
+
+function parseStructuredWeather(detail: string | null | undefined): {
+  roof?: string;
+  surface?: string;
+  condition?: string;
+  wind?: string;
+  tempF?: number;
+} {
+  if (!detail || !looksStructuredWeather(detail)) return {};
+
+  const out: {
+    roof?: string;
+    surface?: string;
+    condition?: string;
+    wind?: string;
+    tempF?: number;
+  } = {};
+
+  for (const token of detail.split(/[;,]+/)) {
+    const part = token.trim();
+    if (!part) continue;
+    const match = part.match(/^([a-z_ ]+)\s*[:=]\s*(.+)$/i);
+    if (!match) continue;
+    const key = (match[1] ?? '').trim().toLowerCase().replace(/\s+/g, '_');
+    const rawValue = (match[2] ?? '').trim();
+    if (!rawValue) continue;
+
+    if (key === 'roof') out.roof = rawValue;
+    else if (key === 'surface') out.surface = rawValue;
+    else if (key === 'condition' || key === 'weather') out.condition = rawValue;
+    else if (key === 'wind') out.wind = rawValue;
+    else if (key === 'temp' || key === 'temperature') {
+      const num = rawValue.match(/-?\d+(?:\.\d+)?/);
+      if (num?.[0]) {
+        const parsed = Number.parseFloat(num[0]);
+        if (Number.isFinite(parsed)) out.tempF = Math.round(parsed);
+      }
+    }
+  }
+
+  return out;
+}
+
+function roofToCondition(roof: string | undefined): string | undefined {
+  const normalized = (roof ?? '').toLowerCase();
+  if (!normalized) return undefined;
+  if (
+    normalized.includes('indoor') ||
+    normalized.includes('indoors') ||
+    normalized.includes('dome') ||
+    normalized.includes('closed')
+  ) {
+    return 'Indoor';
+  }
+  if (
+    normalized.includes('outdoor') ||
+    normalized.includes('outdoors') ||
+    normalized.includes('open')
+  ) {
+    return 'Outdoor';
+  }
+  return undefined;
+}
+
 /**
  * Extract a brief condition label from a nflverse-style weather_detail string.
  *
@@ -554,6 +629,10 @@ function normalizeSeasonType(raw: string | null | undefined): 'REG' | 'POST' | '
  */
 function extractWeatherCondition(detail: string | null | undefined): string | undefined {
   if (!detail) return undefined;
+  if (looksStructuredWeather(detail)) {
+    const structured = parseStructuredWeather(detail);
+    return normalizeWeatherLabel(structured.condition) ?? roofToCondition(structured.roof);
+  }
   const tempIdx = detail.search(/\btemp:/i);
   const raw = tempIdx > 0 ? detail.slice(0, tempIdx) : detail;
   const condition = raw.replace(/[,.\s]+$/, '').trim();
@@ -565,6 +644,19 @@ function extractWeatherCondition(detail: string | null | undefined): string | un
  * suitable for gridStream.hydrate().
  */
 export function apiGameToContext(game: ApiGameDetail): GameContext {
+  const structuredWeather = parseStructuredWeather(
+    game.weather_detail || game.weather_condition
+  );
+  const indoorFromRoof =
+    structuredWeather.roof != null
+      ? roofToCondition(structuredWeather.roof) === 'Indoor'
+      : undefined;
+  const weatherDesc =
+    normalizeWeatherLabel(game.weather_condition) ??
+    extractWeatherCondition(game.weather_detail) ??
+    roofToCondition(structuredWeather.roof);
+  const weatherWind = (game.weather_wind || structuredWeather.wind || '').trim() || undefined;
+
   return {
     gameId: game.espn_event_id || String(game.id),
     season: game.season_id,
@@ -616,13 +708,12 @@ export function apiGameToContext(game: ApiGameDetail): GameContext {
 
     venueName: game.venue_detail?.name ?? game.venue_name ?? 'TBD',
     venueCity: game.venue_detail?.city ?? '',
-    isIndoor: game.venue_detail?.is_indoor ?? false,
+    isIndoor: game.venue_detail?.is_indoor ?? indoorFromRoof ?? false,
     surface: game.venue_detail?.surface,
 
-    temperature: game.weather_temp ?? undefined,
-    weatherDesc:
-      game.weather_condition || extractWeatherCondition(game.weather_detail) || undefined,
-    weatherWind: game.weather_wind || undefined,
+    temperature: game.weather_temp ?? structuredWeather.tempF ?? undefined,
+    weatherDesc: weatherDesc || undefined,
+    weatherWind,
     conditionId: game.weather_condition_id ?? undefined,
 
     spread: game.spread ?? undefined,

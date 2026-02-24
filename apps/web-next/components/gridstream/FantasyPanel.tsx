@@ -266,7 +266,7 @@ function TeamColumn({
                           color: C.textDim,
                           letterSpacing: '.04em',
                           lineHeight: 1.35,
-                          whiteSpace: 'normal',
+                          whiteSpace: 'pre-line',
                         }}
                       >
                         {player.breakdown}

@@ -25,6 +25,8 @@ const DEFAULT_SEASON = 2025;
 const DEFAULT_WEEK = 22;
 const MAX_LEADER_BACKFILL_REQUESTS = 20;
 const REQUIRED_LEADER_CATEGORIES = ['passing', 'rushing', 'receiving'] as const;
+const UI_POSTSEASON_WEEK_TO_API_WEEK: Record<number, number> = { 19: 1, 20: 2, 21: 3, 22: 5 };
+const API_POSTSEASON_WEEK_TO_UI_WEEK: Record<number, number> = { 1: 19, 2: 20, 3: 21, 5: 22 };
 
 interface TeamOption {
   abbreviation: string;
@@ -475,8 +477,17 @@ export default function GamesPage() {
       season: String(season),
       page_size: '200',
     });
-    if (teamFilter === 'all') params.set('week', String(week));
-    else params.set('team', teamFilter);
+    if (teamFilter === 'all') {
+      if (week >= 19) {
+        params.set('season_type', 'POST');
+        params.set('week', String(UI_POSTSEASON_WEEK_TO_API_WEEK[week] ?? week));
+      } else {
+        params.set('season_type', 'REG');
+        params.set('week', String(week));
+      }
+    } else {
+      params.set('team', teamFilter);
+    }
     const url = `${API_BASE}/games/?${params.toString()}`;
 
     fetch(url, { signal: controller.signal })
@@ -487,7 +498,12 @@ export default function GamesPage() {
       .then((data) => {
         // DRF pagination wrapper or bare array
         const results: ApiGameListItem[] = Array.isArray(data) ? data : (data.results ?? []);
-        setGames(results);
+        const normalized = results.map((game) =>
+          game.season_type === 'POST'
+            ? { ...game, week: API_POSTSEASON_WEEK_TO_UI_WEEK[game.week] ?? game.week }
+            : game
+        );
+        setGames(normalized);
       })
       .catch((err) => {
         if (err.name !== 'AbortError') setError(String(err.message));

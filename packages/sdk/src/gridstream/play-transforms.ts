@@ -166,8 +166,30 @@ export function formatDownDistance(down: number, distance: number): string {
 
 // ─── Play classification ─────────────────────────────────────────────────────
 
+function recoveryTeamFromText(play: ApiPlayDetail): string {
+  const text = compactPlayText(play);
+  const explicitTeam = normalizeAbbr(play.fumble_recovery_1_team);
+  if (explicitTeam) return explicitTeam;
+  const describedTeam = text.match(/\brecovered by\s+([A-Z]{2,3})[-\s]/i)?.[1] ?? '';
+  return normalizeAbbr(describedTeam);
+}
+
+function hasDefensiveFumbleRecovery(play: ApiPlayDetail): boolean {
+  const text = compactPlayText(play);
+  if (!/\bfumble(?:s|d)?\b/i.test(text) || !/\brecovered by\b/i.test(text)) return false;
+  const offense = normalizeAbbr(play.possession_team_abbr);
+  const recoveryTeam = recoveryTeamFromText(play);
+  if (!recoveryTeam) return false;
+  if (!offense) return true;
+  return recoveryTeam !== offense;
+}
+
 export function hasTurnoverLanguage(play: ApiPlayDetail): boolean {
-  return Boolean(play.interception || play.fumble_lost);
+  if (play.interception || play.fumble_lost) return true;
+  const text = compactPlayText(play);
+  if (/\bintercept(?:ed|ion)\b/i.test(text)) return true;
+  if (hasDefensiveFumbleRecovery(play)) return true;
+  return false;
 }
 
 export function isTurnoverPlay(play: ApiPlayDetail): boolean {
@@ -181,7 +203,10 @@ export function isSnapPlay(play: ApiPlayDetail): boolean {
 }
 
 export function isTimeoutPlay(play: ApiPlayDetail): boolean {
-  return Boolean(play.timeout);
+  if (Boolean(play.timeout)) return true;
+  const type = (play.play_type ?? '').toLowerCase();
+  if (type === 'timeout') return true;
+  return /\btimeout\b/i.test(compactPlayText(play));
 }
 
 export function parsePositionGroup(position: string | null | undefined): PositionGroup | null {
@@ -521,7 +546,9 @@ export function extractPrimaryBallCarrier(
  * Extract the receiver name from "pass … to T.Hill" in play text.
  */
 export function extractNameAfterTo(text: string): string | null {
-  const match = text.match(/\bto\s+([A-Z]\.[A-Za-z][A-Za-z.'-]*(?:\s(?:Jr\.|Sr\.|II|III))?)/);
+  const match = text.match(
+    /\bto\s+(?:\d+-)?([A-Z]\.[A-Za-z][A-Za-z.'-]*(?:\s(?:Jr\.|Sr\.|II|III))?)/
+  );
   return match?.[1] ?? null;
 }
 
@@ -691,12 +718,22 @@ export function parseTurnoverDetails(
   returnTeam: string
 ): ParsedTurnoverDetails {
   const parsed: ParsedTurnoverDetails = {};
+  const text = compactPlayText(play);
 
   const offenseTeam = normalizeAbbr(play.possession_team_abbr) || awayAbbr;
+  const recoveryTeam = recoveryTeamFromText(play);
+  const returnTeamFromFeed = normalizeAbbr(play.return_team);
   const resolvedReturnTeam =
-    normalizeAbbr(play.return_team) ||
+    recoveryTeam ||
+    returnTeamFromFeed ||
     normalizeAbbr(returnTeam) ||
     getOpponent(offenseTeam, awayAbbr, homeAbbr);
+
+  const isDefensiveFumbleRecovery =
+    hasDefensiveFumbleRecovery(play) &&
+    play.end_yard_line == null &&
+    play.return_yards == null &&
+    play.fumble_recovery_1_yards == null;
 
   parsed.returner =
     (play.interception_player_name ?? '').trim() ||
@@ -729,6 +766,29 @@ export function parseTurnoverDetails(
       awayAbbr,
       homeAbbr
     );
+  }
+
+  const fumbleSpotMatch = text.match(
+    /\bfumbles?(?:\s*\([^)]*\))?\s+at\s+([A-Z]{2,3})\s+(\d{1,2})\b/i
+  );
+  const recoverySpotMatch = text.match(/\brecovered by\s+.+?\s+at\s+([A-Z]{2,3})\s+(\d{1,2})\b/i);
+  const fumbleSpot = parseDisplaySpot(
+    fumbleSpotMatch?.[1],
+    fumbleSpotMatch?.[2],
+    awayAbbr,
+    homeAbbr
+  );
+  const recoverySpot = parseDisplaySpot(
+    recoverySpotMatch?.[1],
+    recoverySpotMatch?.[2],
+    awayAbbr,
+    homeAbbr
+  );
+  if (fumbleSpot && (!parsed.takeawaySpot || isDefensiveFumbleRecovery)) {
+    parsed.takeawaySpot = fumbleSpot;
+  }
+  if (recoverySpot && (!parsed.returnSpot || isDefensiveFumbleRecovery)) {
+    parsed.returnSpot = recoverySpot;
   }
 
   if (!parsed.takeawaySpot && play.yard_line != null) {
@@ -787,9 +847,17 @@ export function parseTimeoutUsage(
   homeRemaining: number | null;
   awayRemaining: number | null;
 } | null {
-  if (!play.timeout) return null;
+  const text = compactPlayText(play);
+  const hasTimeoutSignal = Boolean(play.timeout) || (play.play_type ?? '').toLowerCase() === 'timeout';
+  const hasTimeoutText = /\btimeout\b/i.test(text);
+  if (!hasTimeoutSignal && !hasTimeoutText) return null;
 
-  const team = normalizeAbbr(play.timeout_team);
+  const descTeam =
+    text.match(/\btimeout\s*#?\s*\d+\s+by\s+([A-Z]{2,3})\b/i)?.[1] ??
+    text.match(/\btimeout\s+by\s+([A-Z]{2,3})\b/i)?.[1] ??
+    text.match(/^([A-Z]{2,3})\s+timeout\b/i)?.[1] ??
+    '';
+  const team = normalizeAbbr(play.timeout_team || descTeam);
   const normalizedTeam = team === awayAbbr || team === homeAbbr ? team : '';
   const homeRemaining =
     play.home_timeouts_remaining != null && Number.isFinite(play.home_timeouts_remaining)
@@ -800,18 +868,29 @@ export function parseTimeoutUsage(
       ? Math.max(0, safeInt(play.away_timeouts_remaining, 0))
       : null;
 
-  let ordinal: number | null = null;
+  let ordinal =
+    Number.parseInt(text.match(/\btimeout\s*#\s*(\d+)\b/i)?.[1] ?? '', 10);
+  if (Number.isNaN(ordinal)) ordinal = null;
   if (normalizedTeam === awayAbbr && awayRemaining != null) {
     ordinal = Math.max(0, 3 - awayRemaining);
   } else if (normalizedTeam === homeAbbr && homeRemaining != null) {
     ordinal = Math.max(0, 3 - homeRemaining);
   }
 
+  const inferredAwayRemaining =
+    awayRemaining == null && normalizedTeam === awayAbbr && ordinal != null
+      ? Math.max(0, 3 - ordinal)
+      : null;
+  const inferredHomeRemaining =
+    homeRemaining == null && normalizedTeam === homeAbbr && ordinal != null
+      ? Math.max(0, 3 - ordinal)
+      : null;
+
   return {
     team: normalizedTeam,
     ordinal,
-    homeRemaining,
-    awayRemaining,
+    homeRemaining: homeRemaining ?? inferredHomeRemaining,
+    awayRemaining: awayRemaining ?? inferredAwayRemaining,
   };
 }
 
@@ -909,6 +988,7 @@ export function toMissionLogEntry(play: ApiPlayDetail): MissionLogEntry {
 
   const down =
     play.down_distance_text || formatDownDistance(safeInt(play.down), safeInt(play.distance));
+  const text = compactPlayText(play) || fallbackMissionLogText(play);
 
   return {
     id: `play-${play.id}-${play.sequence}`,
@@ -916,10 +996,26 @@ export function toMissionLogEntry(play: ApiPlayDetail): MissionLogEntry {
     clock: normalizeClock(play.clock, '0:00'),
     down,
     team: normalizeAbbr(play.possession_team_abbr),
-    text: play.short_description || play.description,
+    text,
     epa: safeNumber(play.epa),
     type,
   };
+}
+
+function fallbackMissionLogText(play: ApiPlayDetail): string {
+  if (play.timeout) {
+    const timeoutTeam = normalizeAbbr(play.timeout_team);
+    return timeoutTeam ? `Timeout ${timeoutTeam}` : 'Timeout';
+  }
+  const rawType = (play.play_type ?? '').trim();
+  if (!rawType) return 'Play';
+  const label = rawType.replace(/_/g, ' ');
+  const yards = play.yards_gained;
+  if (yards == null || !Number.isFinite(yards)) {
+    return label.toUpperCase();
+  }
+  const rounded = Math.round(yards);
+  return `${label.toUpperCase()} ${rounded >= 0 ? '+' : ''}${rounded} yds`;
 }
 
 // ─── Running totals ──────────────────────────────────────────────────────────
@@ -1208,27 +1304,37 @@ export function fantasyPointsByScoringFromTotals(totals: RunningPlayerTotals): {
 }
 
 export function fantasyBreakdownFromTotals(totals: RunningPlayerTotals): string {
-  const parts: string[] = [];
-  if (totals.passAtt > 0)
-    parts.push(`${totals.passComp}/${totals.passAtt} pass · ${totals.passYds} yds`);
-  if (totals.rushAtt > 0) parts.push(`${totals.rushAtt} car · ${totals.rushYds} yds`);
-  if (totals.rec > 0) parts.push(`${totals.rec} rec · ${totals.recYds} yds`);
-  const tdParts: string[] = [];
-  if (totals.passTd > 0) tdParts.push(`${totals.passTd} pass TD`);
-  if (totals.rushTd > 0) tdParts.push(`${totals.rushTd} rush TD`);
-  if (totals.recTd > 0) tdParts.push(`${totals.recTd} rec TD`);
-  if (tdParts.length > 0) parts.push(tdParts.join(' · '));
-  const miscParts: string[] = [];
-  if (totals.passInt > 0) miscParts.push(`${totals.passInt} INT`);
-  if (totals.fumblesLost > 0) miscParts.push(`${totals.fumblesLost} FL`);
-  if (miscParts.length > 0) parts.push(miscParts.join(' · '));
-  if (totals.xpAtt > 0) parts.push(`${totals.xpMade}/${totals.xpAtt} XP`);
-  if (totals.fgAtt > 0) {
-    const fgParts = [`${totals.fgMade}/${totals.fgAtt} FG`];
-    if (totals.fgMissed > 0) fgParts.push(`${totals.fgMissed} Miss`);
-    parts.push(fgParts.join(' · '));
+  const lines: string[] = [];
+  if (totals.passAtt > 0) {
+    const passParts = [`${totals.passComp}/${totals.passAtt}`, `${totals.passYds} YDS`];
+    if (totals.passTd > 0) passParts.push(`${totals.passTd} TD`);
+    if (totals.passInt > 0) passParts.push(`${totals.passInt} INT`);
+    lines.push(`PASS ${passParts.join(', ')}`);
   }
-  return parts.length > 0 ? parts.join(' · ') : 'No stats yet';
+  if (totals.rushAtt > 0) {
+    const rushParts = [`${totals.rushAtt} CAR`, `${totals.rushYds} YDS`];
+    if (totals.rushTd > 0) rushParts.push(`${totals.rushTd} TD`);
+    lines.push(`RUSH ${rushParts.join(', ')}`);
+  }
+  if (totals.rec > 0) {
+    const recParts = [`${totals.rec} REC`, `${totals.recYds} YDS`];
+    if (totals.recTd > 0) recParts.push(`${totals.recTd} TD`);
+    lines.push(`REC ${recParts.join(', ')}`);
+  }
+  if (totals.xpAtt > 0 || totals.fgAtt > 0) {
+    const kickParts: string[] = [];
+    if (totals.xpAtt > 0) kickParts.push(`XP ${totals.xpMade}/${totals.xpAtt}`);
+    if (totals.fgAtt > 0) {
+      const fgParts = [`FG ${totals.fgMade}/${totals.fgAtt}`];
+      if (totals.fgMissed > 0) fgParts.push(`${totals.fgMissed} MISS`);
+      kickParts.push(fgParts.join(', '));
+    }
+    lines.push(`KICK ${kickParts.join(', ')}`);
+  }
+  if (totals.fumblesLost > 0) {
+    lines.push(`MISC ${totals.fumblesLost} FL`);
+  }
+  return lines.length > 0 ? lines.join('\n') : 'No stats yet';
 }
 
 // ─── updateRunningTotalsFromPlay ─────────────────────────────────────────────
@@ -1301,7 +1407,7 @@ export function updateRunningTotalsFromPlay(
     /\bscramble\b/i.test(text);
 
   if (passLike) {
-    const passer = extractPrimaryBallCarrier(actionText, 'pass');
+    const passer = play.passer_player_name?.trim() || extractPrimaryBallCarrier(actionText, 'pass');
     if (passer) {
       updateRunningPlayerTotals(
         passer,
@@ -1330,7 +1436,7 @@ export function updateRunningTotalsFromPlay(
       );
     }
 
-    const receiver = extractNameAfterTo(actionText);
+    const receiver = play.receiver_player_name?.trim() || extractNameAfterTo(actionText);
     if (receiver) {
       const isSack = Boolean(play.sack) || /\bsacked\b/i.test(actionText);
       const isIncomplete = /\bincomplete\b/i.test(actionText);
@@ -1357,7 +1463,7 @@ export function updateRunningTotalsFromPlay(
   }
 
   if (rushLike) {
-    const rusher = extractPrimaryBallCarrier(actionText, 'rush');
+    const rusher = play.rusher_player_name?.trim() || extractPrimaryBallCarrier(actionText, 'rush');
     if (rusher) {
       updateRunningPlayerTotals(
         rusher,
@@ -1397,8 +1503,7 @@ export function updateRunningTotalsFromPlay(
         },
         totalsByKey,
         offenseTeam,
-        metaByFullKey,
-        'K'
+        metaByFullKey
       );
     }
   }
@@ -1873,12 +1978,41 @@ export function toPlayAnimation(
   const actorInfo = actorName ? buildActorInfo(actorName, actorSummary, false) : null;
   const qbInfo = qbName ? buildActorInfo(qbName, qbSummary, true) : null;
   const kickerInfo = type === 'kick' ? kickerActor : null;
+  const startDown = safeInt(play.down, 0);
+  const startDistance = Math.max(0, safeInt(play.distance, 0));
+  const isNoPlay = penalty?.isNoPlay || (play.play_type ?? '').toLowerCase() === 'no_play';
+  const offenseDir = possBefore === awayAbbr ? 1 : -1;
+  const fromPct = yardToFieldPct(from.yardLine, from.side || possBefore, awayAbbr);
+  const toPct = yardToFieldPct(to.yardLine, to.side || possAfter, awayAbbr);
+  const spotGainYards = Math.max(0, Math.round((toPct - fromPct) * offenseDir));
+  const inferredFirstDownByGain =
+    (type === 'pass' || type === 'rush') &&
+    startDown > 0 &&
+    startDistance > 0 &&
+    !isNoPlay &&
+    !isTurnoverPlay(play) &&
+    !inferredTouchdown &&
+    Math.max(spotGainYards, yards) >= startDistance;
+  const inferredFirstDownByNextSnap =
+    (type === 'pass' || type === 'rush') &&
+    startDown > 0 &&
+    !isNoPlay &&
+    !isTurnoverPlay(play) &&
+    !inferredTouchdown &&
+    normalizeAbbr(nextSnapPlay?.possession_team_abbr) === possBefore &&
+    safeInt(nextSnapPlay?.down, 0) === 1;
+  const resolvedFirstDown = Boolean(
+    play.first_down ||
+      play.end_down === 1 ||
+      inferredFirstDownByGain ||
+      inferredFirstDownByNextSnap
+  );
 
   return {
     type,
     offenseTeam: possBefore,
-    startDown: safeInt(play.down, 0) || undefined,
-    startDistance: safeInt(play.distance, 0),
+    startDown: startDown || undefined,
+    startDistance,
     direction: resolveDirection(play),
     fromYardline: from.yardLine,
     fromSide: from.side || possBefore,
@@ -1892,7 +2026,7 @@ export function toPlayAnimation(
         : !/\bsacked\b/i.test(actionText) &&
           !/\bincomplete\b/i.test(actionText) &&
           (Boolean(play.complete_pass) || yards > 0 || inferredTouchdown),
-    isFirstDown: Boolean(play.first_down || play.end_down === 1),
+    isFirstDown: resolvedFirstDown,
     isTurnover: isTurnoverPlay(play),
     turnoverBy: isTurnoverPlay(play) ? getOpponent(possBefore, awayAbbr, homeAbbr) : undefined,
     turnoverSpotYardline: turnoverSpot?.yardLine,
@@ -1916,7 +2050,7 @@ export function toPlayAnimation(
     penaltyEnforcedSide: penalty?.enforcedSpot?.side,
     penaltyAdjustedYardline: penaltyAdjusted?.yardLine,
     penaltyAdjustedSide: penaltyAdjusted?.side,
-    isNoPlay: penalty?.isNoPlay || (play.play_type ?? '').toLowerCase() === 'no_play',
+    isNoPlay,
     postScoreTryMiss:
       /(two-point conversion attempt|extra point)/i.test(text) &&
       /(attempt fails|is incomplete|fails|no good|missed|blocked)/i.test(text),

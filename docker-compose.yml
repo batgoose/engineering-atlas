@@ -190,7 +190,7 @@ services:
     environment:
       - DEBUG=True
       - DATABASE_URL=postgresql://atlas_user:atlas_password@pgbouncer-atlas:5432/atlas_db
-      - NFL_DATABASE_URL=postgresql://admin:password@pgbouncer-nfl:5432/nfl_data
+      - NFL_DATABASE_URL=postgresql://admin:password@pgbouncer-nfl-v2:5432/nfl_data_v2
       - NFL_DATABASE_V1_URL=postgresql://admin:password@pgbouncer-nfl:5432/nfl_data
       - NFL_DATABASE_V2_URL=postgresql://admin:password@pgbouncer-nfl-v2:5432/nfl_data_v2
       - REDIS_URL=redis://redis:6379/0

@@ -61,6 +61,7 @@ def test_import_plays_maps_total_epa_fields_from_raw_payload(game_final, drive):
                         "yardline_100": "75",
                         "side_of_field": "SEA",
                         "play_type": "pass",
+                        "desc": "(15:00) Q.Back pass short right to W.Receiver to SEA 33 for 8 yards.",
                         "yards_gained": "8",
                         "complete_pass": "1",
                         "epa": "0.32",
@@ -90,3 +91,8 @@ def test_import_plays_maps_total_epa_fields_from_raw_payload(game_final, drive):
     assert play.total_home_epa == pytest.approx(2.75)
     assert play.total_away_epa == pytest.approx(-1.40)
     assert play.epa == pytest.approx(0.32)
+    assert (
+        play.description
+        == "(15:00) Q.Back pass short right to W.Receiver to SEA 33 for 8 yards."
+    )
+    assert play.short_description == play.description

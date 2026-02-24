@@ -51,6 +51,7 @@ import {
   defenseFantasyPoints,
   deriveDefenseFantasyTotalsFromPlays,
   computeGameProgress,
+  estimateAwayWinPct,
 } from '@atlas/sdk/gridstream/transforms';
 import {
   safeInt,
@@ -194,6 +195,16 @@ function resolveAwayWinPctFromPlay(play: ApiPlayDetail, fallback: number): numbe
   if (awayWp != null) return awayWp;
   const homeWp = normalizeWinProbabilityValue(play.home_wp);
   if (homeWp != null) return clampWinPct(100 - homeWp);
+  const quarter = safeInt(play.quarter, 0);
+  if (quarter > 0) {
+    return estimateAwayWinPct(
+      safeInt(play.away_score_after),
+      safeInt(play.home_score_after),
+      quarter,
+      normalizeClock(play.clock, '15:00'),
+      false
+    );
+  }
   return fallback;
 }
 
@@ -357,6 +368,40 @@ function applyScoreDelta(score: ScoreByQuarter, quarter: number, delta: number) 
   const next = safeInt((score[key] as number) + delta, 0);
   score[key] = Math.max(0, next) as never;
   score.total = Math.max(0, safeInt(score.total + delta, 0));
+}
+
+type TimelineScoringMarker = {
+  sequence: number;
+  quarter: number;
+  elapsedSeconds: number;
+  awayScore: number;
+  homeScore: number;
+};
+
+function buildScoringMarkers(detail: ApiGameDetailExtended): TimelineScoringMarker[] {
+  const raw = detail.scoring_plays ?? [];
+  if (raw.length === 0) return [];
+  return raw
+    .map((play, index) => {
+      const quarter = safeInt(play.quarter, 0);
+      const clock = normalizeClock(
+        (play as { clock?: string | null }).clock ?? (quarter > 0 ? '0:00' : '15:00'),
+        '0:00'
+      );
+      return {
+        sequence: safeInt(play.sequence, index + 1),
+        quarter,
+        elapsedSeconds: gameElapsedSeconds(quarter, clock),
+        awayScore: safeInt(play.away_score_after, 0),
+        homeScore: safeInt(play.home_score_after, 0),
+      };
+    })
+    .filter((marker) => marker.quarter > 0)
+    .sort((a, b) =>
+      a.elapsedSeconds === b.elapsedSeconds
+        ? a.sequence - b.sequence
+        : a.elapsedSeconds - b.elapsedSeconds
+    );
 }
 
 function resolveInitialPlayIndex(
@@ -628,6 +673,14 @@ function buildTimeline(
           : null;
   const scoringBySequence = scoringTimeline(detail.scoring_plays);
   const scoring = scoringBySequence.map((item) => item.entry);
+  const scoringMarkers = buildScoringMarkers(detail);
+  const hasPlayScores = plays.some(
+    (play) => safeInt(play.away_score_after, 0) > 0 || safeInt(play.home_score_after, 0) > 0
+  );
+  const shouldPreferDerivedScores =
+    !hasPlayScores &&
+    scoringMarkers.length > 0 &&
+    (awayScoreFinal.total > 0 || homeScoreFinal.total > 0);
   const fantasyFromBoxscore = mapFantasy(boxscore?.player_stats, awayAbbr, homeAbbr);
   const fantasyFromPlays = mapFantasyFromRunningTotals(
     derivedTotalsByKey,
@@ -743,6 +796,9 @@ function buildTimeline(
   const wpTimelinePoints: LiveGameState['wpTimeline'] = [{ wp: baseWp, gameMin: 0 }];
   const runningTotalsByKey = new Map<string, RunningPlayerTotals>();
   const playerMetaByFullKey = new Map<string, RunningPlayerMeta>();
+  let scoringMarkerIndex = 0;
+  let inferredAwayScore = 0;
+  let inferredHomeScore = 0;
 
   const awayScoreRunning: ScoreByQuarter = { q1: 0, q2: 0, q3: 0, q4: 0, ot: 0, total: 0 };
   const homeScoreRunning: ScoreByQuarter = { q1: 0, q2: 0, q3: 0, q4: 0, ot: 0, total: 0 };
@@ -785,8 +841,26 @@ function buildTimeline(
       }
     }
 
-    const awayAfter = safeInt(play.away_score_after, awayTotal);
-    const homeAfter = safeInt(play.home_score_after, homeTotal);
+    const playClock = normalizeClock(play.clock, '0:00');
+    const elapsedSeconds = gameElapsedSeconds(Math.max(playQuarter, 1), playClock);
+    while (
+      scoringMarkerIndex < scoringMarkers.length &&
+      (scoringMarkers[scoringMarkerIndex]?.elapsedSeconds ?? Number.POSITIVE_INFINITY) <=
+        elapsedSeconds
+    ) {
+      const marker = scoringMarkers[scoringMarkerIndex]!;
+      inferredAwayScore = marker.awayScore;
+      inferredHomeScore = marker.homeScore;
+      scoringMarkerIndex += 1;
+    }
+    const playAwayAfter = safeInt(play.away_score_after, awayTotal);
+    const playHomeAfter = safeInt(play.home_score_after, homeTotal);
+    const markerAdvanced = inferredAwayScore !== awayTotal || inferredHomeScore !== homeTotal;
+    const shouldUseMarkerScores =
+      shouldPreferDerivedScores ||
+      (markerAdvanced && playAwayAfter === awayTotal && playHomeAfter === homeTotal);
+    const awayAfter = shouldUseMarkerScores ? inferredAwayScore : playAwayAfter;
+    const homeAfter = shouldUseMarkerScores ? inferredHomeScore : playHomeAfter;
     const playEpa = normalizeEpaValue(play.epa);
     const canonicalAwayTotalEpa = normalizeEpaValue(play.total_away_epa);
     const canonicalHomeTotalEpa = normalizeEpaValue(play.total_home_epa);
@@ -814,11 +888,7 @@ function buildTimeline(
     awayScoreRunning.total = awayAfter;
     homeScoreRunning.total = homeAfter;
 
-    const timingNow = computeGameProgress(
-      Math.max(playQuarter, 1),
-      normalizeClock(play.clock, '0:00'),
-      playQuarter > 4
-    );
+    const timingNow = computeGameProgress(Math.max(playQuarter, 1), playClock, playQuarter > 4);
 
     const possessionAfter = resolvePossessionAfter(play, nextSnapPlay, awayAbbr, homeAbbr);
     const possessionAtSnap = normalizeAbbr(play.possession_team_abbr) || possessionAfter;
@@ -931,7 +1001,10 @@ function buildTimeline(
 
     const previousPoint = wpTimelinePoints[wpTimelinePoints.length - 1];
     const fallbackWp = previousPoint?.wp ?? baseWp;
-    const awayWinPct = resolveAwayWinPctFromPlay(play, fallbackWp);
+    const awayWinPct = resolveAwayWinPctFromPlay(
+      { ...play, away_score_after: awayAfter, home_score_after: homeAfter, quarter: playQuarter },
+      fallbackWp
+    );
     const elapsedMin = Math.max(previousPoint?.gameMin ?? 0, timingNow.elapsedMin);
     if (!previousPoint || previousPoint.gameMin !== elapsedMin || previousPoint.wp !== awayWinPct) {
       wpTimelinePoints.push({ wp: awayWinPct, gameMin: elapsedMin });

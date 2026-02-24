@@ -148,6 +148,64 @@ function buildSituationOverrideText(state: LiveGameState): string | null {
   return null;
 }
 
+function isTurnoverOnDownsPlay(play: LiveGameState['lastPlay']): boolean {
+  if (!play) return false;
+  if (play.type !== 'pass' && play.type !== 'rush') return false;
+  if ((play.startDown ?? 0) !== 4) return false;
+  if (play.isFirstDown || play.isTurnover || play.isTouchdown || play.isNoPlay) return false;
+  if (/\b(two-point conversion|extra point)\b/i.test(play.description)) return false;
+  return true;
+}
+
+function buildFumbleEventLabel(play: LiveGameState['lastPlay']): {
+  text: string;
+  color: string;
+  glow: string;
+  delay: number;
+  tight?: boolean;
+} | null {
+  if (!play) return null;
+  if (!/\bfumble(?:s|d)?\b/i.test(play.description)) return null;
+  const recoveryTeam =
+    play.description.match(/\brecovered by\s+([A-Z]{2,3})[-\s]/i)?.[1]?.toUpperCase() ??
+    play.description.match(/\band recovers?\s+at\s+([A-Z]{2,3})\s+\d{1,2}\b/i)?.[1]?.toUpperCase() ??
+    '';
+  const offenseTeam =
+    (play.offenseTeam ?? '').toUpperCase() ||
+    play.description.match(/^\(?\d*:?[\d.]*\)?\s*\(?shotgun\)?\s*(?:\d+-)?([A-Z]{2,3})\b/i)?.[1]?.toUpperCase() ||
+    '';
+  const recoverySpotMatch = play.description.match(
+    /\brecovered by\s+.+?\s+at\s+([A-Z]{2,3})\s+(\d{1,2})\b/i
+  );
+  const fallbackSpot =
+    play.toSide && typeof play.toYardline === 'number' && Number.isFinite(play.toYardline)
+      ? `${play.toSide.toUpperCase()} ${Math.round(play.toYardline)}`
+      : '';
+  const recoverySpot =
+    recoverySpotMatch?.[1] && recoverySpotMatch[2]
+      ? `${recoverySpotMatch[1].toUpperCase()} ${recoverySpotMatch[2]}`
+      : fallbackSpot;
+  const recoveredByOffense =
+    /\band recovers?\s+at\b/i.test(play.description) ||
+    Boolean(recoveryTeam && offenseTeam && recoveryTeam === offenseTeam);
+  const lost =
+    play.isTurnover || Boolean(recoveryTeam && offenseTeam && recoveryTeam !== offenseTeam);
+  const recovered = !lost && (recoveredByOffense || /\brecovered by\b/i.test(play.description));
+  if (!lost && !recovered) return null;
+
+  const possLabel = offenseTeam || 'OFF';
+  const recoverLabel = lost ? recoveryTeam || 'DEF' : offenseTeam || recoveryTeam || 'OFF';
+  const spotLabel = recoverySpot ? ` AT ${recoverySpot}` : '';
+  const text = `${possLabel} FUMBLE. ${recoverLabel} RECOVERS${spotLabel}.`;
+  return {
+    text,
+    color: lost ? C.red : C.amber,
+    glow: lost ? `${C.red}80` : `${C.amber}80`,
+    delay: 1.0,
+    tight: true,
+  };
+}
+
 export function LiveGameView({
   state,
   onReplay,
@@ -183,10 +241,20 @@ export function LiveGameView({
 
   // General-purpose play event label strip shown below the SituationBar.
   // Add new event types here as the feature grows (touchdowns, turnovers, etc.).
-  const playEventLabel: { text: string; color: string; glow: string; delay: number } | null =
+  const playEventLabel: {
+    text: string;
+    color: string;
+    glow: string;
+    delay: number;
+    tight?: boolean;
+  } | null =
     (() => {
       if (state.lastPlay?.isSafety)
         return { text: 'SAFETY', color: C.red, glow: `${C.red}80`, delay: 1.0 };
+      const fumbleEvent = buildFumbleEventLabel(state.lastPlay);
+      if (fumbleEvent) return fumbleEvent;
+      if (isTurnoverOnDownsPlay(state.lastPlay))
+        return { text: 'TURNOVER ON DOWNS', color: C.red, glow: `${C.red}80`, delay: 1.0 };
       return null;
     })();
 
@@ -372,9 +440,9 @@ export function LiveGameView({
                 <span
                   style={{
                     fontFamily: F.display,
-                    fontSize: 13,
+                    fontSize: playEventLabel.tight ? 11 : 13,
                     fontWeight: 800,
-                    letterSpacing: '.22em',
+                    letterSpacing: playEventLabel.tight ? '.08em' : '.22em',
                     color: playEventLabel.color,
                     textShadow: `0 0 16px ${playEventLabel.glow}`,
                     opacity: 0,

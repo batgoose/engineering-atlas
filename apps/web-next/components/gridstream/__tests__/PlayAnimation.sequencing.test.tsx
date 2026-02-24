@@ -3,7 +3,9 @@ import { render } from '@testing-library/react';
 
 import type { PlayAnimationData } from '@atlas/sdk/gridstream/types';
 import { ANIM_TIMING } from '@atlas/sdk/gridstream/animations';
+import { fieldPctToSvgX } from '@atlas/sdk/gridstream/field';
 import { gridstreamColors as C } from '@atlas/sdk/gridstream/theme';
+import { yardToFieldPct } from '@atlas/sdk/gridstream/transforms';
 import { PlayAnimation } from '../PlayAnimation';
 import { PLAY_ANIMATION_SCENARIOS } from '../play-animation-scenarios';
 
@@ -26,6 +28,20 @@ function _parseTranslateXY(transform: string | null): { x: number; y: number } |
   return {
     x: Number.parseFloat(match[1] ?? ''),
     y: Number.parseFloat(match[2] ?? ''),
+  };
+}
+
+function parseLinearPath(path: string | null): { x1: number; y1: number; x2: number; y2: number } | null {
+  if (!path) return null;
+  const match = path.match(
+    /^M\s*(-?\d+(?:\.\d+)?),\s*(-?\d+(?:\.\d+)?)\s+L\s*(-?\d+(?:\.\d+)?),\s*(-?\d+(?:\.\d+)?)$/
+  );
+  if (!match) return null;
+  return {
+    x1: Number.parseFloat(match[1] ?? ''),
+    y1: Number.parseFloat(match[2] ?? ''),
+    x2: Number.parseFloat(match[3] ?? ''),
+    y2: Number.parseFloat(match[4] ?? ''),
   };
 }
 
@@ -475,5 +491,58 @@ describe('PlayAnimation sequencing guards', () => {
       container.querySelector('[data-anim="kick-return-static-headshot"]')
     ).toBeInTheDocument();
     expect(container.querySelector('[data-anim="kick-landing-dot"]')).not.toBeInTheDocument();
+  });
+
+  it('renders fumble movement and recovery segments from play text fallback', () => {
+    const play: PlayAnimationData = {
+      type: 'turnover',
+      direction: 'middle',
+      offenseTeam: 'WAS',
+      startDown: 3,
+      startDistance: 1,
+      fromYardline: 40,
+      fromSide: 'CHI',
+      // Simulate sparse feed fields; text parsing should still produce 45 -> 44 recovery.
+      toYardline: 40,
+      toSide: 'CHI',
+      yardsGained: 0,
+      isComplete: true,
+      isFirstDown: false,
+      isTurnover: true,
+      turnoverBy: 'CHI',
+      description:
+        '(3:10) (Shotgun) 5-J.Daniels FUMBLES (Aborted) at CHI 45, RECOVERED by CHI-26-N.Wright at CHI 44.',
+      actor: { name: 'N.Wright', summary: 'Recovery' },
+      qbActor: { name: 'J.Daniels', summary: 'Fumble' },
+    };
+
+    const { container } = render(
+      <svg viewBox="0 0 1000 420">
+        <PlayAnimation play={play} awayAbbr="CHI" homeAbbr="WAS" />
+      </svg>
+    );
+
+    const expectedStartX = fieldPctToSvgX(yardToFieldPct(40, 'CHI', 'CHI'));
+    const expectedTakeawayX = fieldPctToSvgX(yardToFieldPct(45, 'CHI', 'CHI'));
+    const expectedRecoveryX = fieldPctToSvgX(yardToFieldPct(44, 'CHI', 'CHI'));
+
+    const mainPath = parseLinearPath(
+      container.querySelector('[data-anim="turnover-main-path"]')?.getAttribute('d') ?? null
+    );
+    const returnPathNode = Array.from(container.querySelectorAll('path')).find((node) => {
+      if (node.getAttribute('data-anim') === 'turnover-main-path') return false;
+      return node.getAttribute('stroke') === C.red;
+    });
+    const returnPath = parseLinearPath(returnPathNode?.getAttribute('d') ?? null);
+
+    expect(mainPath).not.toBeNull();
+    expect(returnPath).not.toBeNull();
+    if (!mainPath || !returnPath) return;
+
+    expect(mainPath.x1).toBeCloseTo(expectedStartX, 2);
+    expect(mainPath.x2).toBeCloseTo(expectedTakeawayX, 2);
+    expect(returnPath.x1).toBeCloseTo(expectedTakeawayX, 2);
+    expect(returnPath.x2).toBeCloseTo(expectedRecoveryX, 2);
+    expect(returnPath.x2).toBeLessThan(returnPath.x1);
   });
 });
