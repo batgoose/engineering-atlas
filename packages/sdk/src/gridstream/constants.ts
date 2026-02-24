@@ -34,35 +34,6 @@ export const PLAY_TYPE_TO_ANIM = {
   qb_spike: 'pass',
 } as const;
 
-// ─── Dome / Indoor Venues ───────────────────────────────────────
-// Suppress weather particles for these venues
-
-export const INDOOR_VENUE_KEYWORDS = new Set([
-  'dome',
-  'sofi',
-  'allegiant',
-  'at&t',
-  'mercedes-benz',
-  'lucas oil',
-  'caesars superdome',
-  'nrg',
-  'ford field',
-  'us bank',
-  'state farm',
-]);
-
-/**
- * Check if a venue name suggests an indoor/domed stadium.
- * The Venue model has `is_indoor` but this is a client-side fallback.
- */
-export function isLikelyIndoor(venueName: string): boolean {
-  const lower = venueName.toLowerCase();
-  for (const keyword of INDOOR_VENUE_KEYWORDS) {
-    if (lower.includes(keyword)) return true;
-  }
-  return false;
-}
-
 // ─── Team Endzone Names ─────────────────────────────────────────
 // Some teams use shortened endzone text vs full name
 

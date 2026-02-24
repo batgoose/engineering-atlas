@@ -15,9 +15,9 @@ All new work targets v2 only.
 
 ### Phase 1 — Infrastructure
 
-- [ ] **1.1** Create `postgres-nfl-v2` database instance; add connection config to `.env` alongside v1 creds
-- [ ] **1.2** Build `bootstrap_nfl_v2` management command: deterministic staged runner (migrate → raw ingest → core transforms → QA report)
-- [ ] **1.3** Define `raw_` schema with source-faithful tables (no lossy projections):
+- [x] **1.1** Create `postgres-nfl-v2` database instance; add connection config to `.env` alongside v1 creds
+- [x] **1.2** Build `bootstrap_nfl_v2` management command: deterministic staged runner (migrate → raw ingest → core transforms → QA report)
+- [x] **1.3** Define `raw_` schema with source-faithful tables (no lossy projections):
   - `raw_nflverse_pbp` — full 372-field PBP
   - `raw_nflverse_player_stats` — official per-game player stats
   - `raw_nflverse_team_stats`
@@ -30,59 +30,60 @@ All new work targets v2 only.
   - `raw_nflverse_standings`
   - `raw_espn_summary` — JSON snapshots keyed by `espn_event_id`
   - `raw_espn_probabilities` — per-play win probability timeline
-- [ ] **1.4** Store source metadata per raw batch (source URL, checksum, `loaded_at`)
+- [x] **1.4** Store source metadata per raw batch (source URL, checksum, `loaded_at`)
 
 ### Phase 2 — Raw Ingest
 
-- [ ] **2.1** Upgrade Rust ingest (or replace with DuckDB/Polars stage) to ingest full 372-field nflfastR PBP parquet into `raw_nflverse_pbp`; remove reduced column projection from `models.rs`/`lib.rs`
-- [ ] **2.2** Replace `import_player_game_stats.py` with direct ingest from nflfastR `player_stats` dataset into `raw_nflverse_player_stats`
-- [ ] **2.3** Replace `import_team_game_stats.py` with direct ingest from nflfastR team stats dataset
-- [ ] **2.4** Add `import_nflverse_standings` command (nfldata `standings.csv`)
-- [ ] **2.5** Add `import_nflverse_draft_picks` command (nfldata `draft_picks.csv`)
-- [ ] **2.6** Add `import_nflverse_draft_values` command (nfldata `draft_values.csv`)
-- [ ] **2.7** Add `import_nflverse_trades` command (nfldata `trades.csv`)
-- [ ] **2.8** Expand `sync_espn_games.py` to also ingest: boxscore (team + player stats), injuries, win probability timeline, pickcenter/odds, officials + attendance from `gameInfo`
-- [ ] **2.9** Add `import_espn_probabilities` command (per-play win probability keyed to plays)
-- [ ] **2.10** Upgrade `import_games.py` to use authoritative nflverse `games.csv` + ESPN IDs join; populate `is_division_game`, coaches, referees, `away_rest`/`home_rest`, odds fields
+- [x] **2.1** Upgrade Rust ingest (or replace with DuckDB/Polars stage) to ingest full 372-field nflfastR PBP parquet into `raw_nflverse_pbp`; remove reduced column projection from `models.rs`/`lib.rs`
+- [x] **2.2** Replace `import_player_game_stats.py` with direct ingest from nflfastR `player_stats` dataset into `raw_nflverse_player_stats`
+- [x] **2.3** Replace `import_team_game_stats.py` with direct ingest from nflfastR team stats dataset
+- [x] **2.4** Add `import_nflverse_standings` command (nfldata `standings.csv`)
+- [x] **2.5** Add `import_nflverse_draft_picks` command (nfldata `draft_picks.csv`)
+- [x] **2.6** Add `import_nflverse_draft_values` command (nfldata `draft_values.csv`)
+- [x] **2.7** Add `import_nflverse_trades` command (nfldata `trades.csv`)
+- [x] **2.8** Expand `sync_espn_games.py` to also ingest: boxscore (team + player stats), injuries, win probability timeline, pickcenter/odds, officials + attendance from `gameInfo`
+- [x] **2.9** Add `import_espn_probabilities` command (per-play win probability keyed to plays)
+- [x] **2.10** Upgrade `import_games.py` to use authoritative nflverse `games.csv` + ESPN IDs join; populate `is_division_game`, coaches, referees, `away_rest`/`home_rest`, odds fields
 
 ### Phase 3 — Django Model / Migration Updates
 
-- [ ] **3.1** Add new fields to `gridstream_play`: `timeout`, `timeout_team`, `home_timeouts_remaining`, `away_timeouts_remaining`, `pass_attempt`, `rush_attempt`, `kickoff_attempt`, `punt_attempt`, `extra_point_attempt`, `two_point_attempt`, `special_teams_play`, `st_play_type`, `touchback`, `out_of_bounds`, `punt_inside_twenty`, `punt_fair_catch`, `kickoff_fair_catch`, `kickoff_in_endzone`, `return_yards`, `return_team`, `punt_returner_player_name`, `punt_returner_player_id`, `kickoff_returner_player_name`, `kickoff_returner_player_id`, `interception_player_name`, `interception_player_id`, `fumble_recovery_1_player_name`, `fumble_recovery_1_team`, `fumble_recovery_1_yards`, `sack_player_name`, `sack_player_id`, `tackle_for_loss_1_player_name`, `pass_defense_1_player_name`, `penalty_player_name`, `penalty_player_id`, `penalty_team`, `home_wp`, `away_wp`, `vegas_wp`, `vegas_home_wp`, `ep`, `cp`, `cpoe`, `td_prob`, `fg_prob`, `no_score_prob`, `score_differential`, `drive_start_transition`, `drive_end_transition`, `drive_yards_penalized`, `series_result`
-- [ ] **3.2** Add new fields to `gridstream_game`: `away_rest`, `home_rest`, `referee`, `attendance`, `overtime` flag, `div_game` (mapped from nflverse), `spread_line`/`total_line`/`away_spread_odds`/`home_spread_odds`/`over_odds`/`under_odds` (from pickcenter)
-- [ ] **3.3** Add `gridstream_teamstanding` table (persisted standings: wins, losses, ties, pct, div_rank, seed, point_diff, sov, sos, streak, last_5, playoff clincher)
-- [ ] **3.4** Add `gridstream_gameofficial` table (official name, position, game FK)
-- [ ] **3.5** Add `gridstream_playerinjury` table (game FK, player FK, status, description, game-day availability)
-- [ ] **3.6** Add `gridstream_winprobabilityplay` table (game FK, play FK, home_win_pct, tie_pct, seconds_left) — or add columns directly to `gridstream_play` (3.1 above)
-- [ ] **3.7** Ensure `gridstream_venue.is_indoor` is populated reliably for all venues
-- [ ] **3.8** Run migrations against v2 only; generate migration files cleanly from scratch
+- [x] **3.1** Add new fields to `gridstream_play`: `timeout`, `timeout_team`, `home_timeouts_remaining`, `away_timeouts_remaining`, `pass_attempt`, `rush_attempt`, `kickoff_attempt`, `punt_attempt`, `extra_point_attempt`, `two_point_attempt`, `special_teams_play`, `st_play_type`, `touchback`, `out_of_bounds`, `punt_inside_twenty`, `punt_fair_catch`, `kickoff_fair_catch`, `kickoff_in_endzone`, `return_yards`, `return_team`, `punt_returner_player_name`, `punt_returner_player_id`, `kickoff_returner_player_name`, `kickoff_returner_player_id`, `interception_player_name`, `interception_player_id`, `fumble_recovery_1_player_name`, `fumble_recovery_1_team`, `fumble_recovery_1_yards`, `sack_player_name`, `sack_player_id`, `tackle_for_loss_1_player_name`, `pass_defense_1_player_name`, `penalty_player_name`, `penalty_player_id`, `penalty_team`, `home_wp`, `away_wp`, `vegas_wp`, `vegas_home_wp`, `ep`, `cp`, `cpoe`, `td_prob`, `fg_prob`, `no_score_prob`, `score_differential`, `drive_start_transition`, `drive_end_transition`, `drive_yards_penalized`, `series_result`
+- [x] **3.2** Add new fields to `gridstream_game`: `away_rest`, `home_rest`, `referee`, `attendance`, `overtime` flag, `div_game` (mapped from nflverse), `spread_line`/`total_line`/`away_spread_odds`/`home_spread_odds`/`over_odds`/`under_odds` (from pickcenter)
+- [x] **3.3** Add `gridstream_teamstanding` table (persisted standings: wins, losses, ties, pct, div_rank, seed, point_diff, sov, sos, streak, last_5, playoff clincher)
+- [x] **3.4** Add `gridstream_gameofficial` table (official name, position, game FK)
+- [x] **3.5** Add `gridstream_playerinjury` table (game FK, player FK, status, description, game-day availability)
+- [x] **3.6** Add `gridstream_winprobabilityplay` table (game FK, play FK, home_win_pct, tie_pct, seconds_left) — or add columns directly to `gridstream_play` (3.1 above)
+- [x] **3.7** Ensure `gridstream_venue.is_indoor` is populated reliably for all venues
+- [x] **3.8** Run migrations against v2 only; generate migration files cleanly from scratch
 
 ### Phase 4 — Serializer / API Updates
 
-- [ ] **4.1** Expose new play fields in `PlayDetailSerializer`: timeout fields, all returner/player name fields, `home_wp`/`away_wp`, `ep`, `score_differential`, `series_result`, `drive_start_transition`
-- [ ] **4.2** Add `GameOfficialSerializer` and include in `GameDetailSerializer`
-- [ ] **4.3** Add `PlayerInjurySerializer` and include in `GameDetailSerializer` (game-day injury report)
-- [ ] **4.4** Add `TeamStandingSerializer` and `StandingsViewSet` endpoint that reads from persisted table instead of computing
-- [ ] **4.5** Add odds fields to `GameDetailSerializer`
+- [x] **4.1** Expose new play fields in `PlayDetailSerializer`: timeout fields, all returner/player name fields, `home_wp`/`away_wp`, `ep`, `score_differential`, `series_result`, `drive_start_transition`
+- [x] **4.2** Add `GameOfficialSerializer` and include in `GameDetailSerializer`
+- [x] **4.3** Add `PlayerInjurySerializer` and include in `GameDetailSerializer` (game-day injury report)
+- [x] **4.4** Add `TeamStandingSerializer` and `StandingsViewSet` endpoint that reads from persisted table instead of computing
+- [x] **4.5** Add odds fields to `GameDetailSerializer`
 
 ### Phase 5 — Backend Logic Replacement
 
-- [ ] **5.1** Remove `_derive_team_stats_from_plays()` fallback in `GameViewSet.boxscore`; require canonical `TeamGameStats` rows (keep a narrow fallback only as resilience mode behind a flag)
-- [ ] **5.2** Remove `_derive_leaders_from_player_stats()` fallback; require canonical `GameLeader` rows
-- [ ] **5.3** Remove computed standings derivation from `StandingsViewSet`; replace with `TeamStanding` table query
-- [ ] **5.4** Validate `teamstats_points_scored_pct` and `playerstats_fg_made_pct` are 100% in v2 before removing fallbacks
+- [x] **5.1** Remove `_derive_team_stats_from_plays()` fallback in `GameViewSet.boxscore`; require canonical `TeamGameStats` rows (keep a narrow fallback only as resilience mode behind a flag)
+- [x] **5.2** Remove `_derive_leaders_from_player_stats()` fallback; require canonical `GameLeader` rows
+- [x] **5.3** Remove computed standings derivation from `StandingsViewSet`; replace with `TeamStanding` table query
+- [x] **5.4** Validate `teamstats_points_scored_pct` and `playerstats_fg_made_pct` are 100% in v2 before removing fallbacks
 
 ### Phase 6 — SDK Heuristic Replacement
 
-- [ ] **6.1** Replace `hasTurnoverLanguage()` description regex with `play.interception` + `play.fumble_lost` flags
-- [ ] **6.2** Replace `resolveAnimType()` play-category inference with explicit `pass_attempt`, `rush_attempt`, `kickoff_attempt`, `punt_attempt`, `extra_point_attempt`, `two_point_attempt`, `special_teams_play`, `st_play_type` flags
-- [ ] **6.3** Replace `parseKickDetails()` 80-line regex with: `punt_returner_player_name`, `kickoff_returner_player_name`, `return_yards`, `return_team`, `touchback`, `out_of_bounds`, `punt_inside_twenty`, `punt_fair_catch`, `kickoff_in_endzone`
-- [ ] **6.4** Replace `parseTurnoverDetails()` regex + projection heuristic with: `interception_player_name/id`, `fumble_recovery_1_player_name/team/yards`, `return_yards`, `return_team`
-- [ ] **6.5** Replace `parsePenaltyDetails()` regex with: `penalty_player_name`, `penalty_player_id`, `penalty_team`
-- [ ] **6.6** Replace `parseTimeoutUsage()` regex + decrement counter with: `timeout`, `timeout_team`, `home_timeouts_remaining`, `away_timeouts_remaining` per play
-- [ ] **6.7** Replace `estimateAwayWinPct()` score/clock heuristic with `home_wp`/`away_wp` per play (ESPN `winprobability` or nflfastR `home_wp`)
-- [ ] **6.8** Remove `isLikelyIndoor()` keyword heuristic; use `venue.is_indoor` from DB exclusively
-- [ ] **6.9** Replace timeout decrement counter in replay timeline with `home_timeouts_remaining`/`away_timeouts_remaining` per play
-- [ ] **6.10** Replace rolling EPA accumulation in replay with `total_home_epa`/`total_away_epa` per play from nflfastR
+- [x] **6.1** Replace `hasTurnoverLanguage()` description regex with `play.interception` + `play.fumble_lost` flags
+- [x] **6.2** Replace `resolveAnimType()` play-category inference with explicit `pass_attempt`, `rush_attempt`, `kickoff_attempt`, `punt_attempt`, `extra_point_attempt`, `two_point_attempt`, `special_teams_play`, `st_play_type` flags
+- [x] **6.3** Replace `parseKickDetails()` 80-line regex with: `punt_returner_player_name`, `kickoff_returner_player_name`, `return_yards`, `return_team`, `touchback`, `out_of_bounds`, `punt_inside_twenty`, `punt_fair_catch`, `kickoff_in_endzone`
+- [x] **6.4** Replace `parseTurnoverDetails()` regex + projection heuristic with: `interception_player_name/id`, `fumble_recovery_1_player_name/team/yards`, `return_yards`, `return_team`
+- [x] **6.5** Replace `parsePenaltyDetails()` regex with: `penalty_player_name`, `penalty_player_id`, `penalty_team`
+- [x] **6.6** Replace `parseTimeoutUsage()` regex + decrement counter with: `timeout`, `timeout_team`, `home_timeouts_remaining`, `away_timeouts_remaining` per play
+- [x] **6.7** Replace `estimateAwayWinPct()` score/clock heuristic with `home_wp`/`away_wp` per play (ESPN `winprobability` or nflfastR `home_wp`)
+- [x] **6.8** Remove `isLikelyIndoor()` keyword heuristic; use `venue.is_indoor` from DB exclusively
+- [x] **6.9** Replace timeout decrement counter in replay timeline with `home_timeouts_remaining`/`away_timeouts_remaining` per play
+- [x] **6.10** Replace rolling EPA accumulation in replay with `total_home_epa`/`total_away_epa` per play from nflfastR
+- [x] **6.11** Capture reusable v3+ bootstrap process (scripts + runbook + optional Ansible wrapper)
 
 ### Phase 7 — New UI Features (unlocked by v2 data)
 
@@ -107,6 +108,36 @@ All new work targets v2 only.
 - [ ] **8.1** Run full QA report comparing v1 vs v2 stat totals for a sample of games (passes, rushing yards, scoring plays)
 - [ ] **8.2** Update all Django `DATABASES` config to point `default` at v2
 - [ ] **8.3** Decommission v1 database after soak period
+
+---
+
+## Status Snapshot (2026-02-24)
+
+### v2 Population Status
+
+- `gridstream_game` REG/POST coverage: **7,279 / 7,279** games with ESPN IDs
+- `raw.raw_espn_summary` distinct event coverage: **7,279 / 7,279** (0 missing)
+- `gridstream_playerinjury` game coverage: **7,279 / 7,279**
+- `gridstream_gameofficial` game coverage: **6,683 / 7,279** (source-limited on older/missing ESPN official payloads)
+- `gridstream_winprobabilityplay` game coverage: **2,758 / 7,279** (source-limited; mostly modern seasons)
+
+### Canonicalization Pass Results
+
+- `gridstream_play` rebuilt from raw nflverse PBP: **1,277,525** modeled vs **1,279,628** raw (`2,103` unmapped/skipped)
+- `gridstream_playergamestats` rebuilt from raw player stats: **474,320** modeled vs **476,156** raw (`1,836` skipped)
+- `gridstream_teamgamestats` rebuilt from raw team stats: **14,490** modeled vs **14,531** raw (`41` skipped)
+
+### Data Fix Applied
+
+- Corrected historical ESPN ID mapping for `1999_18_BUF_TEN`:
+  - bad source value: `200109010`
+  - corrected value: `200108010`
+  - importer override added so future rebuilds do not regress.
+
+### Phase 5 Gate Metrics (v2)
+
+- `teamstats_points_scored_pct`: **100.00%**
+- `playerstats_fg_made_pct`: **100.00%**
 
 ---
 
@@ -169,6 +200,10 @@ This document answers four questions:
 - `plays_dates`: min=`1999-09-12`, max=`2026-02-08`, distinct=`27`
 
 ### 1.3 Key completeness metrics (actual data quality)
+
+Legacy note: these percentages are from the original v1 snapshot and are
+kept for historical comparison. Current v2 gate metrics are listed above in
+"Status Snapshot (2026-02-24)".
 
 - `play_description_pct`: `84.6%`
 - `play_espn_id_pct`: `88.7%`

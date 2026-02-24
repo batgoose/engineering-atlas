@@ -31,6 +31,7 @@ OpenAPI prep note:
 import logging
 from collections import defaultdict
 
+from django.conf import settings
 from django.db.models import Q, F, Sum, Count, Case, When, Value, IntegerField
 from django.db.models.functions import Coalesce
 from rest_framework import viewsets, status
@@ -74,11 +75,11 @@ from .models import (
     PlaybookEntry,
     PlayerFFRanking,
     PlayerNextGenStats,
+    TeamStanding,
 )
 from .serializers import (
     TeamListSerializer,
     TeamDetailSerializer,
-    TeamMinimalSerializer,
     VenueSerializer,
     PlayerListSerializer,
     PlayerDetailSerializer,
@@ -93,7 +94,7 @@ from .serializers import (
     PlayerGameStatsSerializer,
     PlayerGameStatsCompactSerializer,
     TeamGameStatsSerializer,
-    StandingsEntrySerializer,
+    TeamStandingSerializer,
     PlaybookSerializer,
     PlaybookEntrySerializer,
     PlayerFFRankingSerializer,
@@ -506,6 +507,9 @@ class GameViewSet(viewsets.ReadOnlyModelViewSet):
                 "links",
                 "hashtags",
                 "scoring_plays__team",
+                "officials",
+                "injuries__team",
+                "injuries__player",
             )
 
         return base.order_by("-game_date", "-game_time")
@@ -674,11 +678,15 @@ class GameViewSet(viewsets.ReadOnlyModelViewSet):
         GET /games/{id}/boxscore/
 
         Returns team stats and player stats grouped by team.
-        If canonical team/leader rows are missing, derives fallback values
-        from play-by-play and player rows so postgame pages still populate.
+        Uses canonical TeamGameStats/GameLeader rows by default.
+        Optional narrow fallback derivation is available only when
+        GRIDSTREAM_BOXSCORE_RESILIENCE_MODE=true.
         Cached for 1 hour for completed games.
         """
         game = self.get_object()
+        resilience_mode = bool(
+            getattr(settings, "GRIDSTREAM_BOXSCORE_RESILIENCE_MODE", False)
+        )
 
         ck = cache_key("boxscore", str(game.pk))
         cached = cache_get(ck)
@@ -928,36 +936,30 @@ class GameViewSet(viewsets.ReadOnlyModelViewSet):
                     )
             return result_rows
 
-        team_stats_complete = len(team_stats_data) >= 2
+        team_stats_team_abbrs = {
+            row.get("team_abbr") for row in team_stats_data if row.get("team_abbr")
+        }
+        team_stats_complete = (
+            away_abbr in team_stats_team_abbrs and home_abbr in team_stats_team_abbrs
+        )
         team_stats_source = "db"
-        if not team_stats_complete:
-            derived_team_stats = _derive_team_stats_from_plays()
-            team_stats_source = "derived"
-            if team_stats_data:
-                combined = {
-                    row.get("team_abbr"): dict(row) for row in derived_team_stats
-                }
-                for row in team_stats_data:
-                    abbr = row.get("team_abbr")
-                    if not abbr:
-                        continue
-                    base = combined.get(abbr, {})
-                    base.update(row)
-                    combined[abbr] = base
-                team_stats_data = [
-                    combined.get(away_abbr, {}),
-                    combined.get(home_abbr, {}),
-                ]
-            else:
-                team_stats_data = derived_team_stats
+        if resilience_mode and not team_stats_data:
+            team_stats_data = _derive_team_stats_from_plays()
+            team_stats_source = "derived_resilience"
+            logger.warning(
+                "Boxscore resilience fallback used for team stats (game_id=%s)", game.pk
+            )
 
         leaders_qs = GameLeader.objects.filter(game=game).select_related("team")
         leaders_data = GameLeaderSerializer(leaders_qs, many=True).data
         leaders_complete = len(leaders_data) >= 6
         leaders_source = "db"
-        if not leaders_data:
+        if resilience_mode and not leaders_data:
             leaders_data = _derive_leaders_from_player_stats(dict(by_team))
-            leaders_source = "derived"
+            leaders_source = "derived_resilience"
+            logger.warning(
+                "Boxscore resilience fallback used for leaders (game_id=%s)", game.pk
+            )
 
         result = {
             "team_stats": team_stats_data,
@@ -988,8 +990,8 @@ class StandingsViewSet(viewsets.ViewSet):
     """
     GET /standings/?season=2024
 
-    Computes conference/division standings from game results.
-    Heavily cached since standings only change after games complete.
+    Reads persisted standings from TeamStanding rows.
+    Heavily cached since standings only change when imports run.
     """
 
     def list(self, request):
@@ -1005,143 +1007,38 @@ class StandingsViewSet(viewsets.ViewSet):
         else:
             season_year = int(season_year)
 
-        ck = cache_key("standings", str(season_year))
+        ck = cache_key("standings", str(season_year), dict(request.query_params))
         cached = cache_get(ck)
         if cached:
             return Response(cached)
 
-        standings = self._compute_standings(season_year)
-        cache_set(ck, standings, TTL_LONG)
-        return Response(standings)
-
-    def _compute_standings(self, season_year):
-        """Build standings from completed regular-season games."""
-
-        teams = Team.objects.filter(is_active=True).prefetch_related("logos")
-        team_map = {t.pk: t for t in teams}
-
-        # All completed regular season games for the year
-        games = Game.objects.filter(
-            season__year=season_year,
-            season_type="REG",
-            status__in=["final", "final_ot"],
-        ).select_related("home_team", "away_team")
-
-        # Initialize records
-        records = {}
-        for team in teams:
-            records[team.pk] = {
-                "team": team,
-                "conference": team.conference,
-                "division": team.division,
-                "wins": 0,
-                "losses": 0,
-                "ties": 0,
-                "division_wins": 0,
-                "division_losses": 0,
-                "conference_wins": 0,
-                "conference_losses": 0,
-                "points_for": 0,
-                "points_against": 0,
-                "results": [],  # for streak / last_5 calc
-            }
-
-        for game in games:
-            home_id = game.home_team_id
-            away_id = game.away_team_id
-
-            if home_id not in records or away_id not in records:
-                continue
-
-            home_rec = records[home_id]
-            away_rec = records[away_id]
-
-            home_rec["points_for"] += game.home_score
-            home_rec["points_against"] += game.away_score
-            away_rec["points_for"] += game.away_score
-            away_rec["points_against"] += game.home_score
-
-            is_div = game.is_division_game
-            same_conf = (
-                team_map.get(home_id, None)
-                and team_map.get(away_id, None)
-                and team_map[home_id].conference == team_map[away_id].conference
-            )
-
-            if game.home_score > game.away_score:
-                home_rec["wins"] += 1
-                home_rec["results"].append("W")
-                away_rec["losses"] += 1
-                away_rec["results"].append("L")
-                if is_div:
-                    home_rec["division_wins"] += 1
-                    away_rec["division_losses"] += 1
-                if same_conf:
-                    home_rec["conference_wins"] += 1
-                    away_rec["conference_losses"] += 1
-            elif game.away_score > game.home_score:
-                away_rec["wins"] += 1
-                away_rec["results"].append("W")
-                home_rec["losses"] += 1
-                home_rec["results"].append("L")
-                if is_div:
-                    away_rec["division_wins"] += 1
-                    home_rec["division_losses"] += 1
-                if same_conf:
-                    away_rec["conference_wins"] += 1
-                    home_rec["conference_losses"] += 1
-            else:
-                home_rec["ties"] += 1
-                home_rec["results"].append("T")
-                away_rec["ties"] += 1
-                away_rec["results"].append("T")
-
-        # Compute derived fields and serialize
-        standings = []
-        for rec in records.values():
-            total = rec["wins"] + rec["losses"] + rec["ties"]
-            rec["win_pct"] = (
-                round((rec["wins"] + rec["ties"] * 0.5) / total, 3) if total else 0.0
-            )
-            rec["point_diff"] = rec["points_for"] - rec["points_against"]
-
-            # Streak
-            results = rec["results"]
-            streak = ""
-            if results:
-                last = results[-1]
-                count = 0
-                for r in reversed(results):
-                    if r == last:
-                        count += 1
-                    else:
-                        break
-                streak = f"{last}{count}"
-            rec["streak"] = streak
-
-            # Last 5
-            last_5 = results[-5:] if results else []
-            w5 = last_5.count("W")
-            l5 = last_5.count("L")
-            rec["last_5"] = f"{w5}-{l5}"
-
-            # Serialize team
-            rec["team"] = TeamMinimalSerializer(rec["team"]).data
-            del rec["results"]
-
-            standings.append(rec)
-
-        # Sort by division, then win pct, then point diff
-        standings.sort(
-            key=lambda x: (
-                x["conference"],
-                x["division"],
-                -x["win_pct"],
-                -x["point_diff"],
-            )
+        standings_qs = (
+            TeamStanding.objects.filter(season_id=season_year)
+            .select_related("team")
+            .prefetch_related("team__logos")
         )
 
-        return standings
+        conference = request.query_params.get("conference")
+        if conference:
+            standings_qs = standings_qs.filter(conference__iexact=conference)
+
+        division = request.query_params.get("division")
+        if division:
+            standings_qs = standings_qs.filter(division__iexact=division)
+
+        standings_qs = standings_qs.order_by(
+            "conference",
+            "division",
+            Coalesce("div_rank", Value(999)),
+            "-pct",
+            "-point_diff",
+            "-wins",
+            "team__abbreviation",
+        )
+
+        standings = TeamStandingSerializer(standings_qs, many=True).data
+        cache_set(ck, standings, TTL_LONG)
+        return Response(standings)
 
 
 # =============================================================================

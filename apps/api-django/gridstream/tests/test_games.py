@@ -2,6 +2,7 @@
 
 import pytest
 from datetime import date
+from django.test import override_settings
 from django.urls import reverse
 from rest_framework import status
 
@@ -146,6 +147,75 @@ class TestGameDetail:
 
         assert resp.data["venue_detail"]["name"] == "Lumen Field"
         assert resp.data["venue_detail"]["city"] == "Seattle"
+
+    def test_detail_includes_officials_and_injuries(
+        self,
+        api_client,
+        game_final,
+        team_sea,
+        player_qb,
+    ):
+        from gridstream.models import GameOfficial, PlayerInjury
+
+        GameOfficial.objects.using("nfl").create(
+            game=game_final,
+            sequence=1,
+            name="Brad Allen",
+            position="Referee",
+        )
+        PlayerInjury.objects.using("nfl").create(
+            game=game_final,
+            team=team_sea,
+            player=player_qb,
+            sequence=1,
+            player_name="Geno Smith",
+            player_espn_id="3917315",
+            status="Questionable",
+            description="Ankle",
+            game_day_availability="Game Time Decision",
+        )
+
+        url = reverse("game-detail", kwargs={"pk": game_final.pk})
+        resp = api_client.get(url)
+
+        assert resp.status_code == status.HTTP_200_OK
+        assert len(resp.data["officials"]) == 1
+        assert resp.data["officials"][0]["name"] == "Brad Allen"
+        assert resp.data["officials"][0]["position"] == "Referee"
+        assert len(resp.data["injuries"]) == 1
+        assert resp.data["injuries"][0]["team_abbr"] == "SEA"
+        assert resp.data["injuries"][0]["player_name"] == "Geno Smith"
+        assert resp.data["injuries"][0]["status"] == "Questionable"
+
+    def test_detail_includes_extended_odds_fields(self, api_client, game_final):
+        game_final.spread_line = -4.5
+        game_final.total_line = 47.5
+        game_final.home_spread_odds = -112
+        game_final.away_spread_odds = -108
+        game_final.over_odds = -110
+        game_final.under_odds = -110
+        game_final.save(
+            using="nfl",
+            update_fields=[
+                "spread_line",
+                "total_line",
+                "home_spread_odds",
+                "away_spread_odds",
+                "over_odds",
+                "under_odds",
+            ],
+        )
+
+        url = reverse("game-detail", kwargs={"pk": game_final.pk})
+        resp = api_client.get(url)
+
+        assert resp.status_code == status.HTTP_200_OK
+        assert resp.data["spread_line"] == -4.5
+        assert resp.data["total_line"] == 47.5
+        assert resp.data["home_spread_odds"] == -112
+        assert resp.data["away_spread_odds"] == -108
+        assert resp.data["over_odds"] == -110
+        assert resp.data["under_odds"] == -110
 
     def test_retrieve_nonexistent_returns_404(self, api_client, db):
         url = reverse("game-detail", kwargs={"pk": 99999})
@@ -386,13 +456,13 @@ class TestGameBoxscore:
         resp = api_client.get(url)
 
         assert resp.status_code == status.HTTP_200_OK
-        assert resp.data["completeness"]["team_stats_source"] == "derived"
+        assert resp.data["completeness"]["team_stats_source"] == "db"
         assert resp.data["completeness"]["team_stats_complete"] is False
         assert resp.data["completeness"]["leaders_source"] == "db"
         assert isinstance(resp.data["leaders"], list)
         assert len(resp.data["leaders"]) >= 1
 
-    def test_boxscore_derives_team_stats_when_missing_rows(
+    def test_boxscore_strict_mode_does_not_derive_team_stats_when_missing_rows(
         self,
         api_client,
         game_final,
@@ -403,10 +473,10 @@ class TestGameBoxscore:
 
         assert resp.status_code == status.HTTP_200_OK
         assert resp.data["completeness"]["team_stats_complete"] is False
-        assert resp.data["completeness"]["team_stats_source"] == "derived"
-        assert len(resp.data["team_stats"]) == 2
+        assert resp.data["completeness"]["team_stats_source"] == "db"
+        assert resp.data["team_stats"] == []
 
-    def test_boxscore_derives_leaders_when_missing_game_leaders(
+    def test_boxscore_strict_mode_does_not_derive_leaders_when_missing_game_leaders(
         self,
         api_client,
         game_final,
@@ -417,5 +487,53 @@ class TestGameBoxscore:
         resp = api_client.get(url)
 
         assert resp.status_code == status.HTTP_200_OK
-        assert resp.data["completeness"]["leaders_source"] == "derived"
+        assert resp.data["completeness"]["leaders_source"] == "db"
+        assert resp.data["completeness"]["leaders_complete"] is False
+        assert resp.data["leaders"] == []
+
+    @override_settings(GRIDSTREAM_BOXSCORE_RESILIENCE_MODE=True)
+    def test_boxscore_resilience_derives_team_stats_when_missing_rows(
+        self,
+        api_client,
+        game_final,
+        plays,
+    ):
+        url = reverse("game-boxscore", kwargs={"pk": game_final.pk})
+        resp = api_client.get(url)
+
+        assert resp.status_code == status.HTTP_200_OK
+        assert resp.data["completeness"]["team_stats_complete"] is False
+        assert resp.data["completeness"]["team_stats_source"] == "derived_resilience"
+        assert len(resp.data["team_stats"]) == 2
+
+    @override_settings(GRIDSTREAM_BOXSCORE_RESILIENCE_MODE=True)
+    def test_boxscore_resilience_derives_leaders_when_missing_game_leaders(
+        self,
+        api_client,
+        game_final,
+        player_game_stats_qb,
+        player_game_stats_wr,
+    ):
+        url = reverse("game-boxscore", kwargs={"pk": game_final.pk})
+        resp = api_client.get(url)
+
+        assert resp.status_code == status.HTTP_200_OK
+        assert resp.data["completeness"]["leaders_complete"] is False
+        assert resp.data["completeness"]["leaders_source"] == "derived_resilience"
         assert len(resp.data["leaders"]) >= 1
+
+    @override_settings(GRIDSTREAM_BOXSCORE_RESILIENCE_MODE=True)
+    def test_boxscore_resilience_does_not_merge_partial_canonical_team_rows(
+        self,
+        api_client,
+        game_final,
+        team_game_stats_sea,
+        plays,
+    ):
+        url = reverse("game-boxscore", kwargs={"pk": game_final.pk})
+        resp = api_client.get(url)
+
+        assert resp.status_code == status.HTTP_200_OK
+        assert resp.data["completeness"]["team_stats_complete"] is False
+        assert resp.data["completeness"]["team_stats_source"] == "db"
+        assert len(resp.data["team_stats"]) == 1

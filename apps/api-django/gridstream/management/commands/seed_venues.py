@@ -12,6 +12,7 @@ Usage:
 from django.core.management.base import BaseCommand
 from django.db import connections
 from gridstream.models import Venue
+from gridstream.venue_metadata import infer_is_indoor, infer_roof_type
 
 # Known venue coordinates for weather API lookups
 # (major current NFL stadiums — extend as needed)
@@ -78,49 +79,79 @@ class Command(BaseCommand):
 
         created = 0
         updated = 0
+        deduped = 0
 
         for stadium, surface, roof in rows:
             if not stadium:
                 continue
 
-            # Determine roof type
-            roof_type = "outdoors"
-            is_indoor = False
-            if roof:
-                roof_lower = roof.lower().strip()
-                if roof_lower in ("dome", "closed"):
-                    roof_type = "dome"
-                    is_indoor = True
-                elif roof_lower in ("retractable",):
-                    roof_type = "retractable"
-                elif roof_lower == "outdoors":
-                    roof_type = "outdoors"
-                elif roof_lower == "open":
-                    # retractable roof that's open
-                    roof_type = "retractable"
+            roof_type = infer_roof_type(venue_name=stadium, raw_roof=roof)
+            is_indoor = infer_is_indoor(roof_type)
 
             # Look up coordinates
             coords = VENUE_COORDS.get(stadium, (None, None))
 
-            venue, was_created = Venue.objects.using("nfl").update_or_create(
-                name=stadium,
-                defaults={
-                    "surface": surface or "",
-                    "roof_type": roof_type,
-                    "is_indoor": is_indoor,
-                    "latitude": coords[0],
-                    "longitude": coords[1],
-                },
+            # Avoid update_or_create(name=...) because duplicate names may exist
+            # across historic ESPN/nflverse IDs.
+            matches = list(
+                Venue.objects.using("nfl").filter(name=stadium).order_by("id")
             )
+            if matches:
+                venue = matches[0]
+                duplicates = matches[1:]
+                if duplicates:
+                    deduped += len(duplicates)
+                    for dup in duplicates:
+                        if not venue.espn_id and dup.espn_id:
+                            venue.espn_id = dup.espn_id
+                        if not venue.city and dup.city:
+                            venue.city = dup.city
+                        if not venue.state and dup.state:
+                            venue.state = dup.state
+                        # Repoint games to canonical venue then remove duplicate.
+                        dup.games.using("nfl").update(venue=venue)
+                        dup.delete(using="nfl")
+
+                updates = []
+                if surface and venue.surface != surface:
+                    venue.surface = surface
+                    updates.append("surface")
+                if venue.roof_type != roof_type:
+                    venue.roof_type = roof_type
+                    updates.append("roof_type")
+                if venue.is_indoor != is_indoor:
+                    venue.is_indoor = is_indoor
+                    updates.append("is_indoor")
+                if coords[0] is not None and venue.latitude != coords[0]:
+                    venue.latitude = coords[0]
+                    updates.append("latitude")
+                if coords[1] is not None and venue.longitude != coords[1]:
+                    venue.longitude = coords[1]
+                    updates.append("longitude")
+                if updates:
+                    venue.save(using="nfl", update_fields=updates)
+                updated += 1
+                continue
+
+            Venue.objects.using("nfl").create(
+                name=stadium,
+                surface=surface or "",
+                roof_type=roof_type,
+                is_indoor=is_indoor,
+                latitude=coords[0],
+                longitude=coords[1],
+            )
+            was_created = True
 
             if was_created:
                 created += 1
                 self.stdout.write(
                     self.style.SUCCESS(f"  Created: {stadium} ({roof_type}, {surface})")
                 )
-            else:
-                updated += 1
 
         self.stdout.write(
-            self.style.SUCCESS(f"\nDone! Created {created}, updated {updated} venues.")
+            self.style.SUCCESS(
+                f"\nDone! Created {created}, updated {updated} venues, "
+                f"deduped {deduped} duplicates."
+            )
         )

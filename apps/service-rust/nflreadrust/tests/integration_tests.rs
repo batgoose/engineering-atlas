@@ -1,5 +1,42 @@
-use nflreadrust::{insert_batch, models::PlayRecord};
+use nflreadrust::{insert_raw_pbp_batch, RawPbpRow};
 use sqlx::postgres::PgPoolOptions;
+use sqlx::Pool;
+use sqlx::Postgres;
+use std::sync::{Mutex, OnceLock};
+
+fn schema_lock() -> &'static Mutex<()> {
+    static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
+    LOCK.get_or_init(|| Mutex::new(()))
+}
+
+async fn ensure_raw_table(pool: &Pool<Postgres>) {
+    let _guard = schema_lock()
+        .lock()
+        .expect("Failed acquiring schema setup lock");
+
+    sqlx::query("CREATE SCHEMA IF NOT EXISTS raw")
+        .execute(pool)
+        .await
+        .expect("Failed creating raw schema");
+    sqlx::query(
+        "CREATE TABLE IF NOT EXISTS raw.raw_nflverse_pbp (
+            id BIGSERIAL PRIMARY KEY,
+            batch_id BIGINT NULL,
+            game_id TEXT NOT NULL,
+            play_id TEXT NOT NULL,
+            season INTEGER NULL,
+            week INTEGER NULL,
+            posteam TEXT NULL,
+            defteam TEXT NULL,
+            source_row_number INTEGER NULL,
+            payload JSONB NOT NULL,
+            ingested_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        )",
+    )
+    .execute(pool)
+    .await
+    .expect("Failed creating raw.raw_nflverse_pbp");
+}
 
 fn test_db_url() -> String {
     std::env::var("TEST_DATABASE_URL")
@@ -8,171 +45,101 @@ fn test_db_url() -> String {
 }
 
 #[tokio::test]
-async fn test_database_insert_read_flow() {
+async fn test_database_insert_raw_pbp_flow() {
     let db_url = test_db_url();
     let pool = PgPoolOptions::new()
         .connect(&db_url)
         .await
         .expect("Failed to connect to Docker DB - is it running?");
 
-    // We use a fake game_id so we don't clash with real data
-    let mock_play = PlayRecord {
-        play_id: 99999.0,
-        game_id: "TEST_GAME_001".to_string(),
-        home_team: "TEST_HOME".to_string(),
-        away_team: "TEST_AWAY".to_string(),
-        posteam: Some("TEST_HOME".to_string()),
-        game_date: Some("2025-12-25".to_string()),
-        play_type: Some("pass".to_string()),
-        yards_gained: Some(50.0),
-        touchdown: Some(1.0),
+    ensure_raw_table(&pool).await;
 
-        old_game_id: None,
-        drive: None,
-        posteam_type: None,
-        defteam: None,
-        season_type: "REG".to_string(),
-        week: 1,
-        stadium: None,
-        weather: None,
-        surface: None,
-        roof: None,
-        qtr: Some(4),
-        quarter_seconds_remaining: None,
-        half_seconds_remaining: None,
-        game_seconds_remaining: None,
-        down: Some(1),
-        ydstogo: Some(10),
-        yardline_100: Some(50),
-        side_of_field: None,
-        shotgun: 0,
-        no_huddle: 0,
-        air_yards: None,
-        yards_after_catch: None,
-        epa: Some(4.5),
-        wpa: None,
-        success: Some(1.0),
-        passer_player_id: Some("00-12345".to_string()),
-        passer_player_name: Some("Test QB".to_string()),
-        rusher_player_id: None,
-        rusher_player_name: None,
-        receiver_player_id: None,
-        receiver_player_name: None,
-        interception: None,
-        fumble: None,
-        sack: None,
-        complete_pass: Some(1.0),
-        pass_touchdown: Some(1.0),
-        rush_touchdown: None,
-        field_goal_result: None,
-        kick_distance: None,
-        punt_blocked: None,
-        penalty: None,
-        penalty_type: None,
-        penalty_yards: None,
+    let raw_row = RawPbpRow {
+        batch_id: Some(123),
+        game_id: "TEST_GAME_001".to_string(),
+        play_id: "99999".to_string(),
+        season: Some(2025),
+        week: Some(1),
+        posteam: Some("TEST_HOME".to_string()),
+        defteam: Some("TEST_AWAY".to_string()),
+        source_row_number: 1,
+        payload: serde_json::json!({
+            "game_id": "TEST_GAME_001",
+            "play_id": "99999",
+            "posteam": "TEST_HOME",
+            "epa": 4.5
+        }),
     };
 
-    insert_batch(&pool, &[mock_play])
+    insert_raw_pbp_batch(&pool, &[raw_row])
         .await
-        .expect("Insert failed");
+        .expect("Raw insert failed");
 
-    // FIX: We must use f32 because the DB column is 'REAL' (Float4)
-    let row: (f32, String) = sqlx::query_as(
-        "SELECT yards_gained, passer_player_name FROM plays WHERE game_id = 'TEST_GAME_001'",
+    let row: (String, String, f64) = sqlx::query_as(
+        "SELECT
+            game_id,
+            play_id,
+            (payload->>'epa')::double precision
+         FROM raw.raw_nflverse_pbp
+         WHERE game_id = 'TEST_GAME_001'
+         LIMIT 1",
     )
     .fetch_one(&pool)
     .await
     .expect("Fetch failed");
 
-    assert_eq!(row.0, 50.0);
-    assert_eq!(row.1, "Test QB");
+    assert_eq!(row.0, "TEST_GAME_001");
+    assert_eq!(row.1, "99999");
+    assert_eq!(row.2, 4.5);
 
-    // 6. Cleanup (Optional, but polite)
-    sqlx::query("DELETE FROM plays WHERE game_id = 'TEST_GAME_001'")
+    sqlx::query("DELETE FROM raw.raw_nflverse_pbp WHERE game_id = 'TEST_GAME_001'")
         .execute(&pool)
         .await
         .expect("Cleanup failed");
 }
 
 #[tokio::test]
-async fn test_insert_idempotency() {
+async fn test_insert_multiple_rows() {
     let db_url = test_db_url();
     let pool = PgPoolOptions::new().connect(&db_url).await.unwrap();
 
-    let mock_play = PlayRecord {
-        play_id: 88888.0,
-        game_id: "TEST_GAME_DUPE".to_string(),
-        home_team: "A".to_string(),
-        away_team: "B".to_string(),
-        // ... (You can create a helper function to generate dummy structs to save space)
-        season_type: "REG".to_string(),
-        week: 1,
-        // ... set defaults for everything else ...
-        posteam: None,
-        old_game_id: None,
-        drive: None,
-        posteam_type: None,
-        defteam: None,
-        game_date: None,
-        stadium: None,
-        weather: None,
-        surface: None,
-        roof: None,
-        qtr: None,
-        quarter_seconds_remaining: None,
-        half_seconds_remaining: None,
-        game_seconds_remaining: None,
-        down: None,
-        ydstogo: None,
-        yardline_100: None,
-        side_of_field: None,
-        shotgun: 0,
-        no_huddle: 0,
-        play_type: None,
-        yards_gained: None,
-        air_yards: None,
-        yards_after_catch: None,
-        epa: None,
-        wpa: None,
-        success: None,
-        passer_player_id: None,
-        passer_player_name: None,
-        rusher_player_id: None,
-        rusher_player_name: None,
-        receiver_player_id: None,
-        receiver_player_name: None,
-        touchdown: None,
-        interception: None,
-        fumble: None,
-        sack: None,
-        complete_pass: None,
-        pass_touchdown: None,
-        rush_touchdown: None,
-        field_goal_result: None,
-        kick_distance: None,
-        punt_blocked: None,
-        penalty: None,
-        penalty_type: None,
-        penalty_yards: None,
-    };
+    ensure_raw_table(&pool).await;
 
-    let result1 = insert_batch(&pool, &[mock_play.clone()]).await;
-    assert!(result1.is_ok());
+    let rows = vec![
+        RawPbpRow {
+            batch_id: Some(7),
+            game_id: "TEST_GAME_MULTI".to_string(),
+            play_id: "1".to_string(),
+            season: Some(2024),
+            week: Some(1),
+            posteam: Some("A".to_string()),
+            defteam: Some("B".to_string()),
+            source_row_number: 1,
+            payload: serde_json::json!({"game_id":"TEST_GAME_MULTI","play_id":"1"}),
+        },
+        RawPbpRow {
+            batch_id: Some(7),
+            game_id: "TEST_GAME_MULTI".to_string(),
+            play_id: "2".to_string(),
+            season: Some(2024),
+            week: Some(1),
+            posteam: Some("A".to_string()),
+            defteam: Some("B".to_string()),
+            source_row_number: 2,
+            payload: serde_json::json!({"game_id":"TEST_GAME_MULTI","play_id":"2"}),
+        },
+    ];
+    insert_raw_pbp_batch(&pool, &rows).await.unwrap();
 
-    let mock_play_copy = PlayRecord {
-        play_id: 88888.0,
-        game_id: "TEST_GAME_DUPE".to_string(),
-        home_team: "A".to_string(),
-        away_team: "B".to_string(),
-        season_type: "REG".to_string(),
-        week: 1,
-        ..mock_play.clone()
-    };
+    let count: (i64,) = sqlx::query_as(
+        "SELECT COUNT(*) FROM raw.raw_nflverse_pbp WHERE game_id = 'TEST_GAME_MULTI'",
+    )
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!(count.0, 2);
 
-    let result2 = insert_batch(&pool, &[mock_play_copy]).await;
-    assert!(result2.is_ok());
-
-    sqlx::query("DELETE FROM plays WHERE game_id = 'TEST_GAME_DUPE'")
+    sqlx::query("DELETE FROM raw.raw_nflverse_pbp WHERE game_id = 'TEST_GAME_MULTI'")
         .execute(&pool)
         .await
         .unwrap();

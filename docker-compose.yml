@@ -40,6 +40,27 @@ services:
       timeout: 5s
       retries: 5
 
+  postgres-nfl-v2:
+    image: postgres:15-alpine
+    container_name: atlas-nfl-v2-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: nfl_data_v2
+    ports:
+      - '5434:5432'
+    volumes:
+      - postgres-nfl-v2-data:/var/lib/postgresql/data
+      - ./packages/db/init:/docker-entrypoint-initdb.d
+    networks:
+      - atlas-network
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U admin -d nfl_data_v2']
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
   pgbouncer-atlas:
     image: edoburu/pgbouncer
     container_name: atlas-pgbouncer
@@ -80,6 +101,27 @@ services:
       - atlas-network
     depends_on:
       postgres-nfl:
+        condition: service_healthy
+
+  pgbouncer-nfl-v2:
+    image: edoburu/pgbouncer
+    container_name: atlas-nfl-v2-pgbouncer
+    restart: unless-stopped
+    environment:
+      DB_USER: admin
+      DB_PASSWORD: password
+      DB_HOST: postgres-nfl-v2
+      DB_NAME: nfl_data_v2
+      POOL_MODE: transaction
+      MAX_CLIENT_CONN: 100
+      DEFAULT_POOL_SIZE: 20
+      AUTH_TYPE: scram-sha-256
+    ports:
+      - '6434:5432'
+    networks:
+      - atlas-network
+    depends_on:
+      postgres-nfl-v2:
         condition: service_healthy
 
   redis:
@@ -149,6 +191,8 @@ services:
       - DEBUG=True
       - DATABASE_URL=postgresql://atlas_user:atlas_password@pgbouncer-atlas:5432/atlas_db
       - NFL_DATABASE_URL=postgresql://admin:password@pgbouncer-nfl:5432/nfl_data
+      - NFL_DATABASE_V1_URL=postgresql://admin:password@pgbouncer-nfl:5432/nfl_data
+      - NFL_DATABASE_V2_URL=postgresql://admin:password@pgbouncer-nfl-v2:5432/nfl_data_v2
       - REDIS_URL=redis://redis:6379/0
       - MINIO_ENDPOINT=minio:9000
       - MINIO_ACCESS_KEY=atlas_admin
@@ -405,6 +449,8 @@ volumes:
     name: atlas-postgres-data
   postgres-nfl-data:
     name: atlas-nfl-postgres-data
+  postgres-nfl-v2-data:
+    name: atlas-nfl-v2-postgres-data
   redis-data:
     name: atlas-redis-data
   minio-data:

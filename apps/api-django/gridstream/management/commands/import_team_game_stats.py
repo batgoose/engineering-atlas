@@ -1,268 +1,409 @@
 """
-Import team game stats aggregated from play-by-play data.
+Import raw nflverse team stats into raw.raw_nflverse_team_stats.
 
-Available columns for aggregation:
-    posteam, defteam, play_type, yards_gained, touchdown, pass_touchdown,
-    rush_touchdown, interception, fumble, sack, complete_pass, penalty,
-    penalty_type, penalty_yards, epa, down, yardline_100, drive,
-    field_goal_result, game_seconds_remaining
+Source dataset:
+    https://github.com/nflverse/nflverse-data/releases/tag/stats_team
+    stats_team_week_<season>.csv.gz
 
-NOT available: first_down_pass, first_down_rush, first_down_penalty,
-    fumble_lost, return_touchdown, penalty_team, home_score, away_score
-
-Populates: TeamGameStats
-Requires: Games and Teams already imported.
-
-Usage:
-    python manage.py import_team_game_stats
-    python manage.py import_team_game_stats --season 2024
+This command writes source-faithful rows into the raw schema and records one
+metadata row per season in raw.raw_ingest_batch.
 """
 
-from django.db import transaction
+import csv
+import gzip
+import hashlib
+import io
+import json
+from datetime import UTC, datetime
 
-from gridstream.models import Game, Team, TeamGameStats
+import requests
+from django.core.management.base import CommandError
+from django.db import transaction
 
 from ._base import ImportBaseCommand
 
 TEAM_ABBR_MAP = {"STL": "LA", "SD": "LAC", "OAK": "LV"}
+BASE_URL = "https://github.com/nflverse/nflverse-data/releases/download/stats_team"
+INSERT_SQL = """
+    INSERT INTO raw.raw_nflverse_team_stats (
+        batch_id,
+        season,
+        week,
+        game_id,
+        team,
+        opponent,
+        home_away,
+        payload
+    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s::jsonb)
+"""
 
 
 class Command(ImportBaseCommand):
-    help = "Import team game stats aggregated from play-by-play data."
+    help = "Import nflverse team_stats dataset into raw.raw_nflverse_team_stats."
 
     def handle(self, *args, **options):
-        self.batch_size = options["batch_size"]
+        self.batch_size = max(1, options["batch_size"])
         self.dry_run = options["dry_run"]
         requested = options.get("season")
 
         if self.dry_run:
             self.stdout.write(self.style.WARNING("DRY RUN"))
 
-        if not self.raw_table_exists("plays"):
-            self.stderr.write(self.style.ERROR("No 'plays' table found."))
+        self._ensure_required_tables()
+        seasons = self._resolve_target_seasons(requested)
+        if not seasons:
+            self.stdout.write(
+                self.style.WARNING("No seasons selected; nothing to import.")
+            )
             return
 
-        self.team_cache = {t.abbreviation: t for t in Team.objects.using("nfl").all()}
-        for old, new in TEAM_ABBR_MAP.items():
-            if new in self.team_cache and old not in self.team_cache:
-                self.team_cache[old] = self.team_cache[new]
+        self.stdout.write(
+            f"Importing raw team stats for {len(seasons)} seasons: "
+            f"{seasons[0]}-{seasons[-1]}"
+        )
 
-        self.game_cache = {
-            g.nflverse_game_id: g for g in Game.objects.using("nfl").all()
-        }
-
-        sw = self.season_where()
-        seasons = self.resolve_seasons(requested)
-        self.stdout.write(f"Importing team stats for {len(seasons)} seasons")
-
-        total_created = 0
-        total_updated = 0
+        total_inserted = 0
+        total_deleted = 0
+        total_missing_game_id = 0
 
         for year in seasons:
             self.log_season_header(year)
+            source_file = f"stats_team_week_{year}.csv.gz"
+            source_url = f"{BASE_URL}/{source_file}"
 
-            with self.timed_operation(f"Aggregating team stats for {year}"):
-                with self.get_nfl_cursor() as cursor:
-                    cursor.execute(self._team_stats_sql(sw), [year, year])
-                    col_names = [d[0] for d in cursor.description]
-                    rows = [dict(zip(col_names, r)) for r in cursor.fetchall()]
+            with self.timed_operation(f"Downloading {source_file}"):
+                downloaded = self._download_source(source_url)
 
-            self.stdout.write(f"  Found {len(rows)} team-game rows")
-
-            if self.dry_run:
-                total_created += len(rows)
+            if downloaded is None:
+                self.stdout.write(
+                    self.style.WARNING(
+                        f"  Skipping {year}: source file not found (404)."
+                    )
+                )
                 continue
 
-            created = 0
-            updated = 0
-            skipped = 0
-            batch = []
+            content, checksum = downloaded
+            batch_id = None
+            if not self.dry_run:
+                batch_id = self._begin_batch(
+                    season=year,
+                    source_url=source_url,
+                    source_file=source_file,
+                    checksum=checksum,
+                )
 
-            with self.timed_operation(f"Writing team stats for {year}"):
-                for row in rows:
-                    game_id = self.safe_str(row.get("game_id", ""))
-                    game = self.game_cache.get(game_id)
-                    team_abbr = self.safe_str(row.get("posteam", ""))
-                    team = self.team_cache.get(team_abbr) or self.team_cache.get(
-                        TEAM_ABBR_MAP.get(team_abbr, "")
+            try:
+                with transaction.atomic(using="nfl"):
+                    deleted, inserted, missing_game_id = self._ingest_season(
+                        season=year,
+                        batch_id=batch_id,
+                        content=content,
                     )
+            except Exception as exc:
+                if batch_id is not None:
+                    self._complete_batch(
+                        batch_id=batch_id,
+                        row_count=0,
+                        processed_rows=0,
+                        status="failed",
+                        error=str(exc),
+                    )
+                raise
 
-                    if not game or not team:
-                        skipped += 1
-                        continue
+            if batch_id is not None:
+                self._complete_batch(
+                    batch_id=batch_id,
+                    row_count=inserted,
+                    processed_rows=inserted,
+                    status="ok",
+                    error=None,
+                )
 
-                    is_home = game.home_team == team
-                    opponent = game.away_team if is_home else game.home_team
+            total_deleted += deleted
+            total_inserted += inserted
+            total_missing_game_id += missing_game_id
 
-                    defaults = {
-                        "opponent": opponent,
-                        "season_year": year,
-                        "week": game.week,
-                        "is_home": is_home,
-                        # Offense
-                        "total_yards": self.safe_int(row.get("total_yards"), 0),
-                        "total_plays": self.safe_int(row.get("total_plays"), 0),
-                        # Passing
-                        "pass_completions": self.safe_int(row.get("pass_comp"), 0),
-                        "pass_attempts": self.safe_int(row.get("pass_att"), 0),
-                        "pass_yards": self.safe_int(row.get("pass_yards"), 0),
-                        "pass_tds": self.safe_int(row.get("pass_tds"), 0),
-                        "pass_ints": self.safe_int(row.get("pass_ints"), 0),
-                        "sacks_allowed": self.safe_int(row.get("sacks_allowed"), 0),
-                        # Rushing
-                        "rush_attempts": self.safe_int(row.get("rush_att"), 0),
-                        "rush_yards": self.safe_int(row.get("rush_yards"), 0),
-                        "rush_tds": self.safe_int(row.get("rush_tds"), 0),
-                        # Turnovers (approximate — no fumble_lost column in raw data)
-                        "turnovers": self.safe_int(row.get("turnovers"), 0),
-                        "interceptions_lost": self.safe_int(row.get("pass_ints"), 0),
-                        # Penalties (approximate — no penalty_team in raw data)
-                        "penalties": self.safe_int(row.get("penalties"), 0),
-                        "penalty_yards": self.safe_int(row.get("penalty_yds"), 0),
-                        # Conversions
-                        "third_down_attempts": self.safe_int(
-                            row.get("third_down_att"), 0
-                        ),
-                        "fourth_down_attempts": self.safe_int(
-                            row.get("fourth_down_att"), 0
-                        ),
-                        # Red zone
-                        "redzone_attempts": self.safe_int(row.get("redzone_att"), 0),
-                        # Defense
-                        "sacks_made": self.safe_float(row.get("def_sacks"), 0),
-                        "takeaways": self.safe_int(row.get("def_takeaways"), 0),
-                        "interceptions_caught": self.safe_int(row.get("def_ints"), 0),
-                        # EPA
-                        "offensive_epa": self.safe_float(row.get("off_epa")),
-                        "defensive_epa": self.safe_float(row.get("def_epa")),
-                        "passing_epa": self.safe_float(row.get("pass_epa")),
-                        "rushing_epa": self.safe_float(row.get("rush_epa")),
-                    }
-                    batch.append((team, game, defaults))
-
-                    if len(batch) >= self.batch_size:
-                        c, u = self._flush_batch(batch)
-                        created += c
-                        updated += u
-                        batch = []
-
-                if batch:
-                    c, u = self._flush_batch(batch)
-                    created += c
-                    updated += u
-
-            if skipped:
-                self.stdout.write(self.style.WARNING(f"  Skipped {skipped}"))
-            self.stdout.write(f"  Team stats: {created} created, {updated} updated")
-            total_created += created
-            total_updated += updated
+            self.stdout.write(
+                f"  Deleted {deleted:,} existing rows, inserted {inserted:,} rows"
+            )
+            if missing_game_id:
+                self.stdout.write(
+                    self.style.WARNING(
+                        f"  {missing_game_id:,} rows had no game_id match in "
+                        "raw.raw_nflverse_pbp"
+                    )
+                )
 
         self.stdout.write(
             self.style.SUCCESS(
-                f"\nDone! {total_created} created, {total_updated} updated."
+                "\nDone! "
+                f"{total_inserted:,} inserted, {total_deleted:,} deleted, "
+                f"{total_missing_game_id:,} rows without game_id mapping."
             )
         )
 
-    def _flush_batch(self, batch):
-        created = 0
-        updated = 0
-        with transaction.atomic(using="nfl"):
-            for team, game, defaults in batch:
-                _, was_created = TeamGameStats.objects.using("nfl").update_or_create(
-                    team=team,
-                    game=game,
-                    defaults=defaults,
+    def _ensure_required_tables(self):
+        with self.get_nfl_cursor() as cursor:
+            cursor.execute("""
+                SELECT
+                    to_regclass('raw.raw_nflverse_team_stats'),
+                    to_regclass('raw.raw_ingest_batch')
+                """)
+            team_stats_table, ingest_batch_table = cursor.fetchone()
+
+        if not team_stats_table:
+            raise CommandError(
+                "Missing table raw.raw_nflverse_team_stats. Run migrations first."
+            )
+        if not ingest_batch_table:
+            raise CommandError(
+                "Missing table raw.raw_ingest_batch. Run migrations first."
+            )
+
+    def _resolve_target_seasons(self, requested):
+        if requested:
+            return sorted({int(s) for s in requested})
+
+        seasons = []
+        with self.get_nfl_cursor() as cursor:
+            cursor.execute("SELECT to_regclass('raw.raw_nflverse_pbp')")
+            has_pbp = cursor.fetchone()[0]
+            if has_pbp:
+                cursor.execute(
+                    "SELECT DISTINCT season FROM raw.raw_nflverse_pbp "
+                    "WHERE season IS NOT NULL ORDER BY season"
                 )
-                if was_created:
-                    created += 1
-                else:
-                    updated += 1
-        return created, updated
+                seasons = [r[0] for r in cursor.fetchall()]
 
-    def _team_stats_sql(self, season_where):
-        """
-        Aggregate team stats from the 52-column plays table.
+        if seasons:
+            return seasons
 
-        Two CTEs: offense (grouped by posteam) and defense (grouped by defteam).
-        No first_down_* columns available, no penalty_team, no score columns.
-        """
-        return f"""
-        WITH offense AS (
-            SELECT
-                game_id,
-                posteam,
-                -- Total offense
-                SUM(CASE WHEN play_type IN ('run', 'pass') AND sack = 0 THEN yards_gained
-                         ELSE 0 END)::int as total_yards,
-                COUNT(*) FILTER (
-                    WHERE play_type IN ('run', 'pass') OR sack = 1
-                ) as total_plays,
-                -- Passing
-                COUNT(*) FILTER (WHERE complete_pass = 1) as pass_comp,
-                COUNT(*) FILTER (WHERE play_type = 'pass' AND sack = 0) as pass_att,
-                SUM(CASE WHEN play_type = 'pass' AND sack = 0 THEN yards_gained ELSE 0 END)::int as pass_yards,
-                COUNT(*) FILTER (WHERE pass_touchdown = 1) as pass_tds,
-                COUNT(*) FILTER (WHERE interception = 1) as pass_ints,
-                COUNT(*) FILTER (WHERE sack = 1) as sacks_allowed,
-                -- Rushing
-                COUNT(*) FILTER (WHERE play_type = 'run') as rush_att,
-                SUM(CASE WHEN play_type = 'run' THEN yards_gained ELSE 0 END)::int as rush_yards,
-                COUNT(*) FILTER (WHERE rush_touchdown = 1) as rush_tds,
-                -- Turnovers (interceptions + fumbles — no fumble_lost column)
-                COUNT(*) FILTER (WHERE interception = 1 OR fumble = 1) as turnovers,
-                COUNT(*) FILTER (WHERE fumble = 1) as fumbles,
-                -- Penalties (no penalty_team column, so this counts all penalties
-                -- on plays where this team had possession — approximate)
-                COUNT(*) FILTER (WHERE penalty = 1) as penalties,
-                SUM(CASE WHEN penalty = 1 THEN penalty_yards ELSE 0 END)::int as penalty_yds,
-                -- 3rd/4th down attempts
-                COUNT(*) FILTER (WHERE down = 3 AND play_type IN ('run', 'pass')) as third_down_att,
-                COUNT(*) FILTER (WHERE down = 4 AND play_type IN ('run', 'pass')) as fourth_down_att,
-                -- Red zone
-                COUNT(DISTINCT drive) FILTER (
-                    WHERE yardline_100 <= 20 AND play_type IN ('run', 'pass')
-                ) as redzone_att,
-                -- EPA
-                SUM(epa) as off_epa,
-                SUM(epa) FILTER (WHERE play_type = 'pass' OR sack = 1) as pass_epa,
-                SUM(epa) FILTER (WHERE play_type = 'run') as rush_epa
-            FROM plays
-            WHERE {season_where}
-                AND posteam IS NOT NULL
-                AND posteam != ''
-            GROUP BY game_id, posteam
-        ),
-        defense AS (
-            SELECT
-                game_id,
-                defteam as team,
-                COUNT(*) FILTER (WHERE sack = 1) as def_sacks,
-                COUNT(*) FILTER (WHERE interception = 1 OR fumble = 1) as def_takeaways,
-                COUNT(*) FILTER (WHERE interception = 1) as def_ints,
-                SUM(epa) as def_epa
-            FROM plays
-            WHERE {season_where}
-                AND defteam IS NOT NULL
-                AND defteam != ''
-            GROUP BY game_id, defteam
+        current_year = datetime.now(tz=UTC).year
+        return list(range(1999, current_year + 1))
+
+    def _download_source(self, url):
+        response = requests.get(
+            url,
+            timeout=180,
+            headers={"User-Agent": "engineering-atlas/import_team_game_stats"},
         )
-        SELECT
-            o.game_id,
-            o.posteam,
-            o.total_yards, o.total_plays,
-            o.pass_comp, o.pass_att, o.pass_yards, o.pass_tds, o.pass_ints,
-            o.sacks_allowed,
-            o.rush_att, o.rush_yards, o.rush_tds,
-            o.turnovers, o.fumbles,
-            o.penalties, o.penalty_yds,
-            o.third_down_att, o.fourth_down_att,
-            o.redzone_att,
-            o.off_epa, o.pass_epa, o.rush_epa,
-            COALESCE(d.def_sacks, 0) as def_sacks,
-            COALESCE(d.def_takeaways, 0) as def_takeaways,
-            COALESCE(d.def_ints, 0) as def_ints,
-            d.def_epa
-        FROM offense o
-        LEFT JOIN defense d ON o.game_id = d.game_id AND o.posteam = d.team
-        ORDER BY o.game_id, o.posteam
-        """
+        if response.status_code == 404:
+            return None
+        response.raise_for_status()
+        content = response.content
+        checksum = hashlib.sha256(content).hexdigest()
+        return content, checksum
+
+    def _begin_batch(self, season, source_url, source_file, checksum):
+        metadata = json.dumps(
+            {
+                "season": season,
+                "status": "started",
+                "ingest_tool": "django.import_team_game_stats",
+                "target_table": "raw.raw_nflverse_team_stats",
+            }
+        )
+        with self.get_nfl_cursor() as cursor:
+            cursor.execute(
+                """
+                INSERT INTO raw.raw_ingest_batch (
+                    source_system,
+                    dataset_name,
+                    source_url,
+                    source_file,
+                    source_version,
+                    source_checksum,
+                    metadata
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s::jsonb)
+                RETURNING id
+                """,
+                (
+                    "nflverse",
+                    "team_stats",
+                    source_url,
+                    source_file,
+                    str(season),
+                    checksum,
+                    metadata,
+                ),
+            )
+            return cursor.fetchone()[0]
+
+    def _complete_batch(self, batch_id, row_count, processed_rows, status, error):
+        metadata_patch = {
+            "status": status,
+            "processed_rows": processed_rows,
+            "finished_at": datetime.now(tz=UTC).isoformat(),
+            "error": error or "",
+        }
+        with self.get_nfl_cursor() as cursor:
+            cursor.execute(
+                """
+                UPDATE raw.raw_ingest_batch
+                SET row_count = %s,
+                    metadata = COALESCE(metadata, '{}'::jsonb) || %s::jsonb
+                WHERE id = %s
+                """,
+                (row_count, json.dumps(metadata_patch), batch_id),
+            )
+
+    def _ingest_season(self, season, batch_id, content):
+        game_lookup, team_only_lookup = self._build_game_lookup(season)
+
+        deleted = 0
+        if not self.dry_run:
+            with self.get_nfl_cursor() as cursor:
+                cursor.execute(
+                    "DELETE FROM raw.raw_nflverse_team_stats WHERE season = %s",
+                    [season],
+                )
+                deleted = cursor.rowcount
+
+        inserted = 0
+        missing_game_id = 0
+        chunk = []
+
+        with gzip.GzipFile(fileobj=io.BytesIO(content), mode="rb") as gz:
+            text_stream = io.TextIOWrapper(gz, encoding="utf-8", newline="")
+            reader = csv.DictReader(text_stream)
+
+            for row in reader:
+                season_value = self.safe_int(row.get("season"), season) or season
+                week = self.safe_int(row.get("week"))
+                season_type = self._normalize_season_type(row.get("season_type"))
+                team = self._canonical_team(row.get("team"))
+                opponent = self._canonical_team(row.get("opponent_team"))
+                game_id = game_lookup.get((week, season_type, team, opponent))
+                if not game_id:
+                    game_id = team_only_lookup.get((week, season_type, team))
+                if not game_id:
+                    missing_game_id += 1
+
+                home_away = self._derive_home_away(team, game_id)
+                payload = json.dumps(self._normalize_payload(row))
+
+                chunk.append(
+                    (
+                        batch_id,
+                        season_value,
+                        week,
+                        game_id,
+                        team or None,
+                        opponent or None,
+                        home_away,
+                        payload,
+                    )
+                )
+
+                if len(chunk) >= self.batch_size:
+                    inserted += self._flush_chunk(chunk)
+                    chunk = []
+
+        if chunk:
+            inserted += self._flush_chunk(chunk)
+
+        return deleted, inserted, missing_game_id
+
+    def _flush_chunk(self, chunk):
+        if self.dry_run:
+            return len(chunk)
+
+        with self.get_nfl_cursor() as cursor:
+            cursor.executemany(INSERT_SQL, chunk)
+        return len(chunk)
+
+    def _build_game_lookup(self, season):
+        with self.get_nfl_cursor() as cursor:
+            cursor.execute("SELECT to_regclass('raw.raw_nflverse_pbp')")
+            has_pbp = cursor.fetchone()[0]
+            if not has_pbp:
+                return {}, {}
+
+            cursor.execute(
+                """
+                SELECT DISTINCT
+                    week,
+                    COALESCE(NULLIF(payload->>'season_type', ''), 'REG') AS season_type,
+                    posteam,
+                    defteam,
+                    game_id
+                FROM raw.raw_nflverse_pbp
+                WHERE season = %s
+                    AND week IS NOT NULL
+                    AND posteam IS NOT NULL
+                    AND posteam <> ''
+                    AND defteam IS NOT NULL
+                    AND defteam <> ''
+                """,
+                [season],
+            )
+            rows = cursor.fetchall()
+
+        lookup = {}
+        team_only_lookup = {}
+        ambiguous = set()
+        ambiguous_team_only = set()
+        for week, season_type, posteam, defteam, game_id in rows:
+            key = (
+                self.safe_int(week),
+                self._normalize_season_type(season_type),
+                self._canonical_team(posteam),
+                self._canonical_team(defteam),
+            )
+            if key in ambiguous or not all(key) or not game_id:
+                continue
+
+            existing = lookup.get(key)
+            if existing and existing != game_id:
+                ambiguous.add(key)
+                lookup.pop(key, None)
+                continue
+            lookup[key] = game_id
+
+            team_key = (key[0], key[1], key[2])
+            if team_key in ambiguous_team_only:
+                continue
+            existing_team = team_only_lookup.get(team_key)
+            if existing_team and existing_team != game_id:
+                ambiguous_team_only.add(team_key)
+                team_only_lookup.pop(team_key, None)
+                continue
+            team_only_lookup[team_key] = game_id
+
+        return lookup, team_only_lookup
+
+    def _canonical_team(self, team_abbr):
+        abbr = self.safe_str(team_abbr, default="").upper()
+        if not abbr:
+            return ""
+        return TEAM_ABBR_MAP.get(abbr, abbr)
+
+    def _normalize_season_type(self, season_type):
+        normalized = self.safe_str(season_type, default="REG").upper()
+        if normalized in {"REG", "POST", "PRE"}:
+            return normalized
+        return "REG"
+
+    def _derive_home_away(self, team, game_id):
+        if not game_id or not team:
+            return None
+        parts = game_id.split("_")
+        if len(parts) < 4:
+            return None
+        away_team = self._canonical_team(parts[2])
+        home_team = self._canonical_team(parts[3])
+        if team == away_team:
+            return "away"
+        if team == home_team:
+            return "home"
+        return None
+
+    def _normalize_payload(self, row):
+        payload = {}
+        for key, value in row.items():
+            if value is None:
+                payload[key] = None
+                continue
+            stripped = str(value).strip()
+            payload[key] = stripped if stripped else None
+        return payload

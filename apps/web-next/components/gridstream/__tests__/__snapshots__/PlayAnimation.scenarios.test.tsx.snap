@@ -42,7 +42,7 @@ exports[`PlayAnimation scenario coverage > matches scenario snapshot: 'field-goa
       </g>
     </g>
     <path
-      d="M 691.36,210 Q 818.1800000000001,10 945,160"
+      d="M 691.36,210 Q 818.1800000000001,182 945,160"
       fill="none"
       opacity="0.5"
       pathLength="1"
@@ -105,7 +105,7 @@ exports[`PlayAnimation scenario coverage > matches scenario snapshot: 'field-goa
       </g>
     </g>
     <path
-      d="M 639.8399999999999,210 Q 792.42,50 945,290"
+      d="M 639.8399999999999,210 Q 792.42,190 945,290"
       fill="none"
       opacity="0.5"
       pathLength="1"
@@ -453,7 +453,7 @@ exports[`PlayAnimation scenario coverage > matches scenario snapshot: 'pass-comp
           rx="2"
           width="136"
           x="593.92"
-          y="-4"
+          y="394"
         />
         <text
           fill="#070b14"
@@ -462,7 +462,7 @@ exports[`PlayAnimation scenario coverage > matches scenario snapshot: 'pass-comp
           font-weight="800"
           text-anchor="middle"
           x="661.92"
-          y="15"
+          y="413"
         >
           1ST DOWN
         </text>

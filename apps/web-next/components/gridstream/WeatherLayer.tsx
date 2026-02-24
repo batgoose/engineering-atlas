@@ -10,15 +10,14 @@
 import { useMemo } from 'react';
 import type { WeatherState } from '@atlas/sdk/gridstream/types';
 import { parseWindVector } from '@atlas/sdk/gridstream/transforms';
-import { isLikelyIndoor } from '@atlas/sdk/gridstream/constants';
 
 interface WeatherLayerProps {
   weather: WeatherState;
   venue?: string;
 }
 
-export function WeatherLayer({ weather, venue }: WeatherLayerProps) {
-  const isDomed = weather.isIndoor || isLikelyIndoor(venue ?? '');
+export function WeatherLayer({ weather }: WeatherLayerProps) {
+  const isDomed = weather.isIndoor;
 
   const condition = weather.condition || '';
   const { hDrift } = parseWindVector(weather.wind);

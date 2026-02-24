@@ -9,9 +9,10 @@ project in the future.
 
 
 class GridstreamRouter:
-    """Route all gridstream app models to the nfl database."""
+    """Route all gridstream app models to NFL database aliases."""
 
     gridstream_apps = {"gridstream"}
+    nfl_db_aliases = {"nfl", "nfl_v1", "nfl_v2"}
 
     def db_for_read(self, model, **hints):
         if model._meta.app_label in self.gridstream_apps:
@@ -37,10 +38,10 @@ class GridstreamRouter:
         return False
 
     def allow_migrate(self, db, app_label, model_name=None, **hints):
-        """Ensure gridstream models only migrate on the nfl DB."""
+        """Ensure gridstream models only migrate on NFL DB aliases."""
         if app_label in self.gridstream_apps:
-            return db == "nfl"
-        # Non-gridstream apps should NOT migrate on nfl DB
-        if db == "nfl":
+            return db in self.nfl_db_aliases
+        # Non-gridstream apps should NOT migrate on NFL DB aliases
+        if db in self.nfl_db_aliases:
             return False
         return None  # Fall through to default

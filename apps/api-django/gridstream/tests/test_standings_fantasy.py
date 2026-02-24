@@ -9,6 +9,51 @@ pytestmark = [
 ]
 
 
+@pytest.fixture
+def persisted_standings(season, team_sea, team_was):
+    from gridstream.models import TeamStanding
+
+    TeamStanding.objects.using("nfl").create(
+        season=season,
+        team=team_sea,
+        conference=team_sea.conference,
+        division=team_sea.division,
+        wins=1,
+        losses=0,
+        ties=0,
+        pct=1.0,
+        div_rank=1,
+        seed=2,
+        points_for=26,
+        points_against=20,
+        point_diff=6,
+        sov=0.50,
+        sos=0.48,
+        streak="W1",
+        last_5="1-0",
+        playoff_clincher="",
+    )
+    TeamStanding.objects.using("nfl").create(
+        season=season,
+        team=team_was,
+        conference=team_was.conference,
+        division=team_was.division,
+        wins=0,
+        losses=1,
+        ties=0,
+        pct=0.0,
+        div_rank=4,
+        points_for=20,
+        points_against=26,
+        point_diff=-6,
+        sov=0.25,
+        sos=0.52,
+        streak="L1",
+        last_5="0-1",
+        playoff_clincher="",
+    )
+
+
 # =============================================================================
 # STANDINGS
 # =============================================================================
@@ -21,7 +66,7 @@ class TestStandings:
         season,
         team_sea,
         team_was,
-        game_final,
+        persisted_standings,
     ):
         url = reverse("standing-list")
         resp = api_client.get(url, {"season": 2024})
@@ -35,9 +80,9 @@ class TestStandings:
         season,
         team_sea,
         team_was,
-        game_final,
+        persisted_standings,
     ):
-        """SEA won the test game 26-20, so SEA=1-0, WAS=0-1."""
+        """Standings rows are read from persisted TeamStanding table."""
         url = reverse("standing-list")
         resp = api_client.get(url, {"season": 2024})
 
@@ -58,7 +103,7 @@ class TestStandings:
         season,
         team_sea,
         team_was,
-        game_final,
+        persisted_standings,
     ):
         url = reverse("standing-list")
         resp = api_client.get(url, {"season": 2024})
@@ -74,7 +119,7 @@ class TestStandings:
         season,
         team_sea,
         team_was,
-        game_final,
+        persisted_standings,
     ):
         url = reverse("standing-list")
         resp = api_client.get(url, {"season": 2024})
@@ -88,7 +133,7 @@ class TestStandings:
         season,
         team_sea,
         team_was,
-        game_final,
+        persisted_standings,
     ):
         url = reverse("standing-list")
         resp = api_client.get(url)  # No season param
@@ -96,21 +141,25 @@ class TestStandings:
         assert resp.status_code == status.HTTP_200_OK
         assert len(resp.data) >= 2
 
-    def test_standings_excludes_live_games(
+    def test_standings_uses_persisted_rows_not_game_scores(
         self,
         api_client,
         season,
         team_sea,
         team_was,
         game_final,
-        game_live,
+        persisted_standings,
     ):
-        """Only completed games should factor into standings."""
+        """Endpoint should not recompute standings from Game rows."""
+        game_final.home_score = 10
+        game_final.away_score = 40
+        game_final.save(using="nfl", update_fields=["home_score", "away_score"])
+
         url = reverse("standing-list")
         resp = api_client.get(url, {"season": 2024})
 
         sea_row = next(r for r in resp.data if r["team"]["abbreviation"] == "SEA")
-        # Only the final game counts, not the in-progress one
+        # Persists from TeamStanding fixture, not recomputed from edited score.
         assert sea_row["wins"] == 1
         assert sea_row["losses"] == 0
 
@@ -120,7 +169,7 @@ class TestStandings:
         season,
         team_sea,
         team_was,
-        game_final,
+        persisted_standings,
     ):
         url = reverse("standing-list")
         resp = api_client.get(url, {"season": 2024})
