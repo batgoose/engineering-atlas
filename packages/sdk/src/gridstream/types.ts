@@ -43,6 +43,13 @@ export interface TeamInfo {
   startingQb?: string;
 }
 
+export interface GameOfficialInfo {
+  id?: number;
+  sequence?: number;
+  name: string;
+  position?: string;
+}
+
 export interface GameContext {
   gameId: string;
   season: number;
@@ -63,6 +70,9 @@ export interface GameContext {
   weatherDesc?: string;
   weatherWind?: string;
   conditionId?: number;
+  attendance?: number;
+  referee?: string;
+  officials?: GameOfficialInfo[];
 
   spread?: number;
   total?: number;
@@ -235,6 +245,8 @@ export interface DriveProgress {
   startYardLine: number;
   startSide: string;
   team: string;
+  /** Label for how the drive began (e.g., "After Punt", "Following INT"). */
+  startTransition?: string;
 }
 
 export interface WpTimelinePoint {
@@ -242,11 +254,27 @@ export interface WpTimelinePoint {
   wp: number;
   /** Minutes elapsed in the game */
   gameMin: number;
+  /** Optional confidence-band lower bound for away WP (0-100). */
+  wpLow?: number;
+  /** Optional confidence-band upper bound for away WP (0-100). */
+  wpHigh?: number;
+  /** Source marker used by UI when deciding whether to show model-only visuals. */
+  source?: 'model' | 'fallback';
 }
 
 export interface EpaTotals {
   away: number;
   home: number;
+}
+
+export interface EpaTimelinePoint {
+  gameMin: number;
+  awayTotal: number;
+  homeTotal: number;
+  awayPass: number;
+  awayRush: number;
+  homePass: number;
+  homeRush: number;
 }
 
 export interface ScoreByQuarter {
@@ -319,6 +347,10 @@ export interface PlayAnimationData {
   penaltyAdjustedYardline?: number;
   penaltyAdjustedSide?: string;
   isNoPlay?: boolean;
+  tdProb?: number;
+  fgProb?: number;
+  cp?: number;
+  cpoe?: number;
   postScoreTryMiss?: boolean;
   postScoreTryKind?: 'two_point' | 'extra_point';
   postScoreTryPlayType?: 'pass' | 'rush' | 'kick';
@@ -375,6 +407,7 @@ export interface TeamStatLine {
 export interface LeaderEntry {
   name: string;
   headshotUrl?: string;
+  gsisId?: string;
   line: string; // stat summary, "22/34, 287 YDS, 2 TD"
 }
 
@@ -382,6 +415,44 @@ export interface LeaderSet {
   passing: LeaderEntry;
   rushing: LeaderEntry;
   receiving: LeaderEntry;
+}
+
+export interface PersonnelPlayerEntry {
+  playerId?: string;
+  playerName: string;
+  displayName?: string;
+  headshotUrl?: string;
+  jerseyNumber?: string;
+  position?: string;
+  positionGroup?: string;
+  rosterStatus?: string;
+  depthChartPosition?: string;
+  depthRank?: number | null;
+  offenseSnaps: number;
+  defenseSnaps: number;
+  specialSnaps: number;
+  totalSnaps: number;
+  offenseSnapPct?: number | null;
+  defenseSnapPct?: number | null;
+  specialSnapPct?: number | null;
+  totalSnapPct?: number | null;
+}
+
+export interface PersonnelTeamEntry {
+  teamAbbr: string;
+  totalOffenseSnaps: number;
+  totalDefenseSnaps: number;
+  totalSpecialSnaps: number;
+  totalSnaps: number;
+  players: PersonnelPlayerEntry[];
+}
+
+export interface PersonnelState {
+  source: 'snap_counts' | 'player_stats_fallback' | 'empty';
+  season?: number | null;
+  week?: number | null;
+  away: PersonnelTeamEntry;
+  home: PersonnelTeamEntry;
 }
 
 export interface ScoringEntry {
@@ -401,6 +472,7 @@ export interface MissionLogEntry {
   down: string;
   team: string;
   text: string;
+  attribution?: string;
   epa: number;
   type: 'play' | 'score' | 'turnover' | 'info';
 }
@@ -430,6 +502,9 @@ export interface LiveGameState {
   // Venue & Weather
   venue: string;
   weather: WeatherState;
+  attendance: number | null;
+  referee: string;
+  officials: GameOfficialInfo[];
 
   // Broadcast
   network: string;
@@ -439,6 +514,7 @@ export interface LiveGameState {
   wpTimeline: WpTimelinePoint[];
   awayWinPct: number;
   epaTotals?: EpaTotals;
+  epaTimeline?: EpaTimelinePoint[];
 
   // Last Play (for animation)
   lastPlay: PlayAnimationData | null;
@@ -457,6 +533,7 @@ export interface LiveGameState {
   awayTimeouts: number;
   teamStats: { away: TeamStatLine; home: TeamStatLine } | null;
   leaders: { away: LeaderSet; home: LeaderSet } | null;
+  personnel?: PersonnelState | null;
   scoring: ScoringEntry[];
 
   // Play navigation

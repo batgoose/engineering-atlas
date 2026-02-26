@@ -16,7 +16,7 @@
  *   GET /api/gridstream/games/{id}/boxscore/    → ApiBoxscore
  */
 
-import type { GameContext, PositionGroup } from './types';
+import type { GameContext, GameOfficialInfo, PositionGroup } from './types';
 
 // ─── Per-play accumulator types ─────────────────────────────────────────────
 // These live here (not in types.ts) because they're tightly coupled to the
@@ -122,6 +122,8 @@ export interface ApiGameDetail {
 
   home_record: string;
   away_record: string;
+  home_rest: number | null;
+  away_rest: number | null;
   home_coach: string;
   away_coach: string;
   home_qb_name: string;
@@ -133,6 +135,9 @@ export interface ApiGameDetail {
   weather_wind: string;
   weather_humidity: number | null;
   weather_detail: string;
+  attendance?: number | null;
+  referee?: string | null;
+  officials?: ApiGameOfficial[];
 
   venue_name: string | null;
   venue_detail?: {
@@ -143,6 +148,13 @@ export interface ApiGameDetail {
     is_indoor: boolean;
     surface: string;
   } | null;
+}
+
+export interface ApiGameOfficial extends GameOfficialInfo {
+  id: number;
+  sequence: number;
+  name: string;
+  position: string;
 }
 
 export interface ApiTeamMinimal {
@@ -202,6 +214,7 @@ export interface ApiPlayDetail {
   interception: boolean;
   sack: boolean;
   penalty: boolean;
+  penalty_type?: string;
   penalty_yards: number | null;
   penalty_player_name?: string;
   penalty_player_id?: string;
@@ -237,6 +250,14 @@ export interface ApiPlayDetail {
   total_away_epa?: number | null;
   home_wp?: number | null;
   away_wp?: number | null;
+  vegas_wp?: number | null;
+  vegas_home_wp?: number | null;
+  cp?: number | null;
+  cpoe?: number | null;
+  td_prob?: number | null;
+  fg_prob?: number | null;
+  no_score_prob?: number | null;
+  score_differential?: number | null;
   air_yards: number | null;
   pass_location: string;
   run_location: string;
@@ -245,11 +266,18 @@ export interface ApiPlayDetail {
   receiver_player_name: string;
   punt_returner_player_name?: string;
   kickoff_returner_player_name?: string;
+  blocked_player_name?: string;
+  blocked_player_id?: string;
   interception_player_name?: string;
   interception_player_id?: string;
+  sack_player_name?: string;
+  sack_player_id?: string;
+  tackle_for_loss_1_player_name?: string;
+  pass_defense_1_player_name?: string;
   fumble_recovery_1_player_name?: string;
   fumble_recovery_1_team?: string;
   fumble_recovery_1_yards?: number | null;
+  drive_start_transition?: string;
   field_goal_result: string;
   kick_distance: number | null;
 }
@@ -346,6 +374,44 @@ export interface ApiBoxscore {
   };
 }
 
+export interface ApiPersonnelPlayer {
+  player_id: string | null;
+  player_name: string;
+  display_name: string | null;
+  headshot_url: string | null;
+  jersey_number: string | null;
+  position: string | null;
+  position_group: string | null;
+  roster_status: string | null;
+  depth_chart_position: string | null;
+  depth_rank: number | null;
+  offense_snaps: number;
+  defense_snaps: number;
+  special_snaps: number;
+  total_snaps: number;
+  offense_snap_pct: number | null;
+  defense_snap_pct: number | null;
+  special_snap_pct: number | null;
+  total_snap_pct: number | null;
+}
+
+export interface ApiPersonnelTeam {
+  team_abbr: string;
+  total_offense_snaps: number;
+  total_defense_snaps: number;
+  total_special_snaps: number;
+  total_snaps: number;
+  players: ApiPersonnelPlayer[];
+}
+
+export interface ApiGamePersonnel {
+  source: 'snap_counts' | 'player_stats_fallback' | 'empty';
+  season?: number | null;
+  week?: number | null;
+  away: ApiPersonnelTeam;
+  home: ApiPersonnelTeam;
+}
+
 /**
  * Scoreboard-list item — returned by GET /api/gridstream/games/?season=&week=
  * (GameListSerializer). A subset of the full game detail shape.
@@ -389,6 +455,8 @@ export interface ApiGameListItem {
   broadcast_names: string | null;
   home_record: string;
   away_record: string;
+  home_rest: number | null;
+  away_rest: number | null;
   home_qb_name: string | null;
   away_qb_name: string | null;
   weather_temp: number | null;
@@ -644,9 +712,7 @@ function extractWeatherCondition(detail: string | null | undefined): string | un
  * suitable for gridStream.hydrate().
  */
 export function apiGameToContext(game: ApiGameDetail): GameContext {
-  const structuredWeather = parseStructuredWeather(
-    game.weather_detail || game.weather_condition
-  );
+  const structuredWeather = parseStructuredWeather(game.weather_detail || game.weather_condition);
   const indoorFromRoof =
     structuredWeather.roof != null
       ? roofToCondition(structuredWeather.roof) === 'Indoor'
@@ -715,6 +781,15 @@ export function apiGameToContext(game: ApiGameDetail): GameContext {
     weatherDesc: weatherDesc || undefined,
     weatherWind,
     conditionId: game.weather_condition_id ?? undefined,
+    attendance: game.attendance ?? undefined,
+    referee: game.referee || undefined,
+    officials:
+      game.officials?.map((official) => ({
+        id: official.id,
+        sequence: official.sequence,
+        name: official.name,
+        position: official.position,
+      })) ?? undefined,
 
     spread: game.spread ?? undefined,
     total: game.total ?? undefined,

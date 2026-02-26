@@ -716,7 +716,9 @@ function parseFumbleSpotsToX(
   const fumbleMatch = description.match(
     /\bfumbles?(?:\s*\([^)]*\))?\s+at\s+([A-Z]{2,3})\s+(\d{1,2})\b/i
   );
-  const recoveryMatch = description.match(/\brecovered by\s+.+?\s+at\s+([A-Z]{2,3})\s+(\d{1,2})\b/i);
+  const recoveryMatch = description.match(
+    /\brecovered by\s+.+?\s+at\s+([A-Z]{2,3})\s+(\d{1,2})\b/i
+  );
   return {
     takeawayX: parseFieldSpotToX(fumbleMatch?.[1], fumbleMatch?.[2], awayAbbr),
     recoveryX: parseFieldSpotToX(recoveryMatch?.[1], recoveryMatch?.[2], awayAbbr),

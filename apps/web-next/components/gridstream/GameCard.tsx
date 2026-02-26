@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type CSSProperties } from 'react';
 import type { ApiGameListItem } from '@atlas/sdk/gridstream/api-transforms';
 import {
   gameStatusDisplay,
@@ -10,11 +10,21 @@ import {
 } from '@atlas/sdk/gridstream/api-transforms';
 import { gridstreamColors as C, gridstreamFonts as F } from '@atlas/sdk/gridstream/theme';
 
+export interface GameCardInjurySummary {
+  awayFlags: string[];
+  homeFlags: string[];
+  awayCount: number;
+  homeCount: number;
+}
+
 interface GameCardProps {
   game: ApiGameListItem;
   logoOverrides?: Record<string, string>;
   showWeekTag?: boolean;
   density?: 'compact' | 'expanded';
+  awaySeed?: number | null;
+  homeSeed?: number | null;
+  injurySummary?: GameCardInjurySummary;
   onClick: () => void;
 }
 
@@ -119,6 +129,7 @@ function TeamLogo({
 function TeamMeta({
   name,
   record,
+  seed,
   align,
   isDimmed,
   hasPossession,
@@ -126,6 +137,7 @@ function TeamMeta({
 }: {
   name: string;
   record: string;
+  seed?: number | null;
   align: 'left' | 'right';
   isDimmed: boolean;
   hasPossession: boolean;
@@ -202,10 +214,88 @@ function TeamMeta({
           textOverflow: 'ellipsis',
         }}
       >
+        {seed != null && seed > 0 ? `#${seed} · ` : ''}
         {record || '—'}
       </div>
     </div>
   );
+}
+
+function formatOddsNumber(value: number): string {
+  const rounded = Math.round(value * 10) / 10;
+  return Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(1);
+}
+
+function formatMoneyline(value: number): string {
+  return value > 0 ? `+${value}` : String(value);
+}
+
+function spreadLabel(game: ApiGameListItem): string | null {
+  if (game.spread == null) return null;
+  if (game.spread === 0) return 'PK';
+  const favoredTeam =
+    game.spread < 0 ? game.home_team_detail.abbreviation : game.away_team_detail.abbreviation;
+  return `${favoredTeam} -${formatOddsNumber(Math.abs(game.spread))}`;
+}
+
+type CardBadgeTone = 'amber' | 'cyan' | 'green';
+
+interface CardBadge {
+  label: string;
+  tone: CardBadgeTone;
+}
+
+function badgeToneStyle(tone: CardBadgeTone): CSSProperties {
+  if (tone === 'amber') {
+    return {
+      color: C.amber,
+      border: '1px solid rgba(255,177,0,0.35)',
+      background: 'rgba(255,177,0,0.08)',
+      textShadow: '0 0 8px rgba(255,177,0,0.35)',
+    };
+  }
+  if (tone === 'green') {
+    return {
+      color: C.green,
+      border: '1px solid rgba(0,230,118,0.35)',
+      background: 'rgba(0,230,118,0.1)',
+      textShadow: '0 0 8px rgba(0,230,118,0.35)',
+    };
+  }
+  return {
+    color: C.cyan,
+    border: '1px solid rgba(0,229,255,0.28)',
+    background: 'rgba(0,229,255,0.08)',
+    textShadow: `0 0 8px ${C.cyan}44`,
+  };
+}
+
+function restBadgesByTeam(game: ApiGameListItem): { away: CardBadge[]; home: CardBadge[] } {
+  const away: CardBadge[] = [];
+  const home: CardBadge[] = [];
+  const awayRest = game.away_rest;
+  const homeRest = game.home_rest;
+  if (awayRest != null && awayRest <= 6) {
+    away.push({
+      label: `SHORT WK ${game.away_team_detail.abbreviation} ${awayRest}D`,
+      tone: 'amber',
+    });
+  }
+  if (homeRest != null && homeRest <= 6) {
+    home.push({
+      label: `SHORT WK ${game.home_team_detail.abbreviation} ${homeRest}D`,
+      tone: 'amber',
+    });
+  }
+  if (awayRest != null && homeRest != null && awayRest !== homeRest) {
+    const awayHasAdv = awayRest > homeRest;
+    const advTeam = awayHasAdv
+      ? game.away_team_detail.abbreviation
+      : game.home_team_detail.abbreviation;
+    const diff = Math.abs(awayRest - homeRest);
+    (awayHasAdv ? away : home).push({ label: `REST ADV ${advTeam} +${diff}D`, tone: 'green' });
+  }
+  return { away: away.slice(0, 2), home: home.slice(0, 2) };
 }
 
 function ScoreCell({
@@ -267,6 +357,40 @@ function formatCardDateLabel(gameDate: string, gameTime: string | null): string 
   const day = Number(dayRaw);
   if (!Number.isFinite(year) || !Number.isFinite(month) || !Number.isFinite(day)) return gameDate;
 
+  const timeParts = (gameTime ?? '').split(':');
+  const hour = Number.parseInt(timeParts[0] ?? '', 10);
+  const minute = Number.parseInt(timeParts[1] ?? '', 10);
+  const second = Number.parseInt(timeParts[2] ?? '0', 10);
+
+  if (Number.isFinite(hour) && Number.isFinite(minute)) {
+    const utcDate = new Date(
+      Date.UTC(year, month - 1, day, hour, minute, Number.isFinite(second) ? second : 0)
+    );
+    const parts = new Intl.DateTimeFormat('en-US', {
+      timeZone: 'America/New_York',
+      weekday: 'short',
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true,
+    }).formatToParts(utcDate);
+
+    const part = (type: Intl.DateTimeFormatPartTypes) =>
+      parts.find((item) => item.type === type)?.value ?? '';
+
+    const dayName = part('weekday').toUpperCase();
+    const monthName = part('month');
+    const dayOfMonth = part('day');
+    const yearText = part('year');
+    const hourText = part('hour');
+    const minuteText = part('minute');
+    const ampm = part('dayPeriod').toUpperCase();
+
+    return `${dayName} • ${monthName} ${dayOfMonth}, ${yearText} • ${hourText}:${minuteText} ${ampm} ET`;
+  }
+
   const d = new Date(Date.UTC(year, month - 1, day));
   const dayNames = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
   const monthNames = [
@@ -285,18 +409,7 @@ function formatCardDateLabel(gameDate: string, gameTime: string | null): string 
   ];
   const dayName = dayNames[d.getUTCDay()] ?? '';
   const monthName = monthNames[month - 1] ?? '';
-  const datePart = `${monthName} ${day}, ${year}`;
-
-  const timeParts = (gameTime ?? '').split(':');
-  const hour = Number.parseInt(timeParts[0] ?? '', 10);
-  const minute = Number.parseInt(timeParts[1] ?? '', 10);
-  if (!Number.isFinite(hour) || !Number.isFinite(minute)) {
-    return `${dayName} • ${datePart}`;
-  }
-
-  const ampm = hour >= 12 ? 'PM' : 'AM';
-  const h12 = hour % 12 || 12;
-  return `${dayName} • ${datePart} • ${h12}:${String(minute).padStart(2, '0')} ${ampm} ET`;
+  return `${dayName} • ${monthName} ${day}, ${year}`;
 }
 
 export function GameCard({
@@ -304,6 +417,9 @@ export function GameCard({
   logoOverrides,
   showWeekTag = false,
   density = 'expanded',
+  awaySeed = null,
+  homeSeed = null,
+  injurySummary,
   onClick,
 }: GameCardProps) {
   const compact = density === 'compact';
@@ -351,6 +467,12 @@ export function GameCard({
   const awayLogoUrl = logoOverrides?.[awayTeamAbbr] ?? awayFallbackLogoUrl;
   const homeLogoUrl = logoOverrides?.[homeTeamAbbr] ?? homeFallbackLogoUrl;
   const gameDateTimeLabel = formatCardDateLabel(game.game_date, game.game_time);
+  const spread = spreadLabel(game);
+  const total = game.total != null ? formatOddsNumber(game.total) : null;
+  const homeMoneyline = game.home_moneyline != null ? formatMoneyline(game.home_moneyline) : null;
+  const awayMoneyline = game.away_moneyline != null ? formatMoneyline(game.away_moneyline) : null;
+  const hasOdds = Boolean(spread || total || homeMoneyline || awayMoneyline);
+  const restBadges = restBadgesByTeam(game);
   const leaderRows = LEADER_ROWS.map((row) => {
     const awayLeader = leaderForTeamCategory(leaders, awayTeamAbbr, row.category);
     const homeLeader = leaderForTeamCategory(leaders, homeTeamAbbr, row.category);
@@ -384,51 +506,88 @@ export function GameCard({
           flexWrap: 'wrap',
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-          <span
-            style={{
-              fontFamily: F.display,
-              fontSize: 10,
-              fontWeight: 700,
-              letterSpacing: '0.14em',
-              color: statusColor,
-              ...(statusInfo.variant === 'live' && { textShadow: `0 0 10px ${C.cyan}88` }),
-            }}
-          >
-            {statusInfo.variant === 'live' && (
-              <span
-                style={{
-                  display: 'inline-block',
-                  width: 6,
-                  height: 6,
-                  borderRadius: '50%',
-                  background: C.cyan,
-                  boxShadow: `0 0 6px ${C.cyan}`,
-                  marginRight: 6,
-                  verticalAlign: 'middle',
-                  marginBottom: 1,
-                }}
-              />
-            )}
-            {statusInfo.text}
-          </span>
-          {showWeekTag && (
+        <div style={{ display: 'grid', gap: 4, justifyItems: 'start', minWidth: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
             <span
               style={{
                 fontFamily: F.display,
-                fontSize: 9,
+                fontSize: 10,
                 fontWeight: 700,
-                letterSpacing: '0.1em',
-                color: C.cyan,
-                border: `1px solid rgba(0,229,255,0.28)`,
-                background: 'rgba(0,229,255,0.08)',
-                padding: '4px 7px',
-                borderRadius: 4,
-                textShadow: `0 0 8px ${C.cyan}44`,
+                letterSpacing: '0.14em',
+                color: statusColor,
+                ...(statusInfo.variant === 'live' && { textShadow: `0 0 10px ${C.cyan}88` }),
               }}
             >
-              {weekTagText}
+              {statusInfo.variant === 'live' && (
+                <span
+                  style={{
+                    display: 'inline-block',
+                    width: 6,
+                    height: 6,
+                    borderRadius: '50%',
+                    background: C.cyan,
+                    boxShadow: `0 0 6px ${C.cyan}`,
+                    marginRight: 6,
+                    verticalAlign: 'middle',
+                    marginBottom: 1,
+                  }}
+                />
+              )}
+              {statusInfo.text}
             </span>
+            {showWeekTag && (
+              <span
+                style={{
+                  fontFamily: F.display,
+                  fontSize: 9,
+                  fontWeight: 700,
+                  letterSpacing: '0.1em',
+                  color: C.cyan,
+                  border: `1px solid rgba(0,229,255,0.28)`,
+                  background: 'rgba(0,229,255,0.08)',
+                  padding: '4px 7px',
+                  borderRadius: 4,
+                  textShadow: `0 0 8px ${C.cyan}44`,
+                }}
+              >
+                {weekTagText}
+              </span>
+            )}
+            {game.is_division_game && (
+              <span
+                style={{
+                  fontFamily: F.display,
+                  fontSize: 9,
+                  fontWeight: 700,
+                  letterSpacing: '0.1em',
+                  padding: '4px 7px',
+                  borderRadius: 4,
+                  ...badgeToneStyle('cyan'),
+                }}
+              >
+                DIVISION
+              </span>
+            )}
+          </div>
+          {restBadges.away.length > 0 && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+              {restBadges.away.map((badge, idx) => (
+                <span
+                  key={`away-${badge.label}-${idx}`}
+                  style={{
+                    fontFamily: F.display,
+                    fontSize: 9,
+                    fontWeight: 700,
+                    letterSpacing: '0.1em',
+                    padding: '4px 7px',
+                    borderRadius: 4,
+                    ...badgeToneStyle(badge.tone),
+                  }}
+                >
+                  {badge.label}
+                </span>
+              ))}
+            </div>
           )}
         </div>
 
@@ -438,8 +597,30 @@ export function GameCard({
             minWidth: 0,
             maxWidth: '100%',
             textAlign: 'center',
+            display: 'grid',
+            gap: 2,
           }}
         >
+          {game.game_note && (
+            <span
+              style={{
+                fontFamily: F.display,
+                fontSize: 9,
+                fontWeight: 700,
+                letterSpacing: '0.1em',
+                color: C.amber,
+                textShadow: '0 0 8px rgba(255,177,0,0.26)',
+                whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                display: 'inline-block',
+                maxWidth: '100%',
+              }}
+              title={game.game_note}
+            >
+              {game.game_note}
+            </span>
+          )}
           <span
             style={{
               fontFamily: F.mono,
@@ -461,7 +642,7 @@ export function GameCard({
         <div
           style={{
             display: 'grid',
-            gap: 3,
+            gap: 4,
             justifySelf: 'end',
             justifyItems: 'end',
             minWidth: 0,
@@ -497,23 +678,25 @@ export function GameCard({
               )}
             </div>
           )}
-          {game.game_note && (
-            <span
-              style={{
-                fontFamily: F.mono,
-                fontSize: 10,
-                color: C.amber,
-                letterSpacing: '0.05em',
-                textAlign: 'right',
-                maxWidth: '100%',
-                whiteSpace: 'nowrap',
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-              }}
-              title={game.game_note}
-            >
-              {game.game_note}
-            </span>
+          {restBadges.home.length > 0 && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+              {restBadges.home.map((badge, idx) => (
+                <span
+                  key={`home-${badge.label}-${idx}`}
+                  style={{
+                    fontFamily: F.display,
+                    fontSize: 9,
+                    fontWeight: 700,
+                    letterSpacing: '0.1em',
+                    padding: '4px 7px',
+                    borderRadius: 4,
+                    ...badgeToneStyle(badge.tone),
+                  }}
+                >
+                  {badge.label}
+                </span>
+              ))}
+            </div>
           )}
         </div>
       </div>
@@ -540,10 +723,11 @@ export function GameCard({
               isLoser={awayLoser}
             />
           </div>
-          <div style={{ gridColumn: '2 / 4', gridRow: 1, minWidth: 0, alignSelf: 'start' }}>
+          <div style={{ gridColumn: '2 / 3', gridRow: 1, minWidth: 0, alignSelf: 'start' }}>
             <TeamMeta
               name={awayLabel}
               record={game.away_record}
+              seed={awaySeed}
               align="left"
               isDimmed={winner === 'home'}
               hasPossession={game.possession_team === game.away_team}
@@ -566,10 +750,26 @@ export function GameCard({
               compact={compact}
             />
           </div>
-          <div style={{ gridColumn: '4 / 6', gridRow: 1, minWidth: 0, alignSelf: 'start' }}>
+          <div
+            style={{
+              gridColumn: '3 / 5',
+              gridRow: 1,
+              justifySelf: 'center',
+              alignSelf: 'center',
+              fontFamily: F.display,
+              fontSize: compact ? 10 : 11,
+              fontWeight: 700,
+              letterSpacing: '0.12em',
+              color: C.textMuted,
+            }}
+          >
+            AT
+          </div>
+          <div style={{ gridColumn: '5 / 6', gridRow: 1, minWidth: 0, alignSelf: 'start' }}>
             <TeamMeta
               name={homeLabel}
               record={game.home_record}
+              seed={homeSeed}
               align="right"
               isDimmed={winner === 'away'}
               hasPossession={game.possession_team === game.home_team}
@@ -644,27 +844,141 @@ export function GameCard({
         </div>
       )}
 
-      {/* Scheduled context: venue + spread */}
-      {isScheduled && (game.spread != null || game.venue_name) && (
+      {/* Odds + matchup context */}
+      {(hasOdds || injurySummary || game.venue_name) && (
         <div
           style={{
-            padding: '8px 16px 9px',
-            display: 'flex',
-            gap: 16,
+            padding: compact ? '7px 12px 8px' : '8px 16px 10px',
+            display: 'grid',
+            gap: 8,
             borderTop: `1px solid rgba(0,229,255,0.06)`,
-            flexWrap: 'wrap',
           }}
         >
           {game.venue_name && (
-            <span style={{ fontFamily: F.mono, fontSize: 11, color: C.textMuted }}>
-              {game.venue_name}
-            </span>
+            <div style={{ display: 'flex', justifyContent: 'center' }}>
+              <span
+                style={{
+                  fontFamily: F.mono,
+                  fontSize: 10,
+                  color: C.green,
+                  letterSpacing: '0.05em',
+                  textShadow: '0 0 6px rgba(0,230,118,0.2)',
+                  whiteSpace: 'nowrap',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  maxWidth: '100%',
+                }}
+                title={game.venue_name}
+              >
+                {game.venue_name}
+              </span>
+            </div>
           )}
-          {game.spread != null && (
-            <span style={{ fontFamily: F.mono, fontSize: 11, color: C.textMuted }}>
-              {game.away_team_detail.abbreviation}{' '}
-              {game.spread > 0 ? `+${game.spread}` : game.spread}
-            </span>
+          {hasOdds && (
+            <div
+              style={{
+                display: 'flex',
+                flexWrap: 'wrap',
+                gap: compact ? 10 : 12,
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              {spread && (
+                <span style={{ fontFamily: F.mono, fontSize: 11, color: C.textMuted }}>
+                  SPREAD {spread}
+                </span>
+              )}
+              {total && (
+                <span style={{ fontFamily: F.mono, fontSize: 11, color: C.textMuted }}>
+                  O/U {total}
+                </span>
+              )}
+              {awayMoneyline && homeMoneyline && (
+                <span style={{ fontFamily: F.mono, fontSize: 11, color: C.textMuted }}>
+                  ML {game.away_team_detail.abbreviation} {awayMoneyline} ·{' '}
+                  {game.home_team_detail.abbreviation} {homeMoneyline}
+                </span>
+              )}
+            </div>
+          )}
+          {injurySummary && (injurySummary.awayCount > 0 || injurySummary.homeCount > 0) && (
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+                gap: compact ? 8 : 12,
+              }}
+            >
+              <div style={{ minWidth: 0 }}>
+                <div
+                  style={{
+                    fontFamily: F.display,
+                    fontSize: 9,
+                    fontWeight: 700,
+                    letterSpacing: '0.1em',
+                    color: C.amber,
+                  }}
+                >
+                  {game.away_team_detail.abbreviation} INJURY FLAGS
+                </div>
+                <div
+                  style={{
+                    marginTop: 2,
+                    fontFamily: F.mono,
+                    fontSize: 10,
+                    color: C.textDim,
+                    whiteSpace: 'nowrap',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                  }}
+                  title={
+                    injurySummary.awayFlags.length > 0
+                      ? injurySummary.awayFlags.join(' · ')
+                      : `${injurySummary.awayCount} flagged`
+                  }
+                >
+                  {injurySummary.awayFlags.length > 0
+                    ? injurySummary.awayFlags.join(' · ')
+                    : `${injurySummary.awayCount} flagged`}
+                </div>
+              </div>
+              <div style={{ minWidth: 0 }}>
+                <div
+                  style={{
+                    fontFamily: F.display,
+                    fontSize: 9,
+                    fontWeight: 700,
+                    letterSpacing: '0.1em',
+                    color: C.amber,
+                    textAlign: 'right',
+                  }}
+                >
+                  {game.home_team_detail.abbreviation} INJURY FLAGS
+                </div>
+                <div
+                  style={{
+                    marginTop: 2,
+                    fontFamily: F.mono,
+                    fontSize: 10,
+                    color: C.textDim,
+                    textAlign: 'right',
+                    whiteSpace: 'nowrap',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                  }}
+                  title={
+                    injurySummary.homeFlags.length > 0
+                      ? injurySummary.homeFlags.join(' · ')
+                      : `${injurySummary.homeCount} flagged`
+                  }
+                >
+                  {injurySummary.homeFlags.length > 0
+                    ? injurySummary.homeFlags.join(' · ')
+                    : `${injurySummary.homeCount} flagged`}
+                </div>
+              </div>
+            </div>
           )}
         </div>
       )}

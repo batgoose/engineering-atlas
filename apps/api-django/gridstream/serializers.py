@@ -508,6 +508,8 @@ class GameListSerializer(serializers.ModelSerializer):
             # Context
             "home_record",
             "away_record",
+            "home_rest",
+            "away_rest",
             "home_coach",
             "away_coach",
             "home_qb_name",
@@ -535,6 +537,8 @@ class GameDetailSerializer(GameListSerializer):
         fields = GameListSerializer.Meta.fields + [
             "pfr_game_id",
             "venue_detail",
+            "attendance",
+            "referee",
             "weather_humidity",
             "weather_detail",
             "weather_condition_id",
@@ -679,6 +683,8 @@ class PlayDetailSerializer(PlaySerializer):
             "punt_returner_player_id",
             "kickoff_returner_player_name",
             "kickoff_returner_player_id",
+            "blocked_player_name",
+            "blocked_player_id",
             "interception_player_name",
             "interception_player_id",
             "fumble_recovery_1_player_name",

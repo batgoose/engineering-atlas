@@ -8,19 +8,40 @@
  * and muted-blue temperature colour so players know the conditions at a glance.
  */
 
-import type { WeatherState } from '@atlas/sdk/gridstream/types';
+import type { GameOfficialInfo, WeatherState } from '@atlas/sdk/gridstream/types';
 import { gridstreamColors as C, gridstreamFonts as F } from '@atlas/sdk/gridstream/theme';
 
 interface EnvironmentPanelProps {
   weather: WeatherState;
+  attendance?: number | null;
+  referee?: string;
+  officials?: GameOfficialInfo[];
 }
 
-export function EnvironmentPanel({ weather }: EnvironmentPanelProps) {
+export function EnvironmentPanel({
+  weather,
+  attendance,
+  referee,
+  officials,
+}: EnvironmentPanelProps) {
   const windText = (weather.wind ?? '').trim();
   const cond = weather.condition.toLowerCase();
   const isSnow = cond.includes('snow');
   const isRain = cond.includes('rain');
   const isAdverse = isSnow || isRain;
+  const attendanceText =
+    typeof attendance === 'number' && Number.isFinite(attendance)
+      ? Math.max(0, Math.round(attendance)).toLocaleString('en-US')
+      : '';
+  const officialRows = (officials ?? []).filter((official) => (official.name ?? '').trim().length);
+  const inferredReferee =
+    officialRows.find((official) => /ref/i.test(official.position ?? ''))?.name?.trim() ?? '';
+  const refereeName = referee?.trim() || inferredReferee;
+  const contextItems = [
+    attendanceText ? { label: 'ATT', value: attendanceText } : null,
+    refereeName ? { label: 'REF', value: refereeName } : null,
+    officialRows.length > 0 ? { label: 'OFF', value: `${officialRows.length}` } : null,
+  ].filter(Boolean) as Array<{ label: string; value: string }>;
 
   const adverseAccent = isSnow ? '#b8d4f8' : '#7eb8f0';
   const adverseBorder = isSnow ? 'rgba(184,212,248,.22)' : 'rgba(126,184,240,.22)';
@@ -53,101 +74,163 @@ export function EnvironmentPanel({ weather }: EnvironmentPanelProps) {
           </span>
         )}
       </div>
-      {weather.isIndoor ? (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 2 }}>
-          <svg width="28" height="20" viewBox="0 0 28 20" fill="none" aria-hidden="true">
-            {/* dome arch */}
-            <path
-              d="M2 19 Q2 2 14 2 Q26 2 26 19"
-              stroke="#00e5ff"
-              strokeWidth="1.4"
-              strokeOpacity="0.5"
-              fill="none"
-            />
-            {/* floor */}
-            <line
-              x1="2"
-              y1="19"
-              x2="26"
-              y2="19"
-              stroke="#00e5ff"
-              strokeWidth="1"
-              strokeOpacity="0.3"
-            />
-            {/* inner glow lines */}
-            <path
-              d="M6 19 Q6 7 14 7 Q22 7 22 19"
-              stroke="#00e5ff"
-              strokeWidth="0.8"
-              strokeOpacity="0.2"
-              fill="none"
-            />
-          </svg>
-          <div>
-            <div
-              style={{
-                fontFamily: F.display,
-                fontSize: 18,
-                fontWeight: 800,
-                color: C.textBright,
-                lineHeight: 1,
-              }}
-            >
-              DOME
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: contextItems.length > 0 ? 'minmax(0,1fr) minmax(118px, 44%)' : '1fr',
+          columnGap: 12,
+          alignItems: 'start',
+        }}
+      >
+        <div>
+          {weather.isIndoor ? (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 2 }}>
+              <svg width="28" height="20" viewBox="0 0 28 20" fill="none" aria-hidden="true">
+                {/* dome arch */}
+                <path
+                  d="M2 19 Q2 2 14 2 Q26 2 26 19"
+                  stroke="#00e5ff"
+                  strokeWidth="1.4"
+                  strokeOpacity="0.5"
+                  fill="none"
+                />
+                {/* floor */}
+                <line
+                  x1="2"
+                  y1="19"
+                  x2="26"
+                  y2="19"
+                  stroke="#00e5ff"
+                  strokeWidth="1"
+                  strokeOpacity="0.3"
+                />
+                {/* inner glow lines */}
+                <path
+                  d="M6 19 Q6 7 14 7 Q22 7 22 19"
+                  stroke="#00e5ff"
+                  strokeWidth="0.8"
+                  strokeOpacity="0.2"
+                  fill="none"
+                />
+              </svg>
+              <div>
+                <div
+                  style={{
+                    fontFamily: F.display,
+                    fontSize: 18,
+                    fontWeight: 800,
+                    color: C.textBright,
+                    lineHeight: 1,
+                  }}
+                >
+                  DOME
+                </div>
+                <div
+                  style={{
+                    fontFamily: F.body,
+                    fontSize: 11,
+                    color: C.textDim,
+                    marginTop: 2,
+                    letterSpacing: '.04em',
+                  }}
+                >
+                  Climate Controlled
+                </div>
+              </div>
             </div>
+          ) : (
+            <>
+              <div
+                style={{
+                  fontFamily: F.display,
+                  fontSize: 24,
+                  fontWeight: 800,
+                  color: isAdverse ? adverseAccent : C.textBright,
+                  lineHeight: 1,
+                }}
+              >
+                {`${weather.temperature}\u00b0F`}
+              </div>
+              <div
+                style={{
+                  fontFamily: F.body,
+                  fontSize: 14,
+                  fontWeight: 600,
+                  color: isAdverse ? adverseAccent : C.text,
+                  marginTop: 4,
+                }}
+              >
+                {weather.condition}
+              </div>
+            </>
+          )}
+          {!weather.isIndoor && windText.length > 0 && (
             <div
               style={{
-                fontFamily: F.body,
+                fontFamily: F.mono,
                 fontSize: 11,
-                color: C.textDim,
+                color: isAdverse ? adverseAccent : C.textDim,
+                letterSpacing: '.06em',
                 marginTop: 2,
-                letterSpacing: '.04em',
+                opacity: 0.8,
               }}
             >
-              Climate Controlled
+              WIND {windText}
             </div>
-          </div>
+          )}
         </div>
-      ) : (
-        <>
+        {contextItems.length > 0 && (
           <div
             style={{
-              fontFamily: F.display,
-              fontSize: 24,
-              fontWeight: 800,
-              color: isAdverse ? adverseAccent : C.textBright,
-              lineHeight: 1,
+              minWidth: 0,
+              borderLeft: `1px solid ${C.panelBorder}`,
+              paddingLeft: 10,
+              display: 'grid',
+              gap: 6,
             }}
           >
-            {`${weather.temperature}\u00b0F`}
+            {contextItems.map((item) => (
+              <div
+                key={item.label}
+                style={{
+                  display: 'flex',
+                  alignItems: 'baseline',
+                  gap: 6,
+                  minWidth: 0,
+                }}
+              >
+                <span
+                  style={{
+                    fontFamily: F.mono,
+                    fontSize: 8,
+                    color: C.textMuted,
+                    letterSpacing: '.12em',
+                    textTransform: 'uppercase',
+                    flexShrink: 0,
+                  }}
+                >
+                  {item.label}
+                </span>
+                <span
+                  style={{
+                    fontFamily: F.mono,
+                    fontSize: 11,
+                    color: C.textDim,
+                    letterSpacing: '.04em',
+                    whiteSpace: 'nowrap',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    minWidth: 0,
+                  }}
+                  title={item.value}
+                >
+                  {item.value}
+                </span>
+              </div>
+            ))}
           </div>
-          <div
-            style={{
-              fontFamily: F.body,
-              fontSize: 14,
-              fontWeight: 600,
-              color: isAdverse ? adverseAccent : C.text,
-              marginTop: 4,
-            }}
-          >
-            {weather.condition}
-          </div>
-        </>
-      )}
-      {!weather.isIndoor && windText.length > 0 && (
-        <div
-          style={{
-            fontFamily: F.mono,
-            fontSize: 11,
-            color: isAdverse ? adverseAccent : C.textDim,
-            letterSpacing: '.06em',
-            marginTop: 2,
-            opacity: 0.8,
-          }}
-        >
-          WIND {windText}
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 }

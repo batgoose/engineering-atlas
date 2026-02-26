@@ -4,6 +4,7 @@ import pytest
 from datetime import date
 from django.test import override_settings
 from django.urls import reverse
+from django.db import connections
 from rest_framework import status
 
 pytestmark = [
@@ -537,3 +538,160 @@ class TestGameBoxscore:
         assert resp.data["completeness"]["team_stats_complete"] is False
         assert resp.data["completeness"]["team_stats_source"] == "db"
         assert len(resp.data["team_stats"]) == 1
+
+
+# =============================================================================
+# PERSONNEL
+# =============================================================================
+
+
+def _ensure_personnel_raw_tables():
+    with connections["nfl"].cursor() as cursor:
+        cursor.execute("CREATE SCHEMA IF NOT EXISTS raw")
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS raw.raw_nflverse_snap_counts (
+                id BIGSERIAL PRIMARY KEY,
+                batch_id BIGINT NULL,
+                season INTEGER,
+                week INTEGER,
+                game_id TEXT,
+                team TEXT,
+                player_id TEXT,
+                player_name TEXT,
+                offense_snaps INTEGER,
+                defense_snaps INTEGER,
+                special_snaps INTEGER,
+                payload JSONB NOT NULL,
+                ingested_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+            )
+            """)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS raw.raw_nflverse_depth_charts (
+                id BIGSERIAL PRIMARY KEY,
+                batch_id BIGINT NULL,
+                season INTEGER,
+                week INTEGER,
+                team TEXT,
+                player_id TEXT,
+                player_name TEXT,
+                position TEXT,
+                depth_rank INTEGER,
+                payload JSONB NOT NULL,
+                ingested_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+            )
+            """)
+        cursor.execute("DELETE FROM raw.raw_nflverse_snap_counts")
+        cursor.execute("DELETE FROM raw.raw_nflverse_depth_charts")
+
+
+class TestGamePersonnel:
+    def test_personnel_uses_snap_counts_when_available(
+        self,
+        api_client,
+        game_final,
+        player_qb,
+        player_wr,
+        team_sea,
+        team_was,
+    ):
+        _ensure_personnel_raw_tables()
+
+        with connections["nfl"].cursor() as cursor:
+            cursor.execute(
+                """
+                INSERT INTO raw.raw_nflverse_snap_counts (
+                    season, week, game_id, team, player_id, player_name,
+                    offense_snaps, defense_snaps, special_snaps, payload
+                ) VALUES
+                    (%s, %s, %s, %s, %s, %s, %s, 0, %s, %s::jsonb),
+                    (%s, %s, %s, %s, %s, %s, %s, 0, 0, %s::jsonb)
+                """,
+                [
+                    2024,
+                    1,
+                    game_final.nflverse_game_id,
+                    "SEA",
+                    player_qb.pfr_id,
+                    player_qb.display_name,
+                    62,
+                    5,
+                    '{"position":"QB","offense_pct":"1.0","st_pct":"0.08"}',
+                    2024,
+                    1,
+                    game_final.nflverse_game_id,
+                    "SEA",
+                    player_wr.gsis_id,
+                    player_wr.display_name,
+                    40,
+                    '{"position":"WR","offense_pct":"0.64"}',
+                ],
+            )
+            cursor.execute(
+                """
+                INSERT INTO raw.raw_nflverse_depth_charts (
+                    season, week, team, player_id, player_name, position, depth_rank, payload
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s::jsonb)
+                """,
+                [
+                    2024,
+                    1,
+                    "SEA",
+                    player_qb.gsis_id,
+                    player_qb.display_name,
+                    "QB",
+                    1,
+                    '{"depth_position":"QB"}',
+                ],
+            )
+
+        url = reverse("game-personnel", kwargs={"pk": game_final.pk})
+        resp = api_client.get(url)
+
+        assert resp.status_code == status.HTTP_200_OK
+        assert resp.data["source"] == "snap_counts"
+        assert resp.data["season"] == 2024
+        assert resp.data["week"] == 1
+
+        away = resp.data["away"]
+        home = resp.data["home"]
+        assert away["team_abbr"] == team_was.abbreviation
+        assert home["team_abbr"] == team_sea.abbreviation
+        assert home["total_offense_snaps"] == 62
+
+        sea_players = home["players"]
+        assert len(sea_players) == 2
+        qb_row = next(
+            row for row in sea_players if row["player_name"] == player_qb.display_name
+        )
+        assert qb_row["position"] == "QB"
+        assert qb_row["offense_snaps"] == 62
+        assert qb_row["special_snaps"] == 5
+        assert qb_row["offense_snap_pct"] == 100.0
+        assert qb_row["depth_chart_position"] == "QB"
+
+    def test_personnel_falls_back_to_player_stats_when_raw_snap_counts_missing(
+        self,
+        api_client,
+        game_final,
+        player_game_stats_qb,
+        player_game_stats_wr,
+        team_sea,
+        team_was,
+    ):
+        _ensure_personnel_raw_tables()
+
+        url = reverse("game-personnel", kwargs={"pk": game_final.pk})
+        resp = api_client.get(url)
+
+        assert resp.status_code == status.HTTP_200_OK
+        assert resp.data["source"] == "player_stats_fallback"
+        assert resp.data["away"]["team_abbr"] == team_was.abbreviation
+        assert resp.data["home"]["team_abbr"] == team_sea.abbreviation
+        assert len(resp.data["home"]["players"]) >= 2
+        geno = next(
+            row
+            for row in resp.data["home"]["players"]
+            if row["player_name"] == "Geno Smith"
+        )
+        assert geno["offense_snaps"] == 0
+        assert geno["total_snap_pct"] is None

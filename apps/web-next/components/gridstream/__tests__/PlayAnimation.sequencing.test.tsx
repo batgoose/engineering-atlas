@@ -31,7 +31,9 @@ function _parseTranslateXY(transform: string | null): { x: number; y: number } |
   };
 }
 
-function parseLinearPath(path: string | null): { x1: number; y1: number; x2: number; y2: number } | null {
+function parseLinearPath(
+  path: string | null
+): { x1: number; y1: number; x2: number; y2: number } | null {
   if (!path) return null;
   const match = path.match(
     /^M\s*(-?\d+(?:\.\d+)?),\s*(-?\d+(?:\.\d+)?)\s+L\s*(-?\d+(?:\.\d+)?),\s*(-?\d+(?:\.\d+)?)$/

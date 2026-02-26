@@ -84,6 +84,9 @@ function createDefaultState(): LiveGameState {
       humidity: undefined,
       isIndoor: false,
     },
+    attendance: null,
+    referee: '',
+    officials: [],
     network: '',
     spread: null,
     wpTimeline: [],
@@ -101,6 +104,7 @@ function createDefaultState(): LiveGameState {
     awayTimeouts: 3,
     teamStats: null,
     leaders: null,
+    personnel: null,
     scoring: [],
   };
 }
@@ -255,6 +259,12 @@ class GridStreamStore {
         wind: ctx.weatherWind ?? '',
         isIndoor: ctx.isIndoor,
       },
+      attendance:
+        typeof ctx.attendance === 'number' && Number.isFinite(ctx.attendance)
+          ? Math.max(0, Math.round(ctx.attendance))
+          : null,
+      referee: (ctx.referee ?? '').trim(),
+      officials: ctx.officials ?? [],
       network: ctx.network ?? '',
       spread: ctx.spread ?? null,
       awayWinPct: 50,

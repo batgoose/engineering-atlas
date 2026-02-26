@@ -1271,6 +1271,8 @@ class Play(models.Model):
     punt_returner_player_id = models.CharField(max_length=20, blank=True)
     kickoff_returner_player_name = models.CharField(max_length=60, blank=True)
     kickoff_returner_player_id = models.CharField(max_length=20, blank=True)
+    blocked_player_name = models.CharField(max_length=60, blank=True)
+    blocked_player_id = models.CharField(max_length=20, blank=True)
     interception_player_name = models.CharField(max_length=60, blank=True)
     interception_player_id = models.CharField(max_length=20, blank=True)
     fumble_recovery_1_player_name = models.CharField(max_length=60, blank=True)

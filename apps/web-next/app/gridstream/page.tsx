@@ -14,6 +14,7 @@
  *   GET /games/{id}/plays/
  *   GET /games/{id}/drives/
  *   GET /games/{id}/boxscore/
+ *   GET /games/{id}/personnel/
  */
 
 import { useSearchParams } from 'next/navigation';
@@ -35,6 +36,8 @@ import type {
   ApiPlayDetail,
   ApiDrive,
   ApiBoxscore,
+  ApiGamePersonnel,
+  ApiPlayerGameStats,
 } from '@atlas/sdk/gridstream/api-transforms';
 import {
   mapTeamStats,
@@ -98,10 +101,67 @@ interface TeamRosterPlayer {
   headshot_url?: string;
 }
 
+interface TeamRosterHydrationData {
+  headshotsByName: Map<string, string>;
+  displayNameByShortKey: Map<string, string>;
+}
+
 export interface QuarterJump {
   key: 'q1' | 'q2' | 'q3' | 'q4' | 'ot';
   label: string;
   index: number | null;
+}
+
+function normalizePersonnelPct(value: number | null | undefined): number | null {
+  if (value == null || !Number.isFinite(value)) return null;
+  const normalized = Math.abs(value) <= 1 ? value * 100 : value;
+  return Math.max(0, Math.min(100, normalized));
+}
+
+function mapPersonnelFromApi(
+  personnel: ApiGamePersonnel | null,
+  awayAbbr: string,
+  homeAbbr: string
+): LiveGameState['personnel'] {
+  if (!personnel) return null;
+  const mapPlayer = (player: ApiGamePersonnel['away']['players'][number]) => ({
+    playerId: player.player_id ?? undefined,
+    playerName: player.player_name,
+    displayName: player.display_name ?? undefined,
+    headshotUrl: player.headshot_url ?? undefined,
+    jerseyNumber: player.jersey_number ?? undefined,
+    position: player.position ?? undefined,
+    positionGroup: player.position_group ?? undefined,
+    rosterStatus: player.roster_status ?? undefined,
+    depthChartPosition: player.depth_chart_position ?? undefined,
+    depthRank: player.depth_rank,
+    offenseSnaps: safeInt(player.offense_snaps, 0),
+    defenseSnaps: safeInt(player.defense_snaps, 0),
+    specialSnaps: safeInt(player.special_snaps, 0),
+    totalSnaps: safeInt(player.total_snaps, 0),
+    offenseSnapPct: normalizePersonnelPct(player.offense_snap_pct),
+    defenseSnapPct: normalizePersonnelPct(player.defense_snap_pct),
+    specialSnapPct: normalizePersonnelPct(player.special_snap_pct),
+    totalSnapPct: normalizePersonnelPct(player.total_snap_pct),
+  });
+  const mapTeam = (
+    team: ApiGamePersonnel['away'] | ApiGamePersonnel['home'],
+    fallbackAbbr: string
+  ) => ({
+    teamAbbr: normalizeAbbr(team.team_abbr) || fallbackAbbr,
+    totalOffenseSnaps: safeInt(team.total_offense_snaps, 0),
+    totalDefenseSnaps: safeInt(team.total_defense_snaps, 0),
+    totalSpecialSnaps: safeInt(team.total_special_snaps, 0),
+    totalSnaps: safeInt(team.total_snaps, 0),
+    players: (team.players ?? []).map(mapPlayer),
+  });
+  return {
+    source: personnel.source ?? 'empty',
+    season: personnel.season ?? null,
+    week: personnel.week ?? null,
+    away: mapTeam(personnel.away, awayAbbr),
+    home: mapTeam(personnel.home, homeAbbr),
+  };
 }
 
 function cloneState(state: LiveGameState): LiveGameState {
@@ -190,22 +250,81 @@ function normalizeEpaValue(value: number | null | undefined): number | null {
   return value;
 }
 
-function resolveAwayWinPctFromPlay(play: ApiPlayDetail, fallback: number): number {
+interface AwayWinProbSample {
+  wp: number;
+  wpLow?: number;
+  wpHigh?: number;
+  source: 'model' | 'fallback';
+}
+
+function resolveWpBandHalfWidth(
+  modelAwayWp: number,
+  vegasAwayWp: number | null,
+  quarter: number,
+  clock: string
+): number {
+  const q = Math.max(1, quarter);
+  const timing = computeGameProgress(q, normalizeClock(clock, '15:00'), q > 4);
+  const gameProgress = Math.max(0, Math.min(1, timing.elapsedMin / Math.max(1, timing.totalMin)));
+  const base = 7 - gameProgress * 4.5;
+  const disagreement = vegasAwayWp == null ? 0 : Math.abs(modelAwayWp - vegasAwayWp) * 0.35;
+  return Math.max(2, Math.min(16, base + disagreement));
+}
+
+function resolveAwayWinProbSampleFromPlay(
+  play: ApiPlayDetail,
+  fallback: number
+): AwayWinProbSample {
   const awayWp = normalizeWinProbabilityValue(play.away_wp);
-  if (awayWp != null) return awayWp;
+  const vegasHomeWp = normalizeWinProbabilityValue(play.vegas_home_wp);
+  const vegasAwayWp =
+    vegasHomeWp != null
+      ? clampWinPct(100 - vegasHomeWp)
+      : normalizeWinProbabilityValue(play.vegas_wp);
+  if (awayWp != null) {
+    const spread = resolveWpBandHalfWidth(
+      awayWp,
+      vegasAwayWp,
+      safeInt(play.quarter, 1),
+      normalizeClock(play.clock, '15:00')
+    );
+    return {
+      wp: awayWp,
+      wpLow: clampWinPct(awayWp - spread),
+      wpHigh: clampWinPct(awayWp + spread),
+      source: 'model',
+    };
+  }
   const homeWp = normalizeWinProbabilityValue(play.home_wp);
-  if (homeWp != null) return clampWinPct(100 - homeWp);
+  if (homeWp != null) {
+    const convertedAway = clampWinPct(100 - homeWp);
+    const spread = resolveWpBandHalfWidth(
+      convertedAway,
+      vegasAwayWp,
+      safeInt(play.quarter, 1),
+      normalizeClock(play.clock, '15:00')
+    );
+    return {
+      wp: convertedAway,
+      wpLow: clampWinPct(convertedAway - spread),
+      wpHigh: clampWinPct(convertedAway + spread),
+      source: 'model',
+    };
+  }
   const quarter = safeInt(play.quarter, 0);
   if (quarter > 0) {
-    return estimateAwayWinPct(
-      safeInt(play.away_score_after),
-      safeInt(play.home_score_after),
-      quarter,
-      normalizeClock(play.clock, '15:00'),
-      false
-    );
+    return {
+      wp: estimateAwayWinPct(
+        safeInt(play.away_score_after),
+        safeInt(play.home_score_after),
+        quarter,
+        normalizeClock(play.clock, '15:00'),
+        false
+      ),
+      source: 'fallback',
+    };
   }
-  return fallback;
+  return { wp: clampWinPct(fallback), source: 'fallback' };
 }
 
 function resolveFinalAwayWinPct(awayScore: number, homeScore: number): number {
@@ -221,6 +340,79 @@ function teamAbbrFromPossessionId(detail: ApiGameDetailExtended): string {
   if (detail.possession_team === detail.home_team_detail.id)
     return normalizeAbbr(detail.home_team_detail.abbreviation);
   return '';
+}
+
+function normalizeTimeoutCount(value: number | null | undefined): number | null {
+  if (value == null || !Number.isFinite(value)) return null;
+  return Math.max(0, Math.min(3, Math.round(value)));
+}
+
+function titleCaseWords(value: string): string {
+  return value
+    .split(' ')
+    .filter(Boolean)
+    .map((token) => token.charAt(0).toUpperCase() + token.slice(1).toLowerCase())
+    .join(' ');
+}
+
+function normalizeDriveStartTransition(raw: string | null | undefined): string {
+  const cleaned = (raw ?? '').replace(/[_-]+/g, ' ').trim();
+  if (!cleaned) return '';
+  if (/^following\s+/i.test(cleaned) || /^after\s+/i.test(cleaned)) {
+    return titleCaseWords(cleaned);
+  }
+  if (/turnover on downs/i.test(cleaned)) return 'After Turnover on Downs';
+  if (/interception|int\b/i.test(cleaned)) {
+    return 'Following INT';
+  }
+  if (/\bturnover\b/i.test(cleaned)) return 'Following Turnover';
+  if (/punt/i.test(cleaned)) return 'After Punt';
+  if (/kickoff/i.test(cleaned)) return 'After Kickoff';
+  if (/field goal|fg/i.test(cleaned)) return 'After FG';
+  if (/fumble/i.test(cleaned)) return 'Following Fumble';
+  return `Following ${titleCaseWords(cleaned)}`;
+}
+
+function isPassEpaPlay(play: ApiPlayDetail): boolean {
+  if (play.pass_attempt) return true;
+  const rawType = (play.play_type ?? '').toLowerCase();
+  return rawType === 'pass' || Boolean(play.sack);
+}
+
+function isRushEpaPlay(play: ApiPlayDetail): boolean {
+  if (play.rush_attempt) return true;
+  const rawType = (play.play_type ?? '').toLowerCase();
+  return rawType === 'run' || rawType === 'qb_kneel' || rawType === 'qb_spike';
+}
+
+function resolveDriveStartSpot(
+  driveMeta: ApiDrive | undefined,
+  driveStartPlay: ApiPlayDetail | undefined,
+  fallbackPlay: ApiPlayDetail | undefined,
+  driveTeam: string,
+  awayAbbr: string,
+  homeAbbr: string
+): { side: string; yardLine: number } {
+  if (driveMeta?.start_yardline != null && Number.isFinite(driveMeta.start_yardline)) {
+    return normalizeDriveStart(driveMeta.start_yardline, driveTeam, awayAbbr, homeAbbr);
+  }
+  if (driveStartPlay) {
+    return yardline100ToDisplay(
+      driveStartPlay.yard_line,
+      driveStartPlay.possession_team_abbr ?? driveTeam,
+      awayAbbr,
+      homeAbbr
+    );
+  }
+  if (fallbackPlay) {
+    return yardline100ToDisplay(
+      fallbackPlay.yard_line,
+      fallbackPlay.possession_team_abbr ?? driveTeam,
+      awayAbbr,
+      homeAbbr
+    );
+  }
+  return yardline100ToDisplay(null, driveTeam, awayAbbr, homeAbbr);
 }
 
 function mapTeamStatsFromPlays(
@@ -404,6 +596,80 @@ function buildScoringMarkers(detail: ApiGameDetailExtended): TimelineScoringMark
     );
 }
 
+function deriveScoringTimelineFromPlays(
+  plays: ApiPlayDetail[],
+  awayAbbr: string,
+  homeAbbr: string
+): Array<{
+  sequence: number;
+  entry: { q: number; team: string; desc: string; awayScore: number; homeScore: number };
+}> {
+  if (plays.length === 0) return [];
+  const derived: Array<{
+    sequence: number;
+    entry: { q: number; team: string; desc: string; awayScore: number; homeScore: number };
+  }> = [];
+  let awayRunning = 0;
+  let homeRunning = 0;
+  for (const play of plays) {
+    const awayAfter = Math.max(awayRunning, safeInt(play.away_score_after, awayRunning));
+    const homeAfter = Math.max(homeRunning, safeInt(play.home_score_after, homeRunning));
+    const awayDelta = awayAfter - awayRunning;
+    const homeDelta = homeAfter - homeRunning;
+    if (awayDelta > 0 || homeDelta > 0) {
+      const inferredTeam =
+        awayDelta > homeDelta
+          ? awayAbbr
+          : homeDelta > awayDelta
+            ? homeAbbr
+            : normalizeAbbr(play.possession_team_abbr) || '';
+      derived.push({
+        sequence: safeInt(play.sequence, derived.length + 1),
+        entry: {
+          q: Math.max(1, safeInt(play.quarter, 1)),
+          team: inferredTeam,
+          desc: (play.short_description || play.description || `${inferredTeam || 'TEAM'} scores`)
+            .replace(/\s+/g, ' ')
+            .trim(),
+          awayScore: awayAfter,
+          homeScore: homeAfter,
+        },
+      });
+    }
+    awayRunning = awayAfter;
+    homeRunning = homeAfter;
+  }
+  return derived;
+}
+
+function mergeScoringTimelines(
+  canonical: Array<{
+    sequence: number;
+    entry: { q: number; team: string; desc: string; awayScore: number; homeScore: number };
+  }>,
+  derived: Array<{
+    sequence: number;
+    entry: { q: number; team: string; desc: string; awayScore: number; homeScore: number };
+  }>
+): Array<{
+  sequence: number;
+  entry: { q: number; team: string; desc: string; awayScore: number; homeScore: number };
+}> {
+  if (canonical.length === 0) return derived;
+  if (derived.length === 0) return canonical;
+  const seenScoreKey = new Set(
+    canonical.map((item) => `${item.entry.awayScore}-${item.entry.homeScore}`)
+  );
+  const merged = [...canonical];
+  for (const item of derived) {
+    const scoreKey = `${item.entry.awayScore}-${item.entry.homeScore}`;
+    if (seenScoreKey.has(scoreKey)) continue;
+    merged.push(item);
+    seenScoreKey.add(scoreKey);
+  }
+  return merged.sort((a, b) => a.sequence - b.sequence);
+}
+
 function resolveInitialPlayIndex(
   playParam: string | null,
   playSeqParam: string | null,
@@ -518,10 +784,26 @@ async function fetchAllPlays(gameId: string, signal: AbortSignal): Promise<ApiPl
   return [...bySequence.values()].sort((a, b) => a.sequence - b.sequence);
 }
 
-async function fetchTeamRosterHeadshots(
+function registerDisplayNameAlias(
+  displayNameByShortKey: Map<string, string>,
+  rawName: string
+): void {
+  const name = rawName.trim();
+  if (!name) return;
+  const parts = name.split(/\s+/).filter(Boolean);
+  if (parts.length < 2) return;
+  const shortKey = abbreviatedNameKey(name);
+  if (!shortKey) return;
+  const existing = displayNameByShortKey.get(shortKey);
+  if (!existing || existing.length < name.length) {
+    displayNameByShortKey.set(shortKey, name);
+  }
+}
+
+async function fetchTeamRosterHydrationData(
   detail: ApiGameDetailExtended,
   signal: AbortSignal
-): Promise<Map<string, string>> {
+): Promise<TeamRosterHydrationData> {
   const teamAbbrs = Array.from(
     new Set([
       normalizeAbbr(detail.away_team_detail?.abbreviation),
@@ -529,12 +811,14 @@ async function fetchTeamRosterHeadshots(
     ])
   ).filter(Boolean);
   const byName = new Map<string, string>();
+  const displayNameByShortKey = new Map<string, string>();
 
   const registerName = (name: string, headshotUrl: string) => {
     const fullKey = normalizeNameKey(name);
     const shortKey = abbreviatedNameKey(name);
     if (fullKey && !byName.has(fullKey)) byName.set(fullKey, headshotUrl);
     if (shortKey && !byName.has(shortKey)) byName.set(shortKey, headshotUrl);
+    registerDisplayNameAlias(displayNameByShortKey, name);
   };
 
   await Promise.all(
@@ -555,7 +839,7 @@ async function fetchTeamRosterHeadshots(
     })
   );
 
-  return byName;
+  return { headshotsByName: byName, displayNameByShortKey };
 }
 
 function applyFantasyHeadshots(
@@ -572,6 +856,206 @@ function applyFantasyHeadshots(
   });
 }
 
+function isLikelyAbbreviatedPlayerName(rawName: string): boolean {
+  const name = rawName.trim();
+  if (!name) return false;
+  const firstToken = name.split(/\s+/)[0] ?? '';
+  return firstToken.includes('.');
+}
+
+function expandPlayerDisplayName(name: string, displayNameByShortKey: Map<string, string>): string {
+  if (!isLikelyAbbreviatedPlayerName(name)) return name;
+  const shortKey = abbreviatedNameKey(name);
+  if (!shortKey) return name;
+  return displayNameByShortKey.get(shortKey) ?? name;
+}
+
+function applyFantasyDisplayNames(
+  entries: LiveGameState['fantasyAway'],
+  displayNameByShortKey: Map<string, string>
+): LiveGameState['fantasyAway'] {
+  return entries.map((entry) => {
+    if (entry.position === 'DEF') return entry;
+    const expandedName = expandPlayerDisplayName(entry.name, displayNameByShortKey);
+    if (expandedName === entry.name) return entry;
+    return { ...entry, name: expandedName };
+  });
+}
+
+function applyPersonnelDisplayNames(
+  personnel: LiveGameState['personnel'],
+  displayNameByShortKey: Map<string, string>
+): LiveGameState['personnel'] {
+  if (!personnel) return personnel;
+  const mapTeam = (team: NonNullable<LiveGameState['personnel']>['away']) => ({
+    ...team,
+    players: team.players.map((player) => {
+      const baseName = player.displayName ?? player.playerName;
+      const expandedName = expandPlayerDisplayName(baseName, displayNameByShortKey);
+      if (expandedName === baseName) return player;
+      return {
+        ...player,
+        displayName: expandedName,
+        playerName: expandedName,
+      };
+    }),
+  });
+  return {
+    ...personnel,
+    away: mapTeam(personnel.away),
+    home: mapTeam(personnel.home),
+  };
+}
+
+function applyLeaderDisplayNames(
+  leaders: LiveGameState['leaders'],
+  displayNameByShortKey: Map<string, string>
+): LiveGameState['leaders'] {
+  if (!leaders) return leaders;
+  const mapEntry = (entry: {
+    name: string;
+    line: string;
+    headshotUrl?: string;
+    gsisId?: string;
+  }) => {
+    if (entry.name === '—') return entry;
+    const expandedName = expandPlayerDisplayName(entry.name, displayNameByShortKey);
+    return expandedName === entry.name ? entry : { ...entry, name: expandedName };
+  };
+  return {
+    away: {
+      passing: mapEntry(leaders.away.passing),
+      rushing: mapEntry(leaders.away.rushing),
+      receiving: mapEntry(leaders.away.receiving),
+    },
+    home: {
+      passing: mapEntry(leaders.home.passing),
+      rushing: mapEntry(leaders.home.rushing),
+      receiving: mapEntry(leaders.home.receiving),
+    },
+  };
+}
+
+function buildPlayerGsisLookup(
+  playerStatsByTeam: Record<string, ApiPlayerGameStats[]> | undefined
+): Map<string, string> {
+  const lookup = new Map<string, string>();
+  for (const rows of Object.values(playerStatsByTeam ?? {})) {
+    for (const row of rows ?? []) {
+      const gsisId = row.player_gsis_id?.trim();
+      const playerName = (row.player_name ?? '').trim();
+      if (!gsisId || !playerName) continue;
+      const fullKey = normalizeNameKey(playerName);
+      const shortKey = abbreviatedNameKey(playerName);
+      if (fullKey && !lookup.has(fullKey)) lookup.set(fullKey, gsisId);
+      if (shortKey && !lookup.has(shortKey)) lookup.set(shortKey, gsisId);
+    }
+  }
+  return lookup;
+}
+
+function applyLeaderGsisIds(
+  leaders: LiveGameState['leaders'],
+  playerGsisByName: Map<string, string>
+): LiveGameState['leaders'] {
+  if (!leaders || playerGsisByName.size === 0) return leaders;
+  const mapEntry = (entry: {
+    name: string;
+    line: string;
+    headshotUrl?: string;
+    gsisId?: string;
+  }) => {
+    if (entry.name === '—' || entry.gsisId) return entry;
+    const fullKey = normalizeNameKey(entry.name);
+    const shortKey = abbreviatedNameKey(entry.name);
+    const gsisId = playerGsisByName.get(fullKey) ?? playerGsisByName.get(shortKey);
+    return gsisId ? { ...entry, gsisId } : entry;
+  };
+  return {
+    away: {
+      passing: mapEntry(leaders.away.passing),
+      rushing: mapEntry(leaders.away.rushing),
+      receiving: mapEntry(leaders.away.receiving),
+    },
+    home: {
+      passing: mapEntry(leaders.home.passing),
+      rushing: mapEntry(leaders.home.rushing),
+      receiving: mapEntry(leaders.home.receiving),
+    },
+  };
+}
+
+function applyPlayActorDisplayNames(
+  lastPlay: LiveGameState['lastPlay'],
+  displayNameByShortKey: Map<string, string>
+): LiveGameState['lastPlay'] {
+  if (!lastPlay) return lastPlay;
+  const mapActor = (actor: NonNullable<LiveGameState['lastPlay']>['actor']) => {
+    if (!actor) return actor;
+    const expandedName = expandPlayerDisplayName(actor.name, displayNameByShortKey);
+    return expandedName === actor.name ? actor : { ...actor, name: expandedName };
+  };
+  const receiver = lastPlay.receiver
+    ? (() => {
+        const expandedName = expandPlayerDisplayName(lastPlay.receiver.name, displayNameByShortKey);
+        if (expandedName === lastPlay.receiver.name) return lastPlay.receiver;
+        return { ...lastPlay.receiver, name: expandedName };
+      })()
+    : lastPlay.receiver;
+  return {
+    ...lastPlay,
+    receiver,
+    actor: mapActor(lastPlay.actor),
+    qbActor: mapActor(lastPlay.qbActor),
+    postScoreTryActor: mapActor(lastPlay.postScoreTryActor),
+    postScoreTryQbActor: mapActor(lastPlay.postScoreTryQbActor),
+  };
+}
+
+function hydrateTimelinePlayerDisplayNames(
+  timeline: ReplayTimeline,
+  displayNameByShortKey: Map<string, string>
+): ReplayTimeline {
+  if (displayNameByShortKey.size === 0) return timeline;
+  const hydrateState = (state: LiveGameState): LiveGameState => ({
+    ...state,
+    fantasyAway: applyFantasyDisplayNames(state.fantasyAway, displayNameByShortKey),
+    fantasyHome: applyFantasyDisplayNames(state.fantasyHome, displayNameByShortKey),
+    personnel: applyPersonnelDisplayNames(state.personnel, displayNameByShortKey),
+    leaders: applyLeaderDisplayNames(state.leaders, displayNameByShortKey),
+    lastPlay: applyPlayActorDisplayNames(state.lastPlay, displayNameByShortKey),
+  });
+  return {
+    ...timeline,
+    liveState: hydrateState(timeline.liveState),
+    frames: timeline.frames.map((frame) => hydrateState(frame)),
+  };
+}
+
+function applyPersonnelHeadshots(
+  personnel: LiveGameState['personnel'],
+  headshotsByName: Map<string, string>
+): LiveGameState['personnel'] {
+  if (!personnel) return personnel;
+  const mapTeam = (team: NonNullable<LiveGameState['personnel']>['away']) => ({
+    ...team,
+    players: team.players.map((player) => {
+      if (player.headshotUrl) return player;
+      const baseName = player.displayName ?? player.playerName;
+      const fullKey = normalizeNameKey(baseName);
+      const shortKey = abbreviatedNameKey(baseName);
+      const headshotUrl = headshotsByName.get(fullKey) ?? headshotsByName.get(shortKey);
+      if (!headshotUrl) return player;
+      return { ...player, headshotUrl };
+    }),
+  });
+  return {
+    ...personnel,
+    away: mapTeam(personnel.away),
+    home: mapTeam(personnel.home),
+  };
+}
+
 function hydrateTimelineFantasyHeadshots(
   timeline: ReplayTimeline,
   headshotsByName: Map<string, string>
@@ -581,6 +1065,7 @@ function hydrateTimelineFantasyHeadshots(
     ...state,
     fantasyAway: applyFantasyHeadshots(state.fantasyAway, headshotsByName),
     fantasyHome: applyFantasyHeadshots(state.fantasyHome, headshotsByName),
+    personnel: applyPersonnelHeadshots(state.personnel, headshotsByName),
   });
   return {
     ...timeline,
@@ -602,12 +1087,14 @@ function buildTimeline(
   plays: ApiPlayDetail[],
   drives: ApiDrive[],
   boxscore: ApiBoxscore | null,
-  headshotsByName?: Map<string, string>
+  headshotsByName?: Map<string, string>,
+  personnel?: ApiGamePersonnel | null
 ): ReplayTimeline {
   const ctx = apiGameToContext(detail);
 
   const awayAbbr = normalizeAbbr(ctx.awayTeam.abbreviation);
   const homeAbbr = normalizeAbbr(ctx.homeTeam.abbreviation);
+  const personnelState = mapPersonnelFromApi(personnel ?? null, awayAbbr, homeAbbr);
 
   const status = normalizeStatus(ctx.status);
   const finalGame = isFinalStatus(status);
@@ -671,7 +1158,11 @@ function buildTimeline(
         : hasLeaderData(leadersFromPlays)
           ? leadersFromPlays
           : null;
-  const scoringBySequence = scoringTimeline(detail.scoring_plays);
+  const playerGsisByName = buildPlayerGsisLookup(boxscore?.player_stats);
+  const leadersWithGsis = applyLeaderGsisIds(leaders, playerGsisByName);
+  const scoringCanonical = scoringTimeline(detail.scoring_plays);
+  const scoringDerived = deriveScoringTimelineFromPlays(plays, awayAbbr, homeAbbr);
+  const scoringBySequence = mergeScoringTimelines(scoringCanonical, scoringDerived);
   const scoring = scoringBySequence.map((item) => item.entry);
   const scoringMarkers = buildScoringMarkers(detail);
   const hasPlayScores = plays.some(
@@ -706,11 +1197,15 @@ function buildTimeline(
   });
 
   const detailPossession = teamAbbrFromPossessionId(detail);
-  const baseWp = plays[0]
-    ? resolveAwayWinPctFromPlay(plays[0], 50)
+  const baseWpSample: AwayWinProbSample = plays[0]
+    ? resolveAwayWinProbSampleFromPlay(plays[0], 50)
     : finalGame
-      ? resolveFinalAwayWinPct(awayScoreFinal.total, homeScoreFinal.total)
-      : 50;
+      ? {
+          wp: resolveFinalAwayWinPct(awayScoreFinal.total, homeScoreFinal.total),
+          source: 'fallback',
+        }
+      : { wp: 50, source: 'fallback' };
+  const baseWp = baseWpSample.wp;
 
   const baseState: LiveGameState = {
     connected: false,
@@ -739,11 +1234,42 @@ function buildTimeline(
       humidity: detail.weather_humidity ?? undefined,
       isIndoor: ctx.isIndoor,
     },
+    attendance:
+      typeof ctx.attendance === 'number' && Number.isFinite(ctx.attendance)
+        ? Math.max(0, Math.round(ctx.attendance))
+        : null,
+    referee: (ctx.referee ?? '').trim(),
+    officials: (ctx.officials ?? [])
+      .filter((official) => (official.name ?? '').trim().length > 0)
+      .sort(
+        (left, right) =>
+          safeInt(left.sequence, Number.MAX_SAFE_INTEGER) -
+          safeInt(right.sequence, Number.MAX_SAFE_INTEGER)
+      ),
     network: ctx.network ?? '',
     spread: ctx.spread ?? null,
-    wpTimeline: [{ wp: baseWp, gameMin: Math.max(0, timing.elapsedMin) }],
+    wpTimeline: [
+      {
+        wp: baseWp,
+        gameMin: Math.max(0, timing.elapsedMin),
+        wpLow: baseWpSample.wpLow,
+        wpHigh: baseWpSample.wpHigh,
+        source: baseWpSample.source,
+      },
+    ],
     awayWinPct: baseWp,
     epaTotals: { away: 0, home: 0 },
+    epaTimeline: [
+      {
+        gameMin: 0,
+        awayTotal: 0,
+        homeTotal: 0,
+        awayPass: 0,
+        awayRush: 0,
+        homePass: 0,
+        homeRush: 0,
+      },
+    ],
     lastPlay: null,
     animationKey: 0,
     plays: [],
@@ -751,10 +1277,11 @@ function buildTimeline(
     fantasyHome: fantasy.home,
     playerSeasonStats: {},
     fantasyScoring: 'half_ppr',
+    personnel: personnelState,
     homeTimeouts: 3,
     awayTimeouts: 3,
     teamStats,
-    leaders,
+    leaders: leadersWithGsis,
     scoring,
     playIndex: -1,
     playHistoryLength: plays.length,
@@ -793,7 +1320,26 @@ function buildTimeline(
   const frames: LiveGameState[] = [];
   const playSequences: number[] = [];
   const missionLog: MissionLogEntry[] = [];
-  const wpTimelinePoints: LiveGameState['wpTimeline'] = [{ wp: baseWp, gameMin: 0 }];
+  const wpTimelinePoints: LiveGameState['wpTimeline'] = [
+    {
+      wp: baseWp,
+      gameMin: 0,
+      wpLow: baseWpSample.wpLow,
+      wpHigh: baseWpSample.wpHigh,
+      source: baseWpSample.source,
+    },
+  ];
+  const epaTimelinePoints: NonNullable<LiveGameState['epaTimeline']> = [
+    {
+      gameMin: 0,
+      awayTotal: 0,
+      homeTotal: 0,
+      awayPass: 0,
+      awayRush: 0,
+      homePass: 0,
+      homeRush: 0,
+    },
+  ];
   const runningTotalsByKey = new Map<string, RunningPlayerTotals>();
   const playerMetaByFullKey = new Map<string, RunningPlayerMeta>();
   let scoringMarkerIndex = 0;
@@ -806,6 +1352,10 @@ function buildTimeline(
   let homeTotal = 0;
   let awayTotalEpa = 0;
   let homeTotalEpa = 0;
+  let awayPassEpa = 0;
+  let awayRushEpa = 0;
+  let homePassEpa = 0;
+  let homeRushEpa = 0;
   let lastQuarter = 1;
   let awayTimeouts = 3;
   let homeTimeouts = 3;
@@ -821,22 +1371,32 @@ function buildTimeline(
     updateRunningTotalsFromPlay(play, runningTotalsByKey, playerMetaByFullKey);
 
     const playQuarter = safeInt(play.quarter, lastQuarter);
-    if (playQuarter >= 3 && lastQuarter < 3) {
+    const explicitAwayTimeouts = normalizeTimeoutCount(play.away_timeouts_remaining);
+    const explicitHomeTimeouts = normalizeTimeoutCount(play.home_timeouts_remaining);
+    if (
+      playQuarter >= 3 &&
+      lastQuarter < 3 &&
+      explicitAwayTimeouts == null &&
+      explicitHomeTimeouts == null
+    ) {
       awayTimeouts = 3;
       homeTimeouts = 3;
     }
     lastQuarter = Math.max(1, playQuarter);
 
+    if (explicitAwayTimeouts != null) awayTimeouts = explicitAwayTimeouts;
+    if (explicitHomeTimeouts != null) homeTimeouts = explicitHomeTimeouts;
+
     const timeoutUsage = parseTimeoutUsage(play, awayAbbr, homeAbbr);
     if (timeoutUsage) {
       if (timeoutUsage.awayRemaining != null) {
         awayTimeouts = timeoutUsage.awayRemaining;
-      } else if (timeoutUsage.team === awayAbbr) {
+      } else if (timeoutUsage.team === awayAbbr && explicitAwayTimeouts == null) {
         awayTimeouts = Math.max(0, awayTimeouts - 1);
       }
       if (timeoutUsage.homeRemaining != null) {
         homeTimeouts = timeoutUsage.homeRemaining;
-      } else if (timeoutUsage.team === homeAbbr) {
+      } else if (timeoutUsage.team === homeAbbr && explicitHomeTimeouts == null) {
         homeTimeouts = Math.max(0, homeTimeouts - 1);
       }
     }
@@ -859,12 +1419,16 @@ function buildTimeline(
     const shouldUseMarkerScores =
       shouldPreferDerivedScores ||
       (markerAdvanced && playAwayAfter === awayTotal && playHomeAfter === homeTotal);
-    const awayAfter = shouldUseMarkerScores ? inferredAwayScore : playAwayAfter;
-    const homeAfter = shouldUseMarkerScores ? inferredHomeScore : playHomeAfter;
+    let awayAfter = shouldUseMarkerScores ? inferredAwayScore : playAwayAfter;
+    let homeAfter = shouldUseMarkerScores ? inferredHomeScore : playHomeAfter;
+    awayAfter = Math.max(awayAfter, awayTotal);
+    homeAfter = Math.max(homeAfter, homeTotal);
     const playEpa = normalizeEpaValue(play.epa);
     const canonicalAwayTotalEpa = normalizeEpaValue(play.total_away_epa);
     const canonicalHomeTotalEpa = normalizeEpaValue(play.total_home_epa);
     const offenseTeam = normalizeAbbr(play.possession_team_abbr);
+    const passEpaPlay = isPassEpaPlay(play);
+    const rushEpaPlay = isRushEpaPlay(play);
 
     if (canonicalAwayTotalEpa != null) {
       awayTotalEpa = canonicalAwayTotalEpa;
@@ -876,9 +1440,18 @@ function buildTimeline(
     } else if (playEpa != null && offenseTeam === homeAbbr) {
       homeTotalEpa += playEpa;
     }
+    if (playEpa != null) {
+      if (offenseTeam === awayAbbr) {
+        if (passEpaPlay) awayPassEpa += playEpa;
+        else if (rushEpaPlay) awayRushEpa += playEpa;
+      } else if (offenseTeam === homeAbbr) {
+        if (passEpaPlay) homePassEpa += playEpa;
+        else if (rushEpaPlay) homeRushEpa += playEpa;
+      }
+    }
 
-    const awayDelta = awayAfter - awayTotal;
-    const homeDelta = homeAfter - homeTotal;
+    let awayDelta = awayAfter - awayTotal;
+    let homeDelta = homeAfter - homeTotal;
 
     if (awayDelta !== 0) applyScoreDelta(awayScoreRunning, playQuarter, awayDelta);
     if (homeDelta !== 0) applyScoreDelta(homeScoreRunning, playQuarter, homeDelta);
@@ -930,16 +1503,15 @@ function buildTimeline(
       const driveTeam =
         normalizeAbbr(driveMeta?.team_abbr) || normalizeAbbr(nextSnapPlay.possession_team_abbr);
       const driveStartPlay = driveStartById.get(timeoutDriveId);
-      const start = driveStartPlay
-        ? yardline100ToDisplay(
-            driveStartPlay.yard_line,
-            driveStartPlay.possession_team_abbr ?? driveTeam,
-            awayAbbr,
-            homeAbbr
-          )
-        : driveMeta
-          ? normalizeDriveStart(driveMeta.start_yardline, driveTeam, awayAbbr, homeAbbr)
-          : yardline100ToDisplay(nextSnapPlay.yard_line, driveTeam, awayAbbr, homeAbbr);
+      const driveTransition = normalizeDriveStartTransition(driveStartPlay?.drive_start_transition);
+      const start = resolveDriveStartSpot(
+        driveMeta,
+        driveStartPlay,
+        nextSnapPlay,
+        driveTeam,
+        awayAbbr,
+        homeAbbr
+      );
       currentDrive = {
         plays: previous.plays,
         yards: previous.yards,
@@ -947,6 +1519,7 @@ function buildTimeline(
         startYardLine: start.yardLine,
         startSide: start.side,
         team: driveTeam,
+        startTransition: driveTransition || undefined,
       };
     } else if (timeoutFrame) {
       currentDrive = frames[frames.length - 1]?.currentDrive
@@ -973,21 +1546,20 @@ function buildTimeline(
       const driveMeta = drivesById.get(play.drive_id);
       const driveTeam =
         normalizeAbbr(driveMeta?.team_abbr) || normalizeAbbr(play.possession_team_abbr);
+      const driveTransition = normalizeDriveStartTransition(driveStartPlay?.drive_start_transition);
       // Use next snap play's clock if it's in the same drive to get post-play
       // elapsed time (consistent with plays/yards also being post-play values).
       const timeRefPlay =
         nextSnapPlay && nextSnapPlay.drive_id === play.drive_id ? nextSnapPlay : play;
       const elapsedDriveTime = driveElapsedAtPlay(driveStartPlay, timeRefPlay);
-      const start = driveStartPlay
-        ? yardline100ToDisplay(
-            driveStartPlay.yard_line,
-            driveStartPlay.possession_team_abbr ?? driveTeam,
-            awayAbbr,
-            homeAbbr
-          )
-        : driveMeta
-          ? normalizeDriveStart(driveMeta.start_yardline, driveTeam, awayAbbr, homeAbbr)
-          : yardline100ToDisplay(play.yard_line, driveTeam, awayAbbr, homeAbbr);
+      const start = resolveDriveStartSpot(
+        driveMeta,
+        driveStartPlay,
+        play,
+        driveTeam,
+        awayAbbr,
+        homeAbbr
+      );
 
       currentDrive = {
         plays: updated.plays,
@@ -996,30 +1568,66 @@ function buildTimeline(
         startYardLine: start.yardLine,
         startSide: start.side,
         team: driveTeam,
+        startTransition: driveTransition || undefined,
       };
     }
 
     const previousPoint = wpTimelinePoints[wpTimelinePoints.length - 1];
     const fallbackWp = previousPoint?.wp ?? baseWp;
-    const awayWinPct = resolveAwayWinPctFromPlay(
+    const awayWinProbSample = resolveAwayWinProbSampleFromPlay(
       { ...play, away_score_after: awayAfter, home_score_after: homeAfter, quarter: playQuarter },
       fallbackWp
     );
+    const awayWinPct = awayWinProbSample.wp;
     const elapsedMin = Math.max(previousPoint?.gameMin ?? 0, timingNow.elapsedMin);
-    if (!previousPoint || previousPoint.gameMin !== elapsedMin || previousPoint.wp !== awayWinPct) {
-      wpTimelinePoints.push({ wp: awayWinPct, gameMin: elapsedMin });
+    if (
+      !previousPoint ||
+      previousPoint.gameMin !== elapsedMin ||
+      previousPoint.wp !== awayWinPct ||
+      previousPoint.wpLow !== awayWinProbSample.wpLow ||
+      previousPoint.wpHigh !== awayWinProbSample.wpHigh
+    ) {
+      wpTimelinePoints.push({
+        wp: awayWinPct,
+        gameMin: elapsedMin,
+        wpLow: awayWinProbSample.wpLow,
+        wpHigh: awayWinProbSample.wpHigh,
+        source: awayWinProbSample.source,
+      });
+    }
+    const previousEpaPoint = epaTimelinePoints[epaTimelinePoints.length - 1];
+    if (
+      !previousEpaPoint ||
+      previousEpaPoint.gameMin !== elapsedMin ||
+      previousEpaPoint.awayTotal !== awayTotalEpa ||
+      previousEpaPoint.homeTotal !== homeTotalEpa ||
+      previousEpaPoint.awayPass !== awayPassEpa ||
+      previousEpaPoint.awayRush !== awayRushEpa ||
+      previousEpaPoint.homePass !== homePassEpa ||
+      previousEpaPoint.homeRush !== homeRushEpa
+    ) {
+      epaTimelinePoints.push({
+        gameMin: elapsedMin,
+        awayTotal: awayTotalEpa,
+        homeTotal: homeTotalEpa,
+        awayPass: awayPassEpa,
+        awayRush: awayRushEpa,
+        homePass: homePassEpa,
+        homeRush: homeRushEpa,
+      });
     }
 
     const frameStatus: GameStatus = play.play_type === 'end_of_half' ? 'halftime' : 'in_progress';
     const frameScoring = scoringUpToState(scoringBySequence, awayAfter, homeAfter);
     const frameTeamStats = mapTeamStatsFromPlays(plays.slice(0, index + 1), [], awayAbbr, homeAbbr);
-    const frameLeaders = mapLeadersFromRunningTotals(
+    const frameLeadersRaw = mapLeadersFromRunningTotals(
       runningTotalsByKey,
       playerMetaByFullKey,
       awayAbbr,
       homeAbbr,
       headshotsByName
     );
+    const frameLeaders = applyLeaderGsisIds(frameLeadersRaw, playerGsisByName);
     const frameFantasy = mapFantasyFromRunningTotals(
       runningTotalsByKey,
       playerMetaByFullKey,
@@ -1071,6 +1679,7 @@ function buildTimeline(
         away: awayTotalEpa,
         home: homeTotalEpa,
       },
+      epaTimeline: epaTimelinePoints.map((point) => ({ ...point })),
       lastPlay: playAnimation,
       animationKey: index + 1,
       plays: [...missionLog],
@@ -1108,6 +1717,7 @@ function buildTimeline(
     timing,
     wpTimeline: wpTimelinePoints,
     awayWinPct: finalAwayWinPct,
+    epaTimeline: epaTimelinePoints,
     scoring,
     playIndex: -1,
     playHistoryLength: frames.length,
@@ -1157,6 +1767,7 @@ export default function GridstreamPage() {
 
   const [timeline, setTimeline] = useState<ReplayTimeline | null>(null);
   const [state, setState] = useState<LiveGameState | null>(null);
+  const [resolvedDbGameId, setResolvedDbGameId] = useState<string | null>(null);
   const [season, setSeason] = useState<number | undefined>();
   const [week, setWeek] = useState<number | undefined>();
   const [loading, setLoading] = useState(false);
@@ -1170,6 +1781,7 @@ export default function GridstreamPage() {
     if (!gameId) {
       setTimeline(null);
       setState(null);
+      setResolvedDbGameId(null);
       return;
     }
     const requestedGameId: string = gameId;
@@ -1177,6 +1789,7 @@ export default function GridstreamPage() {
     const controller = new AbortController();
     setLoading(true);
     setError(null);
+    setResolvedDbGameId(null);
 
     async function load() {
       try {
@@ -1185,7 +1798,7 @@ export default function GridstreamPage() {
           controller.signal
         );
 
-        const [plays, drives, boxscore, rosterHeadshots] = await Promise.all([
+        const [plays, drives, boxscore, personnel, rosterHydration] = await Promise.all([
           fetchAllPlays(resolvedGameId, controller.signal).catch((err) => {
             if (isAbortError(err)) throw err;
             console.warn('[gridstream] plays hydration failed, continuing with empty plays:', err);
@@ -1213,44 +1826,79 @@ export default function GridstreamPage() {
             );
             return null;
           }),
-          fetchTeamRosterHeadshots(detail, controller.signal).catch((err) => {
+          fetchJson<ApiGamePersonnel>(
+            `${API_BASE}/games/${resolvedGameId}/personnel/`,
+            controller.signal
+          ).catch((err) => {
+            if (isAbortError(err)) throw err;
+            console.warn(
+              '[gridstream] personnel hydration failed, continuing without personnel tab data:',
+              err
+            );
+            return null;
+          }),
+          fetchTeamRosterHydrationData(detail, controller.signal).catch((err) => {
             if (isAbortError(err)) throw err;
             console.warn(
               '[gridstream] roster headshot hydration failed, continuing without fallback headshots:',
               err
             );
-            return new Map<string, string>();
+            return {
+              headshotsByName: new Map<string, string>(),
+              displayNameByShortKey: new Map<string, string>(),
+            };
           }),
         ]);
+        const rosterHeadshots = rosterHydration.headshotsByName;
+        const rosterDisplayNameAliases = rosterHydration.displayNameByShortKey;
 
         // Supplement rosterHeadshots with game-specific data — catches historical
         // players no longer on the current roster (e.g. traded players, free agents).
+        const addDisplayAlias = (name: string) => {
+          registerDisplayNameAlias(rosterDisplayNameAliases, name);
+        };
         const addHeadshot = (name: string, url: string) => {
           const fk = normalizeNameKey(name);
           const sk = abbreviatedNameKey(name);
           if (fk && !rosterHeadshots.has(fk)) rosterHeadshots.set(fk, url);
           if (sk && !rosterHeadshots.has(sk)) rosterHeadshots.set(sk, url);
+          addDisplayAlias(name);
         };
         for (const teamPlayers of Object.values(boxscore?.player_stats ?? {})) {
           for (const p of teamPlayers) {
+            addDisplayAlias(p.player_name);
             const url = p.player_headshot?.trim();
             if (url) addHeadshot(p.player_name, url);
           }
         }
         for (const leader of detail.leaders ?? []) {
+          addDisplayAlias(leader.athlete_name);
           const url = leader.athlete_headshot_url?.trim();
           if (url) addHeadshot(leader.athlete_name, url);
         }
 
-        const builtTimeline = buildTimeline(detail, plays, drives, boxscore, rosterHeadshots);
+        const builtTimeline = buildTimeline(
+          detail,
+          plays,
+          drives,
+          boxscore,
+          rosterHeadshots,
+          personnel
+        );
         const withHeadshots = hydrateTimelineFantasyHeadshots(builtTimeline, rosterHeadshots);
-        setTimeline(withHeadshots);
+        const withExpandedNames = hydrateTimelinePlayerDisplayNames(
+          withHeadshots,
+          rosterDisplayNameAliases
+        );
+        setTimeline(withExpandedNames);
+        setResolvedDbGameId(resolvedGameId);
         setSeason(detail.season_id);
         setWeek(detail.week);
       } catch (err) {
         if (isAbortError(err)) return;
         const message = err instanceof Error ? err.message : 'Unknown error';
         setError(message);
+        setResolvedDbGameId(null);
       } finally {
         if (!controller.signal.aborted) {
           setLoading(false);
@@ -1390,6 +2038,7 @@ export default function GridstreamPage() {
       week={week}
       isGameFinal={Boolean(timeline && isFinalStatus(timeline.liveState.status))}
       currentPlaySequence={currentPlaySequence}
+      statsGameId={resolvedDbGameId ?? gameId}
     />
   );
 }

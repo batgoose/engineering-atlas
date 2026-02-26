@@ -487,7 +487,9 @@ function parseFumbleSpotsToPct(
   const fumbleMatch = description.match(
     /\bfumbles?(?:\s*\([^)]*\))?\s+at\s+([A-Z]{2,3})\s+(\d{1,2})\b/i
   );
-  const recoveryMatch = description.match(/\brecovered by\s+.+?\s+at\s+([A-Z]{2,3})\s+(\d{1,2})\b/i);
+  const recoveryMatch = description.match(
+    /\brecovered by\s+.+?\s+at\s+([A-Z]{2,3})\s+(\d{1,2})\b/i
+  );
   return {
     takeawayPct: parseFieldSpotToPct(fumbleMatch?.[1], fumbleMatch?.[2], awayAbbr),
     recoveryPct: parseFieldSpotToPct(recoveryMatch?.[1], recoveryMatch?.[2], awayAbbr),
@@ -1289,6 +1291,11 @@ export function FieldVisualization({
 
   const markerSide = showPlayStartSpot && lastPlay?.fromSide ? lastPlay.fromSide : situation.side;
   const markerYardLine = showPlayStartSpot && lastPlay ? lastPlay.fromYardline : situation.yardLine;
+  const kickoffLabel = (situation.downDistText ?? '').trim();
+  const isKickoffReplay =
+    showPlayStartSpot &&
+    lastPlay?.type === 'kick' &&
+    (/\bkickoff\b/i.test((lastPlay.description ?? '').trim()) || /\bkickoff\b/i.test(kickoffLabel));
   // Timeout before kickoff should not show inherited drive/situation guides.
   const isPreKickoffOfficialTimeout =
     isOfficialTimeoutNotice &&
@@ -1584,6 +1591,7 @@ export function FieldVisualization({
           <g data-layer="field-guides">
             {/* Drive start marker — sci-fi waypoint beacon on near (bottom) sideline */}
             {!isPreKickoffOfficialTimeout &&
+              !isKickoffReplay &&
               (hasSituation || showGuidesDuringTimeout) &&
               currentDrive &&
               (() => {

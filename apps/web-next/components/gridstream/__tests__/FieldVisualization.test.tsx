@@ -195,4 +195,58 @@ describe('FieldVisualization', () => {
       container.querySelector('line[stroke="#ffb612"][stroke-dasharray="8 5"]')
     ).not.toBeInTheDocument();
   });
+
+  it('does not render DRIVE STARTED marker on kickoff replay frames', () => {
+    const situation: Situation = {
+      down: 0,
+      distance: 0,
+      yardLine: 35,
+      side: 'NE',
+      downDistText: 'KICKOFF AT NE 35',
+      possessionTeam: 'SEA',
+    };
+    const currentDrive: DriveProgress = {
+      plays: 0,
+      yards: 0,
+      time: '0:00',
+      startYardLine: 26,
+      startSide: 'SEA',
+      team: 'SEA',
+    };
+    const lastPlay: PlayAnimationData = {
+      type: 'kick',
+      direction: 'middle',
+      offenseTeam: 'SEA',
+      startDistance: 0,
+      fromYardline: 35,
+      fromSide: 'NE',
+      toYardline: 26,
+      toSide: 'SEA',
+      yardsGained: 22,
+      isComplete: true,
+      isFirstDown: false,
+      isTurnover: false,
+      description:
+        'Kicker kicks 61 yards from NE 35 to SEA 4. Returner to SEA 26 for 22 yards. Kickoff.',
+      kickLandingYardline: 4,
+      kickLandingSide: 'SEA',
+    };
+
+    render(
+      <FieldVisualization
+        away={away}
+        home={home}
+        situation={situation}
+        lastPlay={lastPlay}
+        animationKey={1}
+        weather={weather}
+        venue="Levi's Stadium"
+        currentDrive={currentDrive}
+        isFinal={false}
+        showPlayStartSpot
+      />
+    );
+
+    expect(screen.queryByText('DRIVE STARTED')).not.toBeInTheDocument();
+  });
 });

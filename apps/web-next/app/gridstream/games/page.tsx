@@ -15,7 +15,7 @@ import { gameStatusDisplay, resolveGridstreamApiBase } from '@atlas/sdk/gridstre
 import { gridstreamColors as C } from '@atlas/sdk/gridstream/theme';
 import { StarField } from '@/components/gridstream/StarField';
 import { WeekBrowser } from '@/components/gridstream/WeekBrowser';
-import { GameCard } from '@/components/gridstream/GameCard';
+import { GameCard, type GameCardInjurySummary } from '@/components/gridstream/GameCard';
 
 const API_BASE = resolveGridstreamApiBase(
   process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000/api/gridstream'
@@ -24,9 +24,30 @@ const API_BASE = resolveGridstreamApiBase(
 const DEFAULT_SEASON = 2025;
 const DEFAULT_WEEK = 22;
 const MAX_LEADER_BACKFILL_REQUESTS = 20;
+const MAX_INJURY_BACKFILL_REQUESTS = 24;
 const REQUIRED_LEADER_CATEGORIES = ['passing', 'rushing', 'receiving'] as const;
 const UI_POSTSEASON_WEEK_TO_API_WEEK: Record<number, number> = { 19: 1, 20: 2, 21: 3, 22: 5 };
 const API_POSTSEASON_WEEK_TO_UI_WEEK: Record<number, number> = { 1: 19, 2: 20, 3: 21, 5: 22 };
+
+interface ApiStandingRow {
+  team?: {
+    abbreviation?: string;
+  };
+  seed?: number | null;
+}
+
+interface ApiGameInjuryRow {
+  team_abbr?: string | null;
+  player_name?: string | null;
+  status?: string | null;
+  game_day_availability?: string | null;
+}
+
+interface ApiGameDetailForInjuries {
+  injuries?: ApiGameInjuryRow[];
+  home_qb_name?: string | null;
+  away_qb_name?: string | null;
+}
 
 interface TeamOption {
   abbreviation: string;
@@ -239,6 +260,109 @@ function normalizePlayerName(name: string | null | undefined): string {
   return (name ?? '').trim().toLowerCase().replace(/\s+/g, ' ');
 }
 
+function injuryStatusLabel(row: ApiGameInjuryRow): string {
+  return (row.game_day_availability || row.status || '').trim();
+}
+
+function normalizeNameKey(name: string | null | undefined): string {
+  return (name ?? '').toLowerCase().replace(/[^a-z0-9]/g, '');
+}
+
+function injuryStatusCode(status: string): string {
+  const upper = status.toUpperCase();
+  if (upper.includes('OUT')) return 'OUT';
+  if (upper.includes('DOUBT')) return 'D';
+  if (upper.includes('QUESTION')) return 'Q';
+  if (upper.includes('IR')) return 'IR';
+  if (upper.includes('SUSP')) return 'SUSP';
+  if (upper.includes('PUP')) return 'PUP';
+  if (upper.includes('NFI')) return 'NFI';
+  if (upper.includes('PROB')) return 'P';
+  const compact = upper.replace(/[^A-Z]/g, '');
+  return compact.slice(0, 3) || 'INJ';
+}
+
+function injurySeverity(status: string): number {
+  const upper = status.toUpperCase();
+  if (upper.includes('OUT') || upper.includes('IR')) return 5;
+  if (upper.includes('DOUBT')) return 4;
+  if (upper.includes('QUESTION')) return 3;
+  if (upper.includes('PROB')) return 1;
+  return 2;
+}
+
+function injuryDisplayName(name: string | null | undefined): string {
+  const trimmed = (name ?? '').trim();
+  if (!trimmed) return 'Unknown';
+  const parts = trimmed.split(/\s+/);
+  return parts[parts.length - 1] ?? trimmed;
+}
+
+function buildTeamInjurySummary(
+  rows: ApiGameInjuryRow[],
+  teamAbbr: string,
+  qbName: string | null | undefined
+): { flags: string[]; count: number } {
+  const teamRows = rows
+    .filter((row) => (row.team_abbr ?? '').toUpperCase().trim() === teamAbbr)
+    .map((row) => ({ row, status: injuryStatusLabel(row) }))
+    .filter((entry) => entry.status.length > 0)
+    .filter((entry) => !/^(ACTIVE|AVAILABLE|HEALTHY)$/i.test(entry.status));
+
+  if (teamRows.length === 0) return { flags: [], count: 0 };
+
+  const qbKey = normalizeNameKey(qbName);
+  const qbMatch = qbKey
+    ? teamRows.find((entry) => normalizeNameKey(entry.row.player_name) === qbKey)
+    : undefined;
+
+  const flags: string[] = [];
+  if (qbMatch) {
+    flags.push(`QB ${injuryStatusCode(qbMatch.status)}`);
+  }
+
+  const sortedRows = [...teamRows].sort(
+    (a, b) => injurySeverity(b.status) - injurySeverity(a.status)
+  );
+  for (const entry of sortedRows) {
+    if (flags.length >= 2) break;
+    if (
+      qbMatch &&
+      normalizeNameKey(entry.row.player_name) === normalizeNameKey(qbMatch.row.player_name)
+    ) {
+      continue;
+    }
+    flags.push(`${injuryDisplayName(entry.row.player_name)} ${injuryStatusCode(entry.status)}`);
+  }
+
+  return { flags, count: teamRows.length };
+}
+
+function buildGameInjurySummary(
+  game: ApiGameListItem,
+  detail: ApiGameDetailForInjuries
+): GameCardInjurySummary | null {
+  const rows = Array.isArray(detail.injuries) ? detail.injuries : [];
+  if (rows.length === 0) return null;
+  const away = buildTeamInjurySummary(
+    rows,
+    game.away_team_detail.abbreviation,
+    detail.away_qb_name ?? game.away_qb_name ?? null
+  );
+  const home = buildTeamInjurySummary(
+    rows,
+    game.home_team_detail.abbreviation,
+    detail.home_qb_name ?? game.home_qb_name ?? null
+  );
+  if (away.count === 0 && home.count === 0) return null;
+  return {
+    awayFlags: away.flags,
+    homeFlags: home.flags,
+    awayCount: away.count,
+    homeCount: home.count,
+  };
+}
+
 function deriveLeadersFromPlayerStats(
   playersByTeam: BoxscorePlayersByTeam,
   teamAbbrs: string[]
@@ -403,6 +527,10 @@ export default function GamesPage() {
 
   const [games, setGames] = useState<ApiGameListItem[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [teamSeedsByAbbr, setTeamSeedsByAbbr] = useState<Record<string, number | null>>({});
+  const [injurySummaryByGameId, setInjurySummaryByGameId] = useState<
+    Record<number, GameCardInjurySummary>
+  >({});
   const [teamCatalog, setTeamCatalog] = useState<TeamOption[]>([]);
   const [statusFilter, setStatusFilter] = useState<'all' | 'live' | 'final' | 'scheduled'>('all');
   const [teamFilter, setTeamFilter] = useState<'all' | string>('all');
@@ -469,6 +597,30 @@ export default function GamesPage() {
   }, []);
 
   useEffect(() => {
+    const controller = new AbortController();
+    fetch(`${API_BASE}/standings/?season=${season}`, { signal: controller.signal })
+      .then((r) => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        return r.json();
+      })
+      .then((data) => {
+        const rows: ApiStandingRow[] = Array.isArray(data) ? data : [];
+        const map: Record<string, number | null> = {};
+        for (const row of rows) {
+          const abbr = row.team?.abbreviation?.toUpperCase().trim();
+          if (!abbr) continue;
+          map[abbr] = row.seed == null ? null : row.seed;
+        }
+        setTeamSeedsByAbbr(map);
+      })
+      .catch((err) => {
+        if (err.name === 'AbortError') return;
+        setTeamSeedsByAbbr({});
+      });
+    return () => controller.abort();
+  }, [season]);
+
+  useEffect(() => {
     setGames(null);
     setError(null);
 
@@ -511,6 +663,55 @@ export default function GamesPage() {
 
     return () => controller.abort();
   }, [season, week, teamFilter]);
+
+  useEffect(() => {
+    if (!games || games.length === 0) {
+      setInjurySummaryByGameId({});
+      return undefined;
+    }
+
+    const controller = new AbortController();
+    const candidates = games.slice(0, MAX_INJURY_BACKFILL_REQUESTS);
+    if (candidates.length === 0) {
+      setInjurySummaryByGameId({});
+      return () => controller.abort();
+    }
+
+    let cancelled = false;
+
+    (async () => {
+      const summaries = await Promise.all(
+        candidates.map(async (game) => {
+          try {
+            const response = await fetch(`${API_BASE}/games/${game.id}/`, {
+              signal: controller.signal,
+            });
+            if (!response.ok) return null;
+            const detail = (await response.json()) as ApiGameDetailForInjuries;
+            const summary = buildGameInjurySummary(game, detail);
+            if (!summary) return null;
+            return { gameId: game.id, summary };
+          } catch {
+            return null;
+          }
+        })
+      );
+
+      if (cancelled) return;
+
+      const next: Record<number, GameCardInjurySummary> = {};
+      for (const row of summaries) {
+        if (!row) continue;
+        next[row.gameId] = row.summary;
+      }
+      setInjurySummaryByGameId(next);
+    })();
+
+    return () => {
+      cancelled = true;
+      controller.abort();
+    };
+  }, [games]);
 
   const openGame = useCallback((id: number) => router.push(`/gridstream?game=${id}`), [router]);
 
@@ -993,6 +1194,9 @@ export default function GamesPage() {
                   logoOverrides={gameCardLogoOverrides}
                   showWeekTag={teamScopeActive}
                   density={density}
+                  awaySeed={teamSeedsByAbbr[game.away_team_detail.abbreviation] ?? null}
+                  homeSeed={teamSeedsByAbbr[game.home_team_detail.abbreviation] ?? null}
+                  injurySummary={injurySummaryByGameId[game.id]}
                   onClick={() => openGame(game.id)}
                 />
               ))}

@@ -51,6 +51,20 @@ export function DriveTracker({ drive, possessionTeam }: DriveTrackerProps) {
           letterSpacing: '.06em',
         }}
       >
+        {drive.startTransition && (
+          <div
+            style={{
+              marginBottom: 4,
+              fontFamily: F.display,
+              fontSize: 9,
+              letterSpacing: '.1em',
+              color: C.cyan,
+              textTransform: 'uppercase',
+            }}
+          >
+            {drive.startTransition}
+          </div>
+        )}
         STARTED {drive.startSide} {drive.startYardLine}
       </div>
     </div>

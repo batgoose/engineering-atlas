@@ -472,6 +472,7 @@ export function mapLeadersFromPlayerStats(
               passing.player_headshot?.trim() ||
               lookupHeadshotByName(passing.player_name, headshotsByName) ||
               undefined,
+            gsisId: passing.player_gsis_id?.trim() || undefined,
             line: formatPassingLeaderLine(passing),
           }
         : { ...FALLBACK_LEADER },
@@ -482,6 +483,7 @@ export function mapLeadersFromPlayerStats(
               rushing.player_headshot?.trim() ||
               lookupHeadshotByName(rushing.player_name, headshotsByName) ||
               undefined,
+            gsisId: rushing.player_gsis_id?.trim() || undefined,
             line: formatRushingLeaderLine(rushing),
           }
         : { ...FALLBACK_LEADER },
@@ -492,6 +494,7 @@ export function mapLeadersFromPlayerStats(
               receiving.player_headshot?.trim() ||
               lookupHeadshotByName(receiving.player_name, headshotsByName) ||
               undefined,
+            gsisId: receiving.player_gsis_id?.trim() || undefined,
             line: formatReceivingLeaderLine(receiving),
           }
         : { ...FALLBACK_LEADER },
@@ -817,10 +820,11 @@ export function mapFantasyFromRunningTotals(
     const statsRow = playerStatsLookup
       ? playerStatsRowForPlayer(meta.name, playerStatsLookup)
       : null;
-    const position =
-      meta.position ??
-      parsePositionGroup(statsRow?.player_position) ??
-      inferFallbackPosition(totals);
+    const statsRowPosition = parsePositionGroup(statsRow?.player_position);
+    // If boxscore metadata exists and it's a non-fantasy position (e.g. P, OL),
+    // do not backfill into QB/RB/WR/TE/K via attempt-based inference.
+    if (statsRow && !statsRowPosition) continue;
+    const position = statsRowPosition ?? meta.position ?? inferFallbackPosition(totals);
     if (!position) continue;
     const pointsByScoring = fantasyPointsByScoringFromTotals(totals);
     const entry: FantasyRosterEntry = {

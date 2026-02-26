@@ -87,21 +87,21 @@ All new work targets v2 only.
 
 ### Phase 7 — New UI Features (unlocked by v2 data)
 
-- [ ] **7.1** Games list: Add spread/total/moneyline display on game cards
-- [ ] **7.2** Games list: Add rest advantage badge (short week indicator) from `away_rest`/`home_rest`
-- [ ] **7.3** Games list: Add injury status flags for key players (game-day availability)
-- [ ] **7.4** Games list: Add division game indicator badge
-- [ ] **7.5** Games list: Show current standings seed alongside team record
-- [ ] **7.6** Game view: Replace WinProbSparkline heuristic with actual model output per play; add confidence band
-- [ ] **7.7** Game view: Show accurate timeout bubbles in score bug at every replay frame
-- [ ] **7.8** Game view: Add EPA flow chart (rolling `total_home_epa` / `total_away_epa`, segmented by pass vs. rush)
-- [ ] **7.9** Game view: Add drive start transition to drive tracker cards ("Following INT", "After Punt", etc.)
-- [ ] **7.10** Game view: Add defender/tackler attribution to MissionLog entries (`sack_player_name`, `tackle_for_loss_1_player_name`, `interception_player_name`)
-- [ ] **7.11** Game view: Show `penalty_player_name` in MissionLog instead of just penalty type
-- [ ] **7.12** Game view: Add attendance + officials panel to environment display
-- [ ] **7.13** Game view: Add play probability context overlay for notable plays (`td_prob`, `fg_prob` pre-snap)
-- [ ] **7.14** Game view: Add `cp`/`cpoe` annotation on pass plays (completion % over expectation)
-- [ ] **7.15** Game view: Surface Next Gen Stats metrics in player leaders panel
+- [x] **7.1** Games list: Add spread/total/moneyline display on game cards
+- [x] **7.2** Games list: Add rest advantage badge (short week indicator) from `away_rest`/`home_rest`
+- [x] **7.3** Games list: Add injury status flags for key players (game-day availability)
+- [x] **7.4** Games list: Add division game indicator badge
+- [x] **7.5** Games list: Show current standings seed alongside team record
+- [x] **7.6** Game view: Replace WinProbSparkline heuristic with actual model output per play; add confidence band
+- [x] **7.7** Game view: Show accurate timeout bubbles in score bug at every replay frame
+- [x] **7.8** Game view: Add EPA flow chart (rolling `total_home_epa` / `total_away_epa`, segmented by pass vs. rush)
+- [x] **7.9** Game view: Add drive start transition to drive tracker cards ("Following INT", "After Punt", etc.)
+- [x] **7.10** Game view: Add defender/tackler attribution to MissionLog entries (`sack_player_name`, `tackle_for_loss_1_player_name`, `interception_player_name`)
+- [x] **7.11** Game view: Show `penalty_player_name` in MissionLog instead of just penalty type
+- [x] **7.12** Game view: Add attendance + officials panel to environment display
+- [x] **7.13** Game view: Add play probability context overlay for notable plays (`td_prob`, `fg_prob` pre-snap)
+- [x] **7.14** Game view: Add `cp`/`cpoe` annotation on pass plays (completion % over expectation)
+- [x] **7.15** Game view: Surface Next Gen Stats metrics in player leaders panel
 
 ### Phase 8 — Cutover
 

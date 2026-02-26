@@ -13,6 +13,7 @@
  */
 
 import { useState, useEffect, useCallback, type CSSProperties } from 'react';
+import { createPortal } from 'react-dom';
 import type { LiveGameState, PlayActorInfo, FantasyRosterEntry } from '@atlas/sdk/gridstream/types';
 import {
   gridstreamColors as C,
@@ -20,6 +21,7 @@ import {
   GRIDSTREAM_FONTS_URL,
 } from '@atlas/sdk/gridstream/theme';
 import { resolveGridstreamApiBase } from '@atlas/sdk/gridstream/api-transforms';
+import { abbreviatedNameKey, normalizeNameKey } from '@atlas/sdk/gridstream/play-transforms';
 
 const API_BASE = resolveGridstreamApiBase(
   process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000/api/gridstream'
@@ -33,7 +35,8 @@ import { FieldVisualization } from './FieldVisualization';
 import { ScoreboardTable } from './ScoreboardTable';
 import { MissionLog } from './MissionLog';
 import { TeamStatsPanel } from './TeamStatsPanel';
-import { LeadersPanel } from './LeadersPanel';
+import { EpaFlowChart } from './EpaFlowChart';
+import { PersonnelPanel } from './PersonnelPanel';
 import { ScoringPanel } from './ScoringPanel';
 import { FantasyPanel } from './FantasyPanel';
 import { WeatherLayer } from './WeatherLayer';
@@ -57,6 +60,7 @@ interface LiveGameViewProps {
   week?: number;
   isGameFinal?: boolean;
   currentPlaySequence?: number | null;
+  statsGameId?: string;
 }
 
 function parseTimeoutTeam(text: string, awayAbbr: string, homeAbbr: string): string | null {
@@ -118,6 +122,61 @@ function formatPlaySpot(side: string | undefined, yardline: number | undefined):
   return `${side.toUpperCase()} ${Math.round(yardline)}`;
 }
 
+function normalizeTeamHex(value: string | undefined, fallback: string): string {
+  const cleaned = (value ?? '').trim().replace(/^#/, '');
+  return /^[0-9a-f]{3,8}$/i.test(cleaned) ? `#${cleaned}` : fallback;
+}
+
+function normalizePercentLike(value: number | null | undefined): number | null {
+  if (value == null || !Number.isFinite(value)) return null;
+  const normalized = Math.abs(value) <= 1 ? value * 100 : value;
+  return Math.max(-100, Math.min(100, normalized));
+}
+
+function formatSignedPercent(value: number): string {
+  const rounded = Math.round(value * 10) / 10;
+  return `${rounded > 0 ? '+' : ''}${rounded.toFixed(1)}%`;
+}
+
+function compactNameKey(value: string): string {
+  return normalizeNameKey(value);
+}
+
+function namesLikelyMatch(
+  left: string | null | undefined,
+  right: string | null | undefined
+): boolean {
+  if (!left || !right) return false;
+  const leftCompact = compactNameKey(left);
+  const rightCompact = compactNameKey(right);
+  if (leftCompact && leftCompact === rightCompact) return true;
+  const leftShort = abbreviatedNameKey(left);
+  const rightShort = abbreviatedNameKey(right);
+  return Boolean(leftShort && rightShort && leftShort === rightShort);
+}
+
+function isDarkColorHex(hex: string): boolean {
+  const cleaned = hex.replace(/^#/, '');
+  const normalized =
+    cleaned.length === 3
+      ? cleaned
+          .split('')
+          .map((ch) => `${ch}${ch}`)
+          .join('')
+      : cleaned.slice(0, 6);
+  const r = Number.parseInt(normalized.slice(0, 2), 16);
+  const g = Number.parseInt(normalized.slice(2, 4), 16);
+  const b = Number.parseInt(normalized.slice(4, 6), 16);
+  if ([r, g, b].some((v) => Number.isNaN(v))) return false;
+  const yiq = (r * 299 + g * 587 + b * 114) / 1000;
+  return yiq < 132;
+}
+
+function chooseBadgeAccentColor(primary: string, secondary: string): string {
+  if (!isDarkColorHex(primary)) return primary;
+  return secondary || primary;
+}
+
 function buildSituationOverrideText(state: LiveGameState): string | null {
   const play = state.lastPlay;
   if (!play) return null;
@@ -157,6 +216,82 @@ function isTurnoverOnDownsPlay(play: LiveGameState['lastPlay']): boolean {
   return true;
 }
 
+function resolveTouchdownTeamAbbr(
+  play: LiveGameState['lastPlay'],
+  awayAbbr: string,
+  homeAbbr: string
+): string | null {
+  if (!play?.isTouchdown || play.isNoPlay) return null;
+  const away = awayAbbr.toUpperCase();
+  const home = homeAbbr.toUpperCase();
+
+  const offense = (play.offenseTeam ?? '').toUpperCase();
+  const defense = offense === away ? home : offense === home ? away : '';
+
+  if (play.isTurnover && play.turnoverBy) {
+    const turnoverBy = play.turnoverBy.toUpperCase();
+    if (turnoverBy === away || turnoverBy === home) return turnoverBy;
+  }
+
+  const prefixTeam = play.description
+    .trim()
+    .match(/^\(?([A-Z]{2,3})\)?(?:\s|\()/)?.[1]
+    ?.toUpperCase();
+  if (prefixTeam === away || prefixTeam === home) {
+    if (play.isTurnover && defense) return defense;
+    return prefixTeam;
+  }
+
+  if (play.isTurnover && defense) return defense;
+  if (offense === away || offense === home) return offense;
+  return null;
+}
+
+function buildTouchdownEventLabel(
+  play: LiveGameState['lastPlay'],
+  away: LiveGameState['away'],
+  home: LiveGameState['home']
+): {
+  text: string;
+  color: string;
+  glow: string;
+  delay: number;
+} | null {
+  if (!play?.isTouchdown || play.isNoPlay) return null;
+  const teamAbbr = resolveTouchdownTeamAbbr(play, away.abbr, home.abbr);
+  if (!teamAbbr) return { text: 'TOUCHDOWN', color: C.green, glow: `${C.green}80`, delay: 1.0 };
+
+  const cityLabelFor = (team: LiveGameState['away'] | LiveGameState['home']): string => {
+    const display = team.displayName?.trim() ?? '';
+    const nickname = team.name?.trim() ?? '';
+    if (!display) return team.abbr;
+    if (
+      nickname &&
+      display.length > nickname.length &&
+      display.toLowerCase().endsWith(nickname.toLowerCase())
+    ) {
+      const city = display.slice(0, display.length - nickname.length).trim();
+      if (city) return city;
+    }
+    const parts = display.split(/\s+/).filter(Boolean);
+    if (parts.length > 1) return parts.slice(0, -1).join(' ');
+    return display;
+  };
+
+  const teamLabel =
+    teamAbbr === away.abbr.toUpperCase()
+      ? cityLabelFor(away)
+      : teamAbbr === home.abbr.toUpperCase()
+        ? cityLabelFor(home)
+        : teamAbbr;
+  return {
+    text: `TOUCHDOWN ${teamLabel.toUpperCase()}`,
+    color: C.green,
+    glow: `${C.green}80`,
+    delay: 1.0,
+  };
+}
+
 function buildFumbleEventLabel(play: LiveGameState['lastPlay']): {
   text: string;
   color: string;
@@ -168,11 +303,15 @@ function buildFumbleEventLabel(play: LiveGameState['lastPlay']): {
   if (!/\bfumble(?:s|d)?\b/i.test(play.description)) return null;
   const recoveryTeam =
     play.description.match(/\brecovered by\s+([A-Z]{2,3})[-\s]/i)?.[1]?.toUpperCase() ??
-    play.description.match(/\band recovers?\s+at\s+([A-Z]{2,3})\s+\d{1,2}\b/i)?.[1]?.toUpperCase() ??
+    play.description
+      .match(/\band recovers?\s+at\s+([A-Z]{2,3})\s+\d{1,2}\b/i)?.[1]
+      ?.toUpperCase() ??
     '';
   const offenseTeam =
     (play.offenseTeam ?? '').toUpperCase() ||
-    play.description.match(/^\(?\d*:?[\d.]*\)?\s*\(?shotgun\)?\s*(?:\d+-)?([A-Z]{2,3})\b/i)?.[1]?.toUpperCase() ||
+    play.description
+      .match(/^\(?\d*:?[\d.]*\)?\s*\(?shotgun\)?\s*(?:\d+-)?([A-Z]{2,3})\b/i)?.[1]
+      ?.toUpperCase() ||
     '';
   const recoverySpotMatch = play.description.match(
     /\brecovered by\s+.+?\s+at\s+([A-Z]{2,3})\s+(\d{1,2})\b/i
@@ -221,6 +360,7 @@ export function LiveGameView({
   week,
   isGameFinal = false,
   currentPlaySequence = null,
+  statsGameId,
 }: LiveGameViewProps) {
   const [activeTab, setActiveTab] = useState<TabKey>('plays');
   const [elapsed, setElapsed] = useState(0);
@@ -247,16 +387,17 @@ export function LiveGameView({
     glow: string;
     delay: number;
     tight?: boolean;
-  } | null =
-    (() => {
-      if (state.lastPlay?.isSafety)
-        return { text: 'SAFETY', color: C.red, glow: `${C.red}80`, delay: 1.0 };
-      const fumbleEvent = buildFumbleEventLabel(state.lastPlay);
-      if (fumbleEvent) return fumbleEvent;
-      if (isTurnoverOnDownsPlay(state.lastPlay))
-        return { text: 'TURNOVER ON DOWNS', color: C.red, glow: `${C.red}80`, delay: 1.0 };
-      return null;
-    })();
+  } | null = (() => {
+    if (state.lastPlay?.isSafety)
+      return { text: 'SAFETY', color: C.red, glow: `${C.red}80`, delay: 1.0 };
+    const touchdownEvent = buildTouchdownEventLabel(state.lastPlay, state.away, state.home);
+    if (touchdownEvent) return touchdownEvent;
+    const fumbleEvent = buildFumbleEventLabel(state.lastPlay);
+    if (fumbleEvent) return fumbleEvent;
+    if (isTurnoverOnDownsPlay(state.lastPlay))
+      return { text: 'TURNOVER ON DOWNS', color: C.red, glow: `${C.red}80`, delay: 1.0 };
+    return null;
+  })();
 
   // Penalty strip — shown below the play event label, overlaps the top of the field.
   const penaltyStrip: {
@@ -275,6 +416,33 @@ export function LiveGameView({
       yards: Math.max(0, play.penaltyYards ?? 0),
       player: play.penaltyPlayer?.trim() || undefined,
     };
+  })();
+
+  const playProbabilityStrip: { td: number; fg: number } | null = (() => {
+    const play = state.lastPlay;
+    if (!play) return null;
+    const td = normalizePercentLike(play.tdProb);
+    const fg = normalizePercentLike(play.fgProb);
+    if (td == null && fg == null) return null;
+    const tdPct = td ?? 0;
+    const fgPct = fg ?? 0;
+    const isNotable =
+      tdPct >= 15 ||
+      fgPct >= 15 ||
+      Boolean(play.isTouchdown) ||
+      play.type === 'fieldgoal' ||
+      (play.startDown ?? 0) === 4;
+    if (!isNotable) return null;
+    return { td: Math.max(0, tdPct), fg: Math.max(0, fgPct) };
+  })();
+
+  const passModelStrip: { cp: number; cpoe: number } | null = (() => {
+    const play = state.lastPlay;
+    if (!play || play.type !== 'pass') return null;
+    const cp = normalizePercentLike(play.cp);
+    const cpoe = normalizePercentLike(play.cpoe);
+    if (cp == null && cpoe == null) return null;
+    return { cp: cp ?? 0, cpoe: cpoe ?? 0 };
   })();
 
   useEffect(() => {
@@ -571,6 +739,120 @@ export function LiveGameView({
                 )}
               </div>
             )}
+
+            {playProbabilityStrip && (
+              <div
+                style={{
+                  marginTop: 4,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 7,
+                  padding: '3px 12px',
+                  background: 'rgba(2, 14, 22, 0.86)',
+                  border: `1px solid ${C.panelBorder}`,
+                  opacity: 0,
+                  animation: 'fadeIn 0.2s ease 0.18s forwards',
+                }}
+              >
+                <span
+                  style={{
+                    fontFamily: F.display,
+                    fontSize: 9,
+                    fontWeight: 700,
+                    letterSpacing: '.14em',
+                    color: C.cyan,
+                  }}
+                >
+                  PRE-SNAP MODEL
+                </span>
+                <span
+                  style={{
+                    width: 1,
+                    height: 10,
+                    background: C.panelBorder,
+                    opacity: 0.7,
+                    flexShrink: 0,
+                  }}
+                />
+                <span
+                  style={{
+                    fontFamily: F.mono,
+                    fontSize: 10,
+                    color: C.textDim,
+                    letterSpacing: '.05em',
+                  }}
+                >
+                  TD {playProbabilityStrip.td.toFixed(1)}%
+                </span>
+                <span
+                  style={{
+                    fontFamily: F.mono,
+                    fontSize: 10,
+                    color: C.textDim,
+                    letterSpacing: '.05em',
+                  }}
+                >
+                  FG {playProbabilityStrip.fg.toFixed(1)}%
+                </span>
+              </div>
+            )}
+
+            {passModelStrip && (
+              <div
+                style={{
+                  marginTop: 4,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 7,
+                  padding: '3px 12px',
+                  background: 'rgba(1, 18, 10, 0.8)',
+                  border: `1px solid rgba(0,255,170,.25)`,
+                  opacity: 0,
+                  animation: 'fadeIn 0.2s ease 0.2s forwards',
+                }}
+              >
+                <span
+                  style={{
+                    fontFamily: F.display,
+                    fontSize: 9,
+                    fontWeight: 700,
+                    letterSpacing: '.14em',
+                    color: C.green,
+                  }}
+                >
+                  PASS MODEL
+                </span>
+                <span
+                  style={{
+                    width: 1,
+                    height: 10,
+                    background: 'rgba(0,255,170,.25)',
+                    opacity: 0.8,
+                    flexShrink: 0,
+                  }}
+                />
+                <span
+                  style={{
+                    fontFamily: F.mono,
+                    fontSize: 10,
+                    color: C.textDim,
+                    letterSpacing: '.05em',
+                  }}
+                >
+                  CP {passModelStrip.cp.toFixed(1)}%
+                </span>
+                <span
+                  style={{
+                    fontFamily: F.mono,
+                    fontSize: 10,
+                    color: passModelStrip.cpoe >= 0 ? C.green : C.red,
+                    letterSpacing: '.05em',
+                  }}
+                >
+                  CPOE {formatSignedPercent(passModelStrip.cpoe)}
+                </span>
+              </div>
+            )}
           </div>
 
           {/* THE FIELD — marginTop extended by 28px (event strip height) to keep field position stable */}
@@ -596,16 +878,44 @@ export function LiveGameView({
             {/* Player stats panel — appears when a headshot is clicked */}
             {statsPanelActor &&
               (() => {
-                const nameKey = statsPanelActor.name.toLowerCase().replace(/[^a-z0-9]/g, '');
-                const fantasyEntry =
-                  [...state.fantasyAway, ...state.fantasyHome].find(
-                    (e) => e.name.toLowerCase().replace(/[^a-z0-9]/g, '') === nameKey
-                  ) ?? null;
+                const fantasyAwayEntry =
+                  state.fantasyAway.find((e) => namesLikelyMatch(e.name, statsPanelActor.name)) ??
+                  null;
+                const fantasyHomeEntry =
+                  state.fantasyHome.find((e) => namesLikelyMatch(e.name, statsPanelActor.name)) ??
+                  null;
+                const fantasyEntry = fantasyAwayEntry ?? fantasyHomeEntry;
+                const offenseAbbr = (state.lastPlay?.offenseTeam ?? '').toUpperCase();
+                const inferredSide =
+                  fantasyAwayEntry != null
+                    ? 'away'
+                    : fantasyHomeEntry != null
+                      ? 'home'
+                      : offenseAbbr === state.away.abbr.toUpperCase()
+                        ? 'away'
+                        : offenseAbbr === state.home.abbr.toUpperCase()
+                          ? 'home'
+                          : null;
+                const accentColor =
+                  inferredSide === 'away'
+                    ? normalizeTeamHex(state.away.color, C.cyan)
+                    : inferredSide === 'home'
+                      ? normalizeTeamHex(state.home.color, C.cyan)
+                      : C.cyan;
+                const accentAltColor =
+                  inferredSide === 'away'
+                    ? normalizeTeamHex(state.away.altColor, accentColor)
+                    : inferredSide === 'home'
+                      ? normalizeTeamHex(state.home.altColor, accentColor)
+                      : accentColor;
                 return (
                   <PlayerStatsPanel
                     actor={statsPanelActor}
                     onClose={() => setStatsPanelActor(null)}
                     fantasyEntry={fantasyEntry}
+                    accentColor={accentColor}
+                    accentAltColor={accentAltColor}
+                    gameId={statsGameId ?? state.gameId}
                     season={season}
                     week={week}
                   />
@@ -647,12 +957,17 @@ export function LiveGameView({
               currentPlaySequence={currentPlaySequence}
             />
             <div style={{ display: 'flex', justifyContent: 'flex-end', paddingTop: 4 }}>
-              <EnvironmentPanel weather={state.weather} />
+              <EnvironmentPanel
+                weather={state.weather}
+                attendance={state.attendance}
+                referee={state.referee}
+                officials={state.officials}
+              />
             </div>
           </div>
 
           {/* Score Table inside viewport */}
-          <div style={{ position: 'relative', padding: '0 20px 16px' }}>
+          <div style={{ position: 'relative', padding: '10px 20px 16px' }}>
             <ScoreboardTable
               away={state.away}
               home={state.home}
@@ -697,16 +1012,26 @@ export function LiveGameView({
           <div className="hud-panel" style={{ borderTopLeftRadius: 0, minHeight: 320 }}>
             {activeTab === 'plays' && <MissionLog plays={state.plays} />}
             {activeTab === 'stats' && state.teamStats && (
-              <TeamStatsPanel stats={state.teamStats} away={state.away} home={state.home} />
+              <>
+                {state.epaTimeline && state.epaTimeline.length > 0 && (
+                  <EpaFlowChart
+                    timeline={state.epaTimeline}
+                    timing={state.timing}
+                    away={state.away}
+                    home={state.home}
+                  />
+                )}
+                <TeamStatsPanel stats={state.teamStats} away={state.away} home={state.home} />
+              </>
             )}
             {activeTab === 'stats' && !state.teamStats && (
               <Placeholder text="Team stats not available for this game." />
             )}
-            {activeTab === 'leaders' && state.leaders && (
-              <LeadersPanel leaders={state.leaders} away={state.away} home={state.home} />
+            {activeTab === 'leaders' && state.personnel && (
+              <PersonnelPanel away={state.away} home={state.home} personnel={state.personnel} />
             )}
-            {activeTab === 'leaders' && !state.leaders && (
-              <Placeholder text="Leader data not available for this game." />
+            {activeTab === 'leaders' && !state.personnel && (
+              <Placeholder text="Personnel snap data is not available for this game yet." />
             )}
             {activeTab === 'scoring' && (
               <ScoringPanel scoring={state.scoring ?? []} away={state.away} home={state.home} />
@@ -846,6 +1171,66 @@ function PlaybackControls({
     opacity: disabled ? 0.45 : 1,
   });
 
+  const shareButtonStyle = (active = false, disabled = false): CSSProperties => ({
+    ...navButtonStyle(active, disabled),
+    minWidth: 52,
+    width: 52,
+    padding: 0,
+    fontSize: 20,
+    letterSpacing: 0,
+    textTransform: 'none',
+    fontFamily: 'system-ui, sans-serif',
+  });
+
+  const shareButtonGlyph =
+    shareState === 'copied' ? (
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <path
+          d="M5 13.5 9.2 17.5 19 7.5"
+          stroke="currentColor"
+          strokeWidth="2.4"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      </svg>
+    ) : shareState === 'error' ? (
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <circle cx="12" cy="12" r="8.5" stroke="currentColor" strokeWidth="2.2" />
+        <path
+          d="M12 8v5"
+          stroke="currentColor"
+          strokeWidth="2.2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+        <circle cx="12" cy="16.8" r="1.2" fill="currentColor" />
+      </svg>
+    ) : (
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <path
+          d="M12 16V4"
+          stroke="currentColor"
+          strokeWidth="2.2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+        <path
+          d="m7 9 5-5 5 5"
+          stroke="currentColor"
+          strokeWidth="2.2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+        <path
+          d="M4 14v5a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-5"
+          stroke="currentColor"
+          strokeWidth="2.2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      </svg>
+    );
+
   // Copies a permalink to the currently selected play sequence.
   const onShare = useCallback(async () => {
     if (currentPlaySequence == null || typeof window === 'undefined') return;
@@ -906,12 +1291,15 @@ function PlaybackControls({
         </button>
         <button
           type="button"
-          style={navButtonStyle(shareState === 'copied', currentPlaySequence == null)}
+          style={shareButtonStyle(shareState === 'copied', currentPlaySequence == null)}
           onClick={() => void onShare()}
           disabled={currentPlaySequence == null}
           title={currentPlaySequence == null ? 'No play to share yet' : 'Copy link to this play'}
+          aria-label="Share play link"
         >
-          {shareState === 'copied' ? 'Copied' : shareState === 'error' ? 'Copy Failed' : 'Share'}
+          <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
+            {shareButtonGlyph}
+          </span>
         </button>
       </div>
       <div style={{ display: 'flex', justifyContent: 'center', flexWrap: 'wrap', gap: 6 }}>
@@ -974,6 +1362,12 @@ type AdvancedPlayerData = {
   ngs_passing: Record<string, number> | null;
   ngs_rushing: Record<string, number> | null;
   ngs_receiving: Record<string, number> | null;
+  game_stats?: {
+    current: Record<string, number | null> | null;
+    season_average: Record<string, number | null> | null;
+    average_label: string | null;
+    average_games: number;
+  } | null;
 } | null;
 
 function PanelSectionHeader({ label }: { label: string }) {
@@ -1077,33 +1471,182 @@ function StatTile({ label, value, tooltip }: { label: string; value: string; too
   );
 }
 
+type PopupGameStatRow = {
+  key: string;
+  label: string;
+  game: string;
+  average: string;
+};
+
+function toFiniteNumber(value: number | null | undefined): number | null {
+  return typeof value === 'number' && Number.isFinite(value) ? value : null;
+}
+
+function formatGameStatValue(value: number | null, decimals = 0): string {
+  if (value == null) return '\u2014';
+  if (decimals > 0) return value.toFixed(decimals);
+  return `${Math.round(value)}`;
+}
+
+function formatAverageStatValue(value: number | null, decimals = 1): string {
+  return value == null ? '\u2014' : value.toFixed(decimals);
+}
+
+function buildPopupGameStatRows(
+  current: Record<string, number | null> | null | undefined,
+  seasonAverage: Record<string, number | null> | null | undefined,
+  position: FantasyRosterEntry['position'] | undefined,
+  currentPprOverride: number | null
+): PopupGameStatRow[] {
+  const game = current ?? {};
+  const avg = seasonAverage ?? {};
+  const rows: PopupGameStatRow[] = [];
+
+  const addNumber = (
+    label: string,
+    key: string,
+    options?: { gameDecimals?: number; avgDecimals?: number; gameOverride?: number | null }
+  ) => {
+    const gameValue = toFiniteNumber(
+      options?.gameOverride ?? (game as Record<string, number | null>)[key]
+    );
+    const avgValue = toFiniteNumber((avg as Record<string, number | null>)[key]);
+    if (gameValue == null && avgValue == null) return;
+    rows.push({
+      key,
+      label,
+      game: formatGameStatValue(gameValue, options?.gameDecimals ?? 0),
+      average: formatAverageStatValue(avgValue, options?.avgDecimals ?? 1),
+    });
+  };
+
+  const addPair = (label: string, madeKey: string, attKey: string) => {
+    const gameMade = toFiniteNumber((game as Record<string, number | null>)[madeKey]);
+    const gameAtt = toFiniteNumber((game as Record<string, number | null>)[attKey]);
+    const avgMade = toFiniteNumber((avg as Record<string, number | null>)[madeKey]);
+    const avgAtt = toFiniteNumber((avg as Record<string, number | null>)[attKey]);
+    if (gameMade == null && gameAtt == null && avgMade == null && avgAtt == null) return;
+    rows.push({
+      key: `${madeKey}-${attKey}`,
+      label,
+      game: `${formatGameStatValue(gameMade)}/${formatGameStatValue(gameAtt)}`,
+      average: `${formatAverageStatValue(avgMade)}/${formatAverageStatValue(avgAtt)}`,
+    });
+  };
+
+  if (position === 'QB') {
+    addPair('COMP/ATT', 'completions', 'pass_attempts');
+    addNumber('PASS YDS', 'passing_yards');
+    addNumber('PASS TD', 'passing_tds');
+    addNumber('INT', 'interceptions_thrown');
+    addNumber('SACKS TAKEN', 'sacks_taken');
+    addNumber('RUSH ATT', 'carries');
+    addNumber('RUSH YDS', 'rushing_yards');
+    addNumber('RUSH TD', 'rushing_tds');
+    addNumber('PPR PTS', 'fantasy_points_ppr', {
+      gameDecimals: 1,
+      avgDecimals: 1,
+      gameOverride: currentPprOverride,
+    });
+    return rows;
+  }
+
+  if (position === 'RB') {
+    addNumber('RUSH ATT', 'carries');
+    addNumber('RUSH YDS', 'rushing_yards');
+    addNumber('RUSH TD', 'rushing_tds');
+    addNumber('TARGETS', 'targets');
+    addNumber('REC', 'receptions');
+    addNumber('REC YDS', 'receiving_yards');
+    addNumber('REC TD', 'receiving_tds');
+    addNumber('PPR PTS', 'fantasy_points_ppr', {
+      gameDecimals: 1,
+      avgDecimals: 1,
+      gameOverride: currentPprOverride,
+    });
+    return rows;
+  }
+
+  if (position === 'WR' || position === 'TE') {
+    addNumber('TARGETS', 'targets');
+    addNumber('REC', 'receptions');
+    addNumber('REC YDS', 'receiving_yards');
+    addNumber('REC TD', 'receiving_tds');
+    addNumber('RUSH ATT', 'carries');
+    addNumber('RUSH YDS', 'rushing_yards');
+    addNumber('RUSH TD', 'rushing_tds');
+    addNumber('PPR PTS', 'fantasy_points_ppr', {
+      gameDecimals: 1,
+      avgDecimals: 1,
+      gameOverride: currentPprOverride,
+    });
+    return rows;
+  }
+
+  if (position === 'K') {
+    addPair('FG MADE/ATT', 'fg_made', 'fg_attempts');
+    addPair('XP MADE/ATT', 'pat_made', 'pat_attempts');
+    addNumber('PPR PTS', 'fantasy_points_ppr', {
+      gameDecimals: 1,
+      avgDecimals: 1,
+      gameOverride: currentPprOverride,
+    });
+    return rows;
+  }
+
+  addPair('COMP/ATT', 'completions', 'pass_attempts');
+  addNumber('PASS YDS', 'passing_yards');
+  addNumber('RUSH YDS', 'rushing_yards');
+  addNumber('REC YDS', 'receiving_yards');
+  addNumber('PPR PTS', 'fantasy_points_ppr', {
+    gameDecimals: 1,
+    avgDecimals: 1,
+    gameOverride: currentPprOverride,
+  });
+  return rows;
+}
+
 function PlayerStatsPanel({
   actor,
   onClose,
   fantasyEntry,
+  accentColor,
+  accentAltColor,
+  gameId,
   season,
   week,
 }: {
   actor: PlayActorInfo;
   onClose: () => void;
   fantasyEntry?: FantasyRosterEntry | null;
+  accentColor: string;
+  accentAltColor: string;
+  gameId: string;
   season?: number;
   week?: number;
 }) {
   const [advanced, setAdvanced] = useState<AdvancedPlayerData>(null);
+  const [portalTarget, setPortalTarget] = useState<HTMLElement | null>(null);
+
+  useEffect(() => {
+    setPortalTarget(document.body);
+  }, []);
 
   useEffect(() => {
     if (!actor.gsisId || !season || !week) return;
     const ctrl = new AbortController();
-    fetch(
-      `${API_BASE}/players/advanced/?gsis_id=${encodeURIComponent(actor.gsisId)}&season=${season}&week=${week}`,
-      { signal: ctrl.signal }
-    )
+    const params = new URLSearchParams({
+      gsis_id: actor.gsisId,
+      season: String(season),
+      week: String(week),
+      game_id: String(gameId),
+    });
+    fetch(`${API_BASE}/players/advanced/?${params.toString()}`, { signal: ctrl.signal })
       .then((r) => r.json())
       .then((d) => setAdvanced(d as AdvancedPlayerData))
       .catch(() => {});
     return () => ctrl.abort();
-  }, [actor.gsisId, season, week]);
+  }, [actor.gsisId, gameId, season, week]);
 
   const initials = actor.name
     .trim()
@@ -1113,6 +1656,27 @@ function PlayerStatsPanel({
     .slice(0, 2)
     .join('');
   const statLines = (actor.lines ?? []).filter((l) => l.trim().length > 0);
+  const displayActorName =
+    fantasyEntry?.name && namesLikelyMatch(fantasyEntry.name, actor.name)
+      ? fantasyEntry.name
+      : actor.name;
+  const fantasyScoringCols = fantasyEntry
+    ? [
+        { label: 'PPR', value: fantasyEntry.pointsPpr ?? fantasyEntry.points },
+        { label: 'HALF PPR', value: fantasyEntry.pointsHalfPpr },
+        { label: 'STANDARD', value: fantasyEntry.pointsStandard },
+      ].filter((col) => col.value != null)
+    : [];
+  const pprValue = fantasyScoringCols.find((col) => col.label === 'PPR')?.value ?? null;
+  const advancedGameStats = advanced?.game_stats ?? null;
+  const gameStatRows = buildPopupGameStatRows(
+    advancedGameStats?.current,
+    advancedGameStats?.season_average,
+    fantasyEntry?.position,
+    pprValue
+  );
+  const seasonAverageHeader = advancedGameStats?.average_label?.trim() || 'SEASON AVG';
+  const badgeAccentColor = chooseBadgeAccentColor(accentColor, accentAltColor);
   const hasNgs =
     advanced &&
     (advanced.ngs_passing?.completion_percentage_above_expectation != null ||
@@ -1121,7 +1685,9 @@ function PlayerStatsPanel({
       advanced.ngs_receiving?.avg_separation != null ||
       advanced.ngs_receiving?.avg_yac_above_expectation != null);
 
-  return (
+  if (!portalTarget) return null;
+
+  return createPortal(
     <>
       {/* Fixed backdrop — click anywhere outside panel to dismiss */}
       <div
@@ -1129,7 +1695,7 @@ function PlayerStatsPanel({
         style={{
           position: 'fixed',
           inset: 0,
-          zIndex: 900,
+          zIndex: 7000,
           background: 'rgba(0,0,0,0.55)',
           animation: 'fadeIn 0.14s ease forwards',
           opacity: 0,
@@ -1143,7 +1709,7 @@ function PlayerStatsPanel({
           left: '50%',
           top: '50%',
           transform: 'translate(-50%, -50%)',
-          zIndex: 901,
+          zIndex: 7001,
           width: 380,
           background: 'rgba(3,8,20,.98)',
           border: `1.5px solid ${C.cyan}`,
@@ -1171,11 +1737,11 @@ function PlayerStatsPanel({
               width: 68,
               height: 68,
               borderRadius: '50%',
-              border: `2px solid ${C.cyan}`,
-              boxShadow: `0 0 14px ${C.cyanGlow}, inset 0 0 10px rgba(0,229,255,0.06)`,
+              border: `2px solid ${accentColor}`,
+              boxShadow: `0 0 16px ${accentColor}99, inset 0 0 10px ${accentColor}33`,
               overflow: 'hidden',
               flexShrink: 0,
-              background: 'rgba(0,229,255,.06)',
+              background: `${accentColor}22`,
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
@@ -1185,7 +1751,7 @@ function PlayerStatsPanel({
               // eslint-disable-next-line @next/next/no-img-element
               <img
                 src={actor.headshotUrl}
-                alt={actor.name}
+                alt={displayActorName}
                 style={{ width: '100%', height: '100%', objectFit: 'cover' }}
               />
             ) : (
@@ -1194,7 +1760,7 @@ function PlayerStatsPanel({
                   fontFamily: F.display,
                   fontWeight: 700,
                   fontSize: 22,
-                  color: C.cyan,
+                  color: accentColor,
                   letterSpacing: '.05em',
                 }}
               >
@@ -1217,7 +1783,7 @@ function PlayerStatsPanel({
                   lineHeight: 1.2,
                 }}
               >
-                {actor.name}
+                {displayActorName}
               </div>
               {fantasyEntry?.position && (
                 <span
@@ -1226,10 +1792,10 @@ function PlayerStatsPanel({
                     fontSize: 10,
                     fontWeight: 700,
                     letterSpacing: '.1em',
-                    color: C.cyan,
+                    color: badgeAccentColor,
                     padding: '2px 8px',
-                    border: `1px solid rgba(0,229,255,0.4)`,
-                    background: 'rgba(0,229,255,0.1)',
+                    border: `1px solid ${badgeAccentColor}99`,
+                    background: `${badgeAccentColor}22`,
                   }}
                 >
                   {fantasyEntry.position}
@@ -1242,7 +1808,7 @@ function PlayerStatsPanel({
                 style={{
                   marginTop: 7,
                   fontFamily: F.display,
-                  fontSize: 13,
+                  fontSize: 15,
                   fontWeight: 800,
                   letterSpacing: '.1em',
                   color: C.textBright,
@@ -1280,23 +1846,128 @@ function PlayerStatsPanel({
         </div>
 
         {/* ── GAME STATS ── */}
-        {statLines.length > 0 && (
+        {(gameStatRows.length > 0 || statLines.length > 0) && (
           <div style={{ padding: '0 16px 14px' }}>
             <PanelSectionHeader label="GAME STATS" />
-            {statLines.map((line, i) => (
+            {gameStatRows.length > 0 ? (
               <div
-                key={i}
                 style={{
-                  fontFamily: F.mono,
-                  fontSize: 12,
-                  letterSpacing: '.04em',
-                  color: C.textBright,
-                  lineHeight: 1.7,
+                  border: `1px solid rgba(0,229,255,0.14)`,
+                  background: 'rgba(255,255,255,0.02)',
+                  overflow: 'hidden',
                 }}
               >
-                {line}
+                <div
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: '1.2fr 0.6fr 0.8fr',
+                    gap: 0,
+                    borderBottom: `1px solid rgba(0,229,255,0.12)`,
+                    background: 'rgba(0,229,255,0.04)',
+                  }}
+                >
+                  <div
+                    style={{
+                      padding: '6px 8px',
+                      fontFamily: F.mono,
+                      fontSize: 8,
+                      letterSpacing: '.12em',
+                      color: C.textMuted,
+                    }}
+                  >
+                    STAT
+                  </div>
+                  <div
+                    style={{
+                      padding: '6px 8px',
+                      fontFamily: F.mono,
+                      fontSize: 8,
+                      letterSpacing: '.12em',
+                      color: C.textMuted,
+                      textAlign: 'right',
+                    }}
+                  >
+                    THIS GAME
+                  </div>
+                  <div
+                    style={{
+                      padding: '6px 8px',
+                      fontFamily: F.mono,
+                      fontSize: 8,
+                      letterSpacing: '.12em',
+                      color: C.textMuted,
+                      textAlign: 'right',
+                    }}
+                  >
+                    {seasonAverageHeader}
+                  </div>
+                </div>
+                {gameStatRows.map((row, idx) => (
+                  <div
+                    key={row.key}
+                    style={{
+                      display: 'grid',
+                      gridTemplateColumns: '1.2fr 0.6fr 0.8fr',
+                      gap: 0,
+                      borderTop: idx === 0 ? 'none' : `1px solid rgba(255,255,255,0.05)`,
+                    }}
+                  >
+                    <div
+                      style={{
+                        padding: '6px 8px',
+                        fontFamily: F.mono,
+                        fontSize: 10,
+                        letterSpacing: '.08em',
+                        color: C.textDim,
+                      }}
+                    >
+                      {row.label}
+                    </div>
+                    <div
+                      style={{
+                        padding: '6px 8px',
+                        fontFamily: F.display,
+                        fontSize: 13,
+                        fontWeight: 700,
+                        letterSpacing: '.05em',
+                        color: C.textBright,
+                        textAlign: 'right',
+                      }}
+                    >
+                      {row.game}
+                    </div>
+                    <div
+                      style={{
+                        padding: '6px 8px',
+                        fontFamily: F.display,
+                        fontSize: 12,
+                        fontWeight: 700,
+                        letterSpacing: '.04em',
+                        color: C.textDim,
+                        textAlign: 'right',
+                      }}
+                    >
+                      {row.average}
+                    </div>
+                  </div>
+                ))}
               </div>
-            ))}
+            ) : (
+              statLines.map((line, i) => (
+                <div
+                  key={i}
+                  style={{
+                    fontFamily: F.mono,
+                    fontSize: 12,
+                    letterSpacing: '.04em',
+                    color: C.textBright,
+                    lineHeight: 1.7,
+                  }}
+                >
+                  {line}
+                </div>
+              ))
+            )}
           </div>
         )}
 
@@ -1304,61 +1975,62 @@ function PlayerStatsPanel({
         {fantasyEntry && (
           <div style={{ padding: '0 16px 14px' }}>
             <PanelSectionHeader label="FANTASY · THIS GAME" />
-            <div style={{ display: 'flex', gap: 1 }}>
-              {[
-                { label: 'PPR', value: fantasyEntry.pointsPpr ?? fantasyEntry.points },
-                { label: 'HALF PPR', value: fantasyEntry.pointsHalfPpr },
-                { label: 'STANDARD', value: fantasyEntry.pointsStandard },
-              ]
-                .filter((col) => col.value != null)
-                .map((col) => (
-                  <div
-                    key={col.label}
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: `repeat(${Math.max(1, fantasyScoringCols.length)}, minmax(0,1fr))`,
+                gap: 6,
+              }}
+            >
+              {fantasyScoringCols.map((col) => (
+                <div
+                  key={col.label}
+                  style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'flex-start',
+                    padding: '9px 10px',
+                    background: `linear-gradient(180deg, rgba(0,229,255,0.08), rgba(255,255,255,0.02))`,
+                    border: `1px solid rgba(0,229,255,0.18)`,
+                    boxShadow: 'inset 0 0 0 1px rgba(255,255,255,0.02)',
+                  }}
+                >
+                  <span
                     style={{
-                      flex: 1,
-                      display: 'flex',
-                      flexDirection: 'column',
-                      alignItems: 'center',
-                      padding: '8px 4px',
-                      background: 'rgba(255,255,255,0.03)',
-                      border: `1px solid rgba(0,229,255,0.1)`,
+                      fontFamily: F.mono,
+                      fontSize: 8.5,
+                      color: C.textDim,
+                      letterSpacing: '.14em',
+                      marginBottom: 6,
                     }}
                   >
-                    <span
-                      style={{
-                        fontFamily: F.mono,
-                        fontSize: 8,
-                        color: C.textDim,
-                        letterSpacing: '.12em',
-                        marginBottom: 4,
-                      }}
-                    >
-                      {col.label}
-                    </span>
-                    <span
-                      style={{
-                        fontFamily: F.display,
-                        fontWeight: 800,
-                        fontSize: 17,
-                        color: C.textBright,
-                        letterSpacing: '.04em',
-                      }}
-                    >
-                      {col.value!.toFixed(1)}
-                    </span>
-                    <span
-                      style={{
-                        fontFamily: F.mono,
-                        fontSize: 7,
-                        color: C.textMuted,
-                        letterSpacing: '.08em',
-                        marginTop: 3,
-                      }}
-                    >
-                      PTS
-                    </span>
-                  </div>
-                ))}
+                    {col.label}
+                  </span>
+                  <span
+                    style={{
+                      fontFamily: F.display,
+                      fontWeight: 800,
+                      fontSize: 20,
+                      color: C.textBright,
+                      letterSpacing: '.05em',
+                      lineHeight: 1,
+                    }}
+                  >
+                    {col.value!.toFixed(1)}
+                  </span>
+                  <span
+                    style={{
+                      fontFamily: F.mono,
+                      fontSize: 7.5,
+                      color: C.textMuted,
+                      letterSpacing: '.1em',
+                      marginTop: 6,
+                    }}
+                  >
+                    POINTS
+                  </span>
+                </div>
+              ))}
             </div>
           </div>
         )}
@@ -1495,7 +2167,8 @@ function PlayerStatsPanel({
           }}
         />
       </div>
-    </>
+    </>,
+    portalTarget
   );
 }
 

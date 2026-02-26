@@ -2,10 +2,6 @@
 
 /**
  * Top scoreboard HUD (teams, score, clock, possession, timeout pips, win-prob sparkline).
- *
- * Sparkline fallback:
- * If we only have one/no win-probability sample at a replay point, we render
- * a neutral 50/50 flat line so layout and legibility stay consistent.
  */
 
 import { useEffect, useMemo, useState, type CSSProperties } from 'react';
@@ -53,16 +49,16 @@ export function ScoreBug({
   const possIsAway = possession === 'away';
   const awaySparkColor = getReadableSparkColor(away);
   const homeSparkColor = getReadableSparkColor(home);
-  const hasRealWp = wpTimeline.length > 1;
-  // Keep sparkline UI stable even before any live WP samples are available.
-  const sparkTimeline: WpTimelinePoint[] = hasRealWp
+  const hasWpSamples = wpTimeline.length > 0;
+  // Keep sparkline UI stable if a frame is missing WP samples.
+  const sparkTimeline: WpTimelinePoint[] = hasWpSamples
     ? wpTimeline
     : [
         { wp: 50, gameMin: 0 },
         { wp: 50, gameMin: Math.max(1, timing.elapsedMin) },
       ];
-  const awayPctDisplay = hasRealWp ? Math.round(awayWinPct) : 50;
-  const homePctDisplay = hasRealWp ? Math.round(100 - awayWinPct) : 50;
+  const awayPctDisplay = Math.max(0, Math.min(100, Math.round(awayWinPct)));
+  const homePctDisplay = Math.max(0, Math.min(100, Math.round(100 - awayWinPct)));
 
   return (
     <div
@@ -384,18 +380,21 @@ function TeamBadge({
 }
 
 function toScoreboardDarkLogoUrl(team: HudTeam): string {
-  const fallback = `https://a.espncdn.com/i/teamlogos/nfl/500-dark/scoreboard/${team.abbr.toLowerCase()}.png`;
+  const espnLogoKey = team.abbr.toUpperCase() === 'WAS' ? 'wsh' : team.abbr.toLowerCase();
+  const fallback = `https://a.espncdn.com/i/teamlogos/nfl/500-dark/scoreboard/${espnLogoKey}.png`;
+  const applyAlias = (value: string) =>
+    team.abbr.toUpperCase() === 'WAS' ? value.replace(/\/was\.png(?=$|\?)/i, '/wsh.png') : value;
   const source = team.logoUrl?.trim();
   if (!source) return fallback;
-  if (source.includes('/500-dark/scoreboard/')) return source;
+  if (source.includes('/500-dark/scoreboard/')) return applyAlias(source);
   if (source.includes('/500/scoreboard/')) {
-    return source.replace('/500/scoreboard/', '/500-dark/scoreboard/');
+    return applyAlias(source.replace('/500/scoreboard/', '/500-dark/scoreboard/'));
   }
   if (source.includes('/500-dark/')) {
-    return source.replace('/500-dark/', '/500-dark/scoreboard/');
+    return applyAlias(source.replace('/500-dark/', '/500-dark/scoreboard/'));
   }
   if (source.includes('/500/')) {
-    return source.replace('/500/', '/500-dark/scoreboard/');
+    return applyAlias(source.replace('/500/', '/500-dark/scoreboard/'));
   }
   return fallback;
 }
@@ -502,6 +501,23 @@ function MiniSparkline({
   const qTicks = getQuarterTicks(timing.isOT);
   const pts = computeWpSparklinePoints(timeline, timing, isAway, W, H, pad);
   if (pts.length === 0) return null;
+  const bandLowTimeline = timeline.map((point) => ({
+    wp: typeof point.wpLow === 'number' ? point.wpLow : point.wp,
+    gameMin: point.gameMin,
+  }));
+  const bandHighTimeline = timeline.map((point) => ({
+    wp: typeof point.wpHigh === 'number' ? point.wpHigh : point.wp,
+    gameMin: point.gameMin,
+  }));
+  const lowPts = computeWpSparklinePoints(bandLowTimeline, timing, isAway, W, H, pad);
+  const highPts = computeWpSparklinePoints(bandHighTimeline, timing, isAway, W, H, pad);
+  const hasBand = timeline.some(
+    (point) =>
+      typeof point.wpLow === 'number' &&
+      typeof point.wpHigh === 'number' &&
+      point.wpHigh > point.wpLow
+  );
+  const bandAreaD = hasBand ? sparklineConfidenceArea(lowPts, highPts) : '';
   const pathD = sparklineToPath(pts);
   const areaD = sparklineToArea(pts, H);
   const lastPt = pts[pts.length - 1]!;
@@ -539,6 +555,7 @@ function MiniSparkline({
           />
         ))}
         <rect x={lastPt.x} y={0} width={W - lastPt.x} height={H} fill="rgba(255,255,255,.015)" />
+        {hasBand && bandAreaD && <path d={bandAreaD} fill={color} opacity=".11" />}
         <path d={areaD} fill={color} opacity=".14" />
         <path
           d={pathD}
@@ -577,6 +594,28 @@ function MiniSparkline({
       </span>
     </div>
   );
+}
+
+function sparklineConfidenceArea(
+  lowPts: Array<{ x: number; y: number }>,
+  highPts: Array<{ x: number; y: number }>
+): string {
+  if (lowPts.length === 0 || highPts.length === 0 || lowPts.length !== highPts.length) return '';
+  const upper = lowPts.map((low, index) => {
+    const high = highPts[index] ?? low;
+    return low.y <= high.y ? low : high;
+  });
+  const lower = lowPts.map((low, index) => {
+    const high = highPts[index] ?? low;
+    return low.y > high.y ? low : high;
+  });
+  if (upper.length === 0) return '';
+  const top = upper.map((pt) => `${pt.x.toFixed(1)},${pt.y.toFixed(1)}`).join(' L ');
+  const bottom = [...lower]
+    .reverse()
+    .map((pt) => `${pt.x.toFixed(1)},${pt.y.toFixed(1)}`)
+    .join(' L ');
+  return `M ${top} L ${bottom} Z`;
 }
 
 function getReadableSparkColor(team: HudTeam): string {

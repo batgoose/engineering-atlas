@@ -40,6 +40,10 @@ export function MissionLog({ plays }: MissionLogProps) {
       {/* Play rows (newest first) */}
       {[...plays].reverse().map((p, i) => {
         const textLower = p.text.toLowerCase();
+        const attributionTags = (p.attribution ?? '')
+          .split(' · ')
+          .map((tag) => tag.trim())
+          .filter((tag) => tag.length > 0);
         const eventColor =
           p.type === 'turnover' || textLower.includes('intercept') || textLower.includes('sack')
             ? C.red
@@ -96,7 +100,32 @@ export function MissionLog({ plays }: MissionLogProps) {
                   {p.team}
                 </span>
               )}
-              {p.text}
+              <span>{p.text}</span>
+              {p.attribution && (
+                <span
+                  style={{
+                    display: 'block',
+                    marginTop: 2,
+                    fontFamily: F.display,
+                    fontSize: 9,
+                    letterSpacing: '.08em',
+                    color: C.textMuted,
+                    textTransform: 'uppercase',
+                  }}
+                >
+                  {attributionTags.map((tag, idx) => (
+                    <span
+                      key={`${p.id}-attr-${idx}`}
+                      style={{
+                        color: tag.startsWith('PEN:') ? C.amber : C.textMuted,
+                      }}
+                    >
+                      {tag}
+                      {idx < attributionTags.length - 1 ? ' · ' : ''}
+                    </span>
+                  ))}
+                </span>
+              )}
             </span>
 
             {/* EPA */}

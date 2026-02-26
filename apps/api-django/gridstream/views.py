@@ -8,6 +8,7 @@ Endpoints:
   /games/{id}/plays/            — play-by-play (cursor paginated)
   /games/{id}/drives/           — drive summaries
   /games/{id}/boxscore/         — player + team stats for a game
+  /games/{id}/personnel/        — per-team snap usage + active player usage
   /teams/                       — all teams
   /teams/{abbr}/                — team detail
   /teams/{abbr}/roster/         — current roster
@@ -32,7 +33,8 @@ import logging
 from collections import defaultdict
 
 from django.conf import settings
-from django.db.models import Q, F, Sum, Count, Case, When, Value, IntegerField
+from django.db import connections
+from django.db.models import Q, F, Sum, Count, Case, When, Value, IntegerField, Avg
 from django.db.models.functions import Coalesce
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
@@ -129,6 +131,8 @@ from .cache import (
 )
 
 logger = logging.getLogger(__name__)
+
+TEAM_ABBR_NORMALIZE = {"STL": "LA", "SD": "LAC", "OAK": "LV"}
 
 
 # =============================================================================
@@ -370,7 +374,7 @@ class PlayerViewSet(viewsets.ReadOnlyModelViewSet):
     @action(detail=False, methods=["get"], url_path="advanced")
     def advanced(self, request):
         """
-        GET /players/advanced/?gsis_id={gsis_id}&season={year}&week={week}
+        GET /players/advanced/?gsis_id={gsis_id}&season={year}&week={week}&game_id={id}
 
         Returns ECR (FantasyPros Expert Consensus Rankings) and NFL Next Gen
         Stats for a player in a specific week. Used by the PlayerStatsPanel to
@@ -385,17 +389,64 @@ class PlayerViewSet(viewsets.ReadOnlyModelViewSet):
           } | null,
           "ngs_passing":   { ...metrics } | null,
           "ngs_rushing":   { ...metrics } | null,
-          "ngs_receiving": { ...metrics } | null
+          "ngs_receiving": { ...metrics } | null,
+          "game_stats": {
+            "current": { ...player_game_stats_fields } | null,
+            "season_average": { ...player_game_stats_fields } | null,
+            "average_label": "2025 AVG (W1-W8)" | "2025 SEASON AVG TO DATE" | "2024 AVG" | null,
+            "average_games": 8
+          }
         }
         """
         gsis_id = request.query_params.get("gsis_id", "").strip()
         season = request.query_params.get("season")
         week = request.query_params.get("week")
+        game_id = request.query_params.get("game_id")
 
         if not gsis_id:
             return Response(
                 {"error": "gsis_id is required"}, status=status.HTTP_400_BAD_REQUEST
             )
+
+        stat_fields = [
+            "completions",
+            "pass_attempts",
+            "passing_yards",
+            "passing_tds",
+            "interceptions_thrown",
+            "sacks_taken",
+            "carries",
+            "rushing_yards",
+            "rushing_tds",
+            "targets",
+            "receptions",
+            "receiving_yards",
+            "receiving_tds",
+            "fg_made",
+            "fg_attempts",
+            "pat_made",
+            "pat_attempts",
+            "fantasy_points_ppr",
+            "fantasy_points_half_ppr",
+            "fantasy_points_standard",
+        ]
+
+        def _serialize_stats_row(row):
+            if row is None:
+                return None
+            return {field: getattr(row, field, None) for field in stat_fields}
+
+        def _serialize_avg_row(agg_dict):
+            if not agg_dict:
+                return None
+            row = {}
+            has_value = False
+            for field in stat_fields:
+                value = agg_dict.get(field)
+                row[field] = float(value) if value is not None else None
+                if value is not None:
+                    has_value = True
+            return row if has_value else None
 
         try:
             player = Player.objects.using("nfl").get(gsis_id=gsis_id)
@@ -406,11 +457,26 @@ class PlayerViewSet(viewsets.ReadOnlyModelViewSet):
                     "ngs_passing": None,
                     "ngs_rushing": None,
                     "ngs_receiving": None,
+                    "game_stats": {
+                        "current": None,
+                        "season_average": None,
+                        "average_label": None,
+                        "average_games": 0,
+                    },
                 }
             )
 
         season_int = int(season) if season else None
         week_int = int(week) if week else None
+        game_id_int = None
+        if game_id not in (None, ""):
+            try:
+                game_id_int = int(game_id)
+            except (TypeError, ValueError):
+                return Response(
+                    {"error": "game_id must be an integer"},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
 
         # ECR ranking — exact week, then nearest prior week in season, then any week in season
         ecr_data = None
@@ -459,8 +525,115 @@ class PlayerViewSet(viewsets.ReadOnlyModelViewSet):
             ngs_result[f"ngs_{stat_type}"] = (
                 PlayerNextGenStatsSerializer(ngs).data["metrics"] if ngs else None
             )
+        current_stats = None
+        if game_id_int is not None:
+            current_stats = (
+                PlayerGameStats.objects.using("nfl")
+                .select_related("game")
+                .filter(player=player, game_id=game_id_int)
+                .annotate(
+                    season_type_rank=Case(
+                        When(season_type="REG", then=Value(0)),
+                        When(season_type="POST", then=Value(1)),
+                        default=Value(2),
+                        output_field=IntegerField(),
+                    )
+                )
+                .order_by("season_type_rank", "-id")
+                .first()
+            )
+        if current_stats is None and season_int and week_int:
+            current_stats = (
+                PlayerGameStats.objects.using("nfl")
+                .select_related("game")
+                .filter(player=player, season_year=season_int, week=week_int)
+                .annotate(
+                    season_type_rank=Case(
+                        When(season_type="REG", then=Value(0)),
+                        When(season_type="POST", then=Value(1)),
+                        default=Value(2),
+                        output_field=IntegerField(),
+                    )
+                )
+                .order_by("season_type_rank", "-id")
+                .first()
+            )
 
-        return Response({"ecr": ecr_data, **ngs_result})
+        season_avg_stats = None
+        season_avg_label = None
+        season_avg_games = 0
+        average_season = current_stats.season_year if current_stats else season_int
+        average_week = current_stats.week if current_stats else week_int
+        if average_season and average_week:
+            current_season_type = current_stats.season_type if current_stats else None
+            if current_stats is not None and current_season_type == "POST":
+                # Postseason context should be true season-to-date:
+                # include regular season + any earlier postseason games.
+                season_avg_qs = (
+                    PlayerGameStats.objects.using("nfl")
+                    .filter(player=player, season_year=average_season)
+                    .exclude(game_id=current_stats.game_id)
+                    .exclude(season_type="PRE")
+                )
+                current_game_date = current_stats.game.game_date
+                current_game_time = current_stats.game.game_time
+                if current_game_time is not None:
+                    season_avg_qs = season_avg_qs.filter(
+                        Q(game__game_date__lt=current_game_date)
+                        | Q(
+                            game__game_date=current_game_date,
+                            game__game_time__lt=current_game_time,
+                        )
+                    )
+                else:
+                    season_avg_qs = season_avg_qs.filter(
+                        game__game_date__lt=current_game_date
+                    )
+                season_avg_label = f"{average_season} SEASON AVG TO DATE"
+            elif average_week > 1:
+                season_avg_qs = PlayerGameStats.objects.using("nfl").filter(
+                    player=player, season_year=average_season, week__lt=average_week
+                )
+                season_avg_label = f"{average_season} AVG (W1-W{average_week - 1})"
+            else:
+                season_avg_qs = PlayerGameStats.objects.using("nfl").filter(
+                    player=player, season_year=average_season - 1
+                )
+                season_avg_label = f"{average_season - 1} AVG"
+
+            if (
+                current_stats is not None
+                and current_stats.season_type
+                and current_stats.season_type != "POST"
+            ):
+                season_avg_qs = season_avg_qs.filter(
+                    season_type=current_stats.season_type
+                )
+
+            season_avg_games = season_avg_qs.count()
+            if season_avg_games > 0:
+                season_avg_stats = _serialize_avg_row(
+                    season_avg_qs.aggregate(
+                        **{field: Avg(field) for field in stat_fields}
+                    )
+                )
+                if season_avg_stats is None:
+                    season_avg_label = None
+            else:
+                season_avg_label = None
+
+        return Response(
+            {
+                "ecr": ecr_data,
+                **ngs_result,
+                "game_stats": {
+                    "current": _serialize_stats_row(current_stats),
+                    "season_average": season_avg_stats,
+                    "average_label": season_avg_label,
+                    "average_games": season_avg_games,
+                },
+            }
+        )
 
 
 # =============================================================================
@@ -978,6 +1151,422 @@ class GameViewSet(viewsets.ReadOnlyModelViewSet):
         ttl = TTL_LONG if game.status in ("final", "final_ot") else TTL_SHORT
         cache_set(ck, result, ttl)
 
+        return Response(result)
+
+    # -----------------------------------------------------------------
+    # PERSONNEL — nested under game
+    # -----------------------------------------------------------------
+    @extend_schema(
+        summary="Get game personnel snap usage",
+        description=(
+            "Returns active player usage by team for a game, sourced from "
+            "nflverse snap counts when available and falling back to "
+            "PlayerGameStats roster presence."
+        ),
+        tags=["games", "personnel"],
+    )
+    @action(detail=True, methods=["get"], url_path="personnel")
+    def personnel(self, request, pk=None):
+        """
+        GET /games/{id}/personnel/
+
+        Shape:
+          {
+            "source": "snap_counts" | "player_stats_fallback" | "empty",
+            "season": 2025,
+            "week": 11,
+            "away": {...},
+            "home": {...}
+          }
+        """
+        game = self.get_object()
+        ck = cache_key("personnel", str(game.pk))
+        cached = cache_get(ck)
+        if cached:
+            return Response(cached)
+
+        away_abbr = (game.away_team.abbreviation or "").upper()
+        home_abbr = (game.home_team.abbreviation or "").upper()
+        tracked_teams = {away_abbr, home_abbr}
+
+        def _canonical_team(abbr):
+            normalized = (abbr or "").upper().strip()
+            return TEAM_ABBR_NORMALIZE.get(normalized, normalized)
+
+        def _safe_int(value, default=0):
+            try:
+                return int(value)
+            except (TypeError, ValueError):
+                return default
+
+        def _safe_pct(value):
+            if value in (None, ""):
+                return None
+            try:
+                numeric = float(value)
+            except (TypeError, ValueError):
+                return None
+            if abs(numeric) <= 1:
+                numeric *= 100
+            return max(0.0, min(100.0, numeric))
+
+        def _name_key(value):
+            cleaned = "".join(ch.lower() for ch in str(value or "") if ch.isalnum())
+            return cleaned
+
+        def _empty_entry(player_name="", player_id=None):
+            return {
+                "player_id": player_id,
+                "player_name": player_name,
+                "display_name": None,
+                "headshot_url": None,
+                "jersey_number": None,
+                "position": None,
+                "position_group": None,
+                "roster_status": None,
+                "depth_chart_position": None,
+                "depth_rank": None,
+                "offense_snaps": 0,
+                "defense_snaps": 0,
+                "special_snaps": 0,
+                "total_snaps": 0,
+                "offense_snap_pct": None,
+                "defense_snap_pct": None,
+                "special_snap_pct": None,
+                "total_snap_pct": None,
+            }
+
+        def _apply_player_metadata(entry, player):
+            if not player:
+                return
+            entry["display_name"] = player.display_name or entry["display_name"]
+            entry["headshot_url"] = player.headshot_url or entry["headshot_url"]
+            entry["jersey_number"] = player.jersey_number or entry["jersey_number"]
+            entry["position"] = player.position or entry["position"]
+            entry["position_group"] = player.position_group or entry["position_group"]
+            entry["roster_status"] = player.roster_status or entry["roster_status"]
+            entry["depth_chart_position"] = (
+                player.depth_chart_position or entry["depth_chart_position"]
+            )
+            entry["player_name"] = player.display_name or entry["player_name"]
+            if player.gsis_id and not entry["player_id"]:
+                entry["player_id"] = player.gsis_id
+
+        team_players = {away_abbr: {}, home_abbr: {}}
+        team_name_index = {away_abbr: {}, home_abbr: {}}
+
+        def _ensure_player(team_abbr, key, player_name="", player_id=None):
+            roster = team_players[team_abbr]
+            entry = roster.get(key)
+            if not entry:
+                entry = _empty_entry(player_name=player_name, player_id=player_id)
+                roster[key] = entry
+            if player_name and not entry["player_name"]:
+                entry["player_name"] = player_name
+            if player_id and not entry["player_id"]:
+                entry["player_id"] = player_id
+            if entry["player_name"]:
+                team_name_index[team_abbr][_name_key(entry["player_name"])] = entry
+            return entry
+
+        def _find_player_entry(team_abbr, player_id=None, player_name=""):
+            roster = team_players[team_abbr]
+            if player_id:
+                by_id = roster.get(player_id)
+                if by_id:
+                    return by_id
+            if player_name:
+                key = _name_key(player_name)
+                return team_name_index[team_abbr].get(key)
+            return None
+
+        def _raw_table_exists(table):
+            with connections["nfl"].cursor() as cursor:
+                cursor.execute("SELECT to_regclass(%s)", [table])
+                return cursor.fetchone()[0] is not None
+
+        nflverse_game_id = (game.nflverse_game_id or "").strip()
+        snap_rows = []
+        if nflverse_game_id and _raw_table_exists("raw.raw_nflverse_snap_counts"):
+            with connections["nfl"].cursor() as cursor:
+                cursor.execute(
+                    """
+                    SELECT
+                        team,
+                        player_id,
+                        player_name,
+                        COALESCE(offense_snaps, 0),
+                        COALESCE(defense_snaps, 0),
+                        COALESCE(special_snaps, 0),
+                        COALESCE(payload->>'position', ''),
+                        COALESCE(payload->>'offense_pct', ''),
+                        COALESCE(payload->>'defense_pct', ''),
+                        COALESCE(payload->>'st_pct', '')
+                    FROM raw.raw_nflverse_snap_counts
+                    WHERE game_id = %s
+                    """,
+                    [nflverse_game_id],
+                )
+                snap_rows = cursor.fetchall()
+
+        raw_player_ids = {
+            str(row[1]).strip() for row in snap_rows if str(row[1]).strip()
+        }
+        players_by_id = {}
+        players_by_name = {}
+        if raw_player_ids:
+            players_qs = Player.objects.filter(
+                Q(gsis_id__in=raw_player_ids) | Q(pfr_id__in=raw_player_ids)
+            ).only(
+                "gsis_id",
+                "pfr_id",
+                "display_name",
+                "headshot_url",
+                "jersey_number",
+                "position",
+                "position_group",
+                "roster_status",
+                "depth_chart_position",
+            )
+            for player in players_qs:
+                if player.gsis_id:
+                    players_by_id[player.gsis_id] = player
+                if player.pfr_id:
+                    players_by_id[player.pfr_id] = player
+                if player.display_name:
+                    players_by_name[_name_key(player.display_name)] = player
+
+        for (
+            raw_team,
+            raw_player_id,
+            raw_player_name,
+            offense_snaps,
+            defense_snaps,
+            special_snaps,
+            raw_position,
+            raw_offense_pct,
+            raw_defense_pct,
+            raw_special_pct,
+        ) in snap_rows:
+            team_abbr = _canonical_team(raw_team)
+            if team_abbr not in tracked_teams:
+                continue
+            player_id = str(raw_player_id or "").strip() or None
+            player_name = str(raw_player_name or "").strip()
+            key = (
+                player_id
+                or _name_key(player_name)
+                or f"row-{len(team_players[team_abbr])}"
+            )
+            entry = _ensure_player(
+                team_abbr, key, player_name=player_name, player_id=player_id
+            )
+            entry["offense_snaps"] = _safe_int(offense_snaps, 0)
+            entry["defense_snaps"] = _safe_int(defense_snaps, 0)
+            entry["special_snaps"] = _safe_int(special_snaps, 0)
+            entry["position"] = raw_position or entry["position"]
+            entry["offense_snap_pct"] = _safe_pct(raw_offense_pct)
+            entry["defense_snap_pct"] = _safe_pct(raw_defense_pct)
+            entry["special_snap_pct"] = _safe_pct(raw_special_pct)
+            matched_player = players_by_id.get(player_id or "") or players_by_name.get(
+                _name_key(player_name)
+            )
+            _apply_player_metadata(entry, matched_player)
+
+        snap_data_available = len(snap_rows) > 0
+
+        depth_rows = []
+        if _raw_table_exists("raw.raw_nflverse_depth_charts"):
+            with connections["nfl"].cursor() as cursor:
+                cursor.execute(
+                    """
+                    SELECT
+                        team,
+                        player_id,
+                        player_name,
+                        position,
+                        depth_rank,
+                        COALESCE(payload->>'depth_position', payload->>'pos_abb', '')
+                    FROM raw.raw_nflverse_depth_charts
+                    WHERE season = %s
+                      AND week = %s
+                      AND team = ANY(%s)
+                    """,
+                    [game.season_id, game.week, [away_abbr, home_abbr]],
+                )
+                depth_rows = cursor.fetchall()
+                if not depth_rows:
+                    cursor.execute(
+                        """
+                        WITH latest AS (
+                            SELECT MAX(payload->>'dt') AS dt
+                            FROM raw.raw_nflverse_depth_charts
+                            WHERE season = %s
+                              AND week IS NULL
+                              AND team = ANY(%s)
+                        )
+                        SELECT
+                            d.team,
+                            d.player_id,
+                            d.player_name,
+                            d.position,
+                            d.depth_rank,
+                            COALESCE(d.payload->>'depth_position', d.payload->>'pos_abb', '')
+                        FROM raw.raw_nflverse_depth_charts d
+                        CROSS JOIN latest
+                        WHERE d.season = %s
+                          AND d.week IS NULL
+                          AND d.team = ANY(%s)
+                          AND (latest.dt IS NULL OR COALESCE(d.payload->>'dt', '') = latest.dt)
+                        """,
+                        [
+                            game.season_id,
+                            [away_abbr, home_abbr],
+                            game.season_id,
+                            [away_abbr, home_abbr],
+                        ],
+                    )
+                    depth_rows = cursor.fetchall()
+
+        for (
+            raw_team,
+            raw_player_id,
+            raw_player_name,
+            raw_position,
+            raw_depth_rank,
+            depth_position,
+        ) in depth_rows:
+            team_abbr = _canonical_team(raw_team)
+            if team_abbr not in tracked_teams:
+                continue
+            player_id = str(raw_player_id or "").strip() or None
+            player_name = str(raw_player_name or "").strip()
+            entry = _find_player_entry(
+                team_abbr, player_id=player_id, player_name=player_name
+            )
+            if not entry:
+                continue
+            if depth_position:
+                entry["depth_chart_position"] = (
+                    entry["depth_chart_position"] or depth_position
+                )
+            if raw_position:
+                entry["position"] = entry["position"] or raw_position
+            depth_rank = _safe_int(raw_depth_rank, None)
+            if depth_rank is not None:
+                entry["depth_rank"] = depth_rank
+
+        # Fallback coverage from canonical PlayerGameStats when snap counts are missing
+        stats_qs = (
+            PlayerGameStats.objects.filter(game=game)
+            .select_related("player", "team")
+            .only(
+                "player__gsis_id",
+                "player__pfr_id",
+                "player__display_name",
+                "player__headshot_url",
+                "player__jersey_number",
+                "player__position",
+                "player__position_group",
+                "player__roster_status",
+                "player__depth_chart_position",
+                "team__abbreviation",
+            )
+        )
+        for row in stats_qs:
+            team_abbr = (row.team.abbreviation or "").upper() if row.team_id else ""
+            if team_abbr not in tracked_teams:
+                continue
+            player = row.player
+            player_id = player.gsis_id or player.pfr_id or None
+            if snap_data_available:
+                existing = _find_player_entry(
+                    team_abbr, player_id=player_id, player_name=player.display_name
+                )
+                if existing:
+                    _apply_player_metadata(existing, player)
+                continue
+            key = (
+                player_id
+                or _name_key(player.display_name)
+                or f"stats-{row.pk}-{len(team_players[team_abbr])}"
+            )
+            entry = _ensure_player(
+                team_abbr,
+                key,
+                player_name=player.display_name,
+                player_id=player_id,
+            )
+            _apply_player_metadata(entry, player)
+
+        def _team_payload(team_abbr):
+            rows = list(team_players[team_abbr].values())
+            offense_total = max((r["offense_snaps"] for r in rows), default=0)
+            defense_total = max((r["defense_snaps"] for r in rows), default=0)
+            special_total = max((r["special_snaps"] for r in rows), default=0)
+            total_team_snaps = offense_total + defense_total + special_total
+
+            def _pct(value, total):
+                if total <= 0:
+                    return None
+                return round((value / total) * 100, 1)
+
+            for row in rows:
+                row["total_snaps"] = (
+                    row["offense_snaps"] + row["defense_snaps"] + row["special_snaps"]
+                )
+                if row["offense_snap_pct"] is None:
+                    row["offense_snap_pct"] = _pct(row["offense_snaps"], offense_total)
+                if row["defense_snap_pct"] is None:
+                    row["defense_snap_pct"] = _pct(row["defense_snaps"], defense_total)
+                if row["special_snap_pct"] is None:
+                    row["special_snap_pct"] = _pct(row["special_snaps"], special_total)
+                row["total_snap_pct"] = _pct(row["total_snaps"], total_team_snaps)
+
+            rows.sort(
+                key=lambda row: (
+                    -row["total_snaps"],
+                    -row["offense_snaps"],
+                    -row["defense_snaps"],
+                    -row["special_snaps"],
+                    row["player_name"] or "",
+                )
+            )
+
+            return {
+                "team_abbr": team_abbr,
+                "total_offense_snaps": offense_total,
+                "total_defense_snaps": defense_total,
+                "total_special_snaps": special_total,
+                "total_snaps": total_team_snaps,
+                "players": rows,
+            }
+
+        away_payload = _team_payload(away_abbr)
+        home_payload = _team_payload(home_abbr)
+        has_snap_rows = any(
+            row.get("offense_snaps", 0) > 0
+            or row.get("defense_snaps", 0) > 0
+            or row.get("special_snaps", 0) > 0
+            for row in away_payload["players"] + home_payload["players"]
+        )
+        has_any_players = bool(away_payload["players"] or home_payload["players"])
+        source = (
+            "snap_counts"
+            if has_snap_rows
+            else "player_stats_fallback" if has_any_players else "empty"
+        )
+
+        result = {
+            "source": source,
+            "season": game.season_id,
+            "week": game.week,
+            "away": away_payload,
+            "home": home_payload,
+        }
+
+        ttl = TTL_LONG if game.status in ("final", "final_ot") else TTL_SHORT
+        cache_set(ck, result, ttl)
         return Response(result)
 
 
