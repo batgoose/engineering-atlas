@@ -12,7 +12,7 @@ export function Navigation() {
 
   return (
     <header className={nav.header}>
-      <nav className={layout.container}>
+      <nav className={layout.container4k}>
         <div className={nav.headerInner}>
           <Link href="/" className="group flex items-center gap-3.5">
             <OrbitalLogo size={42} />

@@ -7,6 +7,22 @@ for the frontend scoreboard / game detail / team / player views.
 """
 
 from rest_framework import serializers
+from datetime import date
+
+
+def _current_nfl_season() -> int:
+    """NFL season year = calendar year the season started. Sept-Dec → current year; Jan-Aug → previous year."""
+    today = date.today()
+    return today.year if today.month >= 9 else today.year - 1
+
+
+def _current_madden_year() -> int:
+    """Madden game year currently in market (e.g. Mar 2026 -> 26; Sep 2026 -> 27)."""
+    today = date.today()
+    game_year = today.year - 2000
+    if today.month >= 8:
+        game_year += 1
+    return game_year
 from .models import (
     Team,
     TeamLogo,
@@ -35,6 +51,8 @@ from .models import (
     PlaybookEntry,
     PlayerFFRanking,
     PlayerNextGenStats,
+    PlayerAward,
+    PlayerMaddenRating,
 )
 
 # =============================================================================
@@ -188,6 +206,53 @@ class PlayerListSerializer(serializers.ModelSerializer):
         source="current_team.abbreviation", read_only=True, default=None
     )
     current_team_colors = serializers.SerializerMethodField()
+    roster_status_display = serializers.SerializerMethodField()
+    age = serializers.SerializerMethodField()
+    games_played = serializers.IntegerField(read_only=True, default=0)
+    games_started = serializers.IntegerField(read_only=True, default=None, allow_null=True)
+    offensive_snaps = serializers.IntegerField(read_only=True, default=None, allow_null=True)
+    snap_pct = serializers.FloatField(read_only=True, default=None, allow_null=True)
+    first_season_played = serializers.IntegerField(read_only=True, default=None)
+    last_season_played = serializers.IntegerField(read_only=True, default=None)
+    seasons_count = serializers.IntegerField(read_only=True, default=0)
+    career_completions = serializers.IntegerField(read_only=True, default=0)
+    career_pass_attempts = serializers.IntegerField(read_only=True, default=0)
+    career_completion_pct = serializers.FloatField(read_only=True, default=0)
+    career_passing_yards = serializers.IntegerField(read_only=True, default=0)
+    career_pass_yards_per_game = serializers.FloatField(read_only=True, default=0)
+    career_pass_yards_per_attempt = serializers.FloatField(read_only=True, default=0)
+    career_passing_tds = serializers.IntegerField(read_only=True, default=0)
+    career_interceptions_thrown = serializers.IntegerField(read_only=True, default=0)
+    career_passer_rating = serializers.FloatField(read_only=True, default=0)
+    career_sacks_taken = serializers.IntegerField(read_only=True, default=0)
+    career_carries = serializers.IntegerField(read_only=True, default=0)
+    career_rushing_yards = serializers.IntegerField(read_only=True, default=0)
+    career_rush_yards_per_game = serializers.FloatField(read_only=True, default=0)
+    career_yards_per_carry = serializers.FloatField(read_only=True, default=0)
+    career_rushing_tds = serializers.IntegerField(read_only=True, default=0)
+    career_receptions = serializers.IntegerField(read_only=True, default=0)
+    career_targets = serializers.IntegerField(read_only=True, default=0)
+    career_catch_pct = serializers.FloatField(read_only=True, default=0)
+    career_receiving_yards = serializers.IntegerField(read_only=True, default=0)
+    career_rec_yards_per_game = serializers.FloatField(read_only=True, default=0)
+    career_yards_per_reception = serializers.FloatField(read_only=True, default=0)
+    career_yards_per_target = serializers.FloatField(read_only=True, default=0)
+    career_receiving_tds = serializers.IntegerField(read_only=True, default=0)
+    career_scrimmage_yards = serializers.IntegerField(read_only=True, default=0)
+    career_total_touchdowns = serializers.IntegerField(read_only=True, default=0)
+    career_touchdowns_per_game = serializers.FloatField(read_only=True, default=0)
+    career_long_gain = serializers.IntegerField(read_only=True, default=0)
+    career_first_downs = serializers.IntegerField(read_only=True, default=0)
+    career_fumbles = serializers.IntegerField(read_only=True, default=0)
+    career_fumbles_lost = serializers.IntegerField(read_only=True, default=0)
+    career_tackles_total = serializers.IntegerField(read_only=True, default=0)
+    career_sacks_made = serializers.FloatField(read_only=True, default=0)
+    career_interceptions_caught = serializers.IntegerField(read_only=True, default=0)
+    career_passes_defended = serializers.IntegerField(read_only=True, default=0)
+    career_forced_fumbles = serializers.IntegerField(read_only=True, default=0)
+    career_fg_made = serializers.IntegerField(read_only=True, default=0)
+    career_fg_attempts = serializers.IntegerField(read_only=True, default=0)
+    career_punt_attempts = serializers.IntegerField(read_only=True, default=0)
 
     class Meta:
         model = Player
@@ -202,9 +267,63 @@ class PlayerListSerializer(serializers.ModelSerializer):
             "position",
             "position_group",
             "jersey_number",
+            "roster_status",
+            "roster_status_display",
+            "age",
             "current_team",
             "current_team_abbr",
             "current_team_colors",
+            "draft_year",
+            "draft_round",
+            "draft_pick",
+            "rookie_season",
+            "entry_year",
+            "years_experience",
+            "games_played",
+            "games_started",
+            "offensive_snaps",
+            "snap_pct",
+            "first_season_played",
+            "last_season_played",
+            "seasons_count",
+            "career_completions",
+            "career_pass_attempts",
+            "career_completion_pct",
+            "career_passing_yards",
+            "career_pass_yards_per_game",
+            "career_pass_yards_per_attempt",
+            "career_passing_tds",
+            "career_interceptions_thrown",
+            "career_passer_rating",
+            "career_sacks_taken",
+            "career_carries",
+            "career_rushing_yards",
+            "career_rush_yards_per_game",
+            "career_yards_per_carry",
+            "career_rushing_tds",
+            "career_receptions",
+            "career_targets",
+            "career_catch_pct",
+            "career_receiving_yards",
+            "career_rec_yards_per_game",
+            "career_yards_per_reception",
+            "career_yards_per_target",
+            "career_receiving_tds",
+            "career_scrimmage_yards",
+            "career_total_touchdowns",
+            "career_touchdowns_per_game",
+            "career_long_gain",
+            "career_first_downs",
+            "career_fumbles",
+            "career_fumbles_lost",
+            "career_tackles_total",
+            "career_sacks_made",
+            "career_interceptions_caught",
+            "career_passes_defended",
+            "career_forced_fumbles",
+            "career_fg_made",
+            "career_fg_attempts",
+            "career_punt_attempts",
             "headshot_url",
             "is_active",
         ]
@@ -216,6 +335,21 @@ class PlayerListSerializer(serializers.ModelSerializer):
                 "secondary": obj.current_team.color_secondary,
             }
         return None
+
+    def get_roster_status_display(self, obj):
+        if obj.roster_status:
+            return obj.get_roster_status_display()
+        if obj.is_active and obj.current_team is None:
+            return "Free Agent"
+        return None
+
+    def get_age(self, obj):
+        if not obj.birth_date:
+            return None
+        today = date.today()
+        years = today.year - obj.birth_date.year
+        birthday_passed = (today.month, today.day) >= (obj.birth_date.month, obj.birth_date.day)
+        return years if birthday_passed else years - 1
 
 
 class PlayerContractSerializer(serializers.ModelSerializer):
@@ -309,6 +443,12 @@ class PlayerTransactionSerializer(serializers.ModelSerializer):
         ]
 
 
+class PlayerAwardSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = PlayerAward
+        fields = ["season", "espn_award_id", "name", "description"]
+
+
 class PlayerDetailSerializer(serializers.ModelSerializer):
     """Full player profile — /players/{id}/ endpoint."""
 
@@ -319,6 +459,12 @@ class PlayerDetailSerializer(serializers.ModelSerializer):
     college_history = PlayerCollegeHistorySerializer(many=True, read_only=True)
     social_accounts = SocialAccountSerializer(many=True, read_only=True)
     recent_transactions = serializers.SerializerMethodField()
+    awards = PlayerAwardSerializer(many=True, read_only=True)
+    games_played = serializers.SerializerMethodField()
+    first_season_played = serializers.SerializerMethodField()
+    last_season_played = serializers.SerializerMethodField()
+    madden_rating = serializers.SerializerMethodField()
+    latest_ff_ranking = serializers.SerializerMethodField()
 
     class Meta:
         model = Player
@@ -357,16 +503,58 @@ class PlayerDetailSerializer(serializers.ModelSerializer):
             "entry_year",
             "years_experience",
             "is_active",
+            "games_played",
+            "first_season_played",
+            "last_season_played",
             "contracts",
             "combine_results",
             "college_history",
             "social_accounts",
             "recent_transactions",
+            "awards",
+            "madden_rating",
+            "latest_ff_ranking",
         ]
+
+    def get_games_played(self, obj):
+        return obj.game_stats.count()
+
+    def get_first_season_played(self, obj):
+        from django.db.models import Min
+        result = obj.game_stats.aggregate(Min("season_year"))
+        return result["season_year__min"]
+
+    def get_last_season_played(self, obj):
+        from django.db.models import Max
+        result = obj.game_stats.aggregate(Max("season_year"))
+        return result["season_year__max"]
 
     def get_recent_transactions(self, obj):
         txns = obj.transactions.select_related("from_team", "to_team")[:10]
         return PlayerTransactionSerializer(txns, many=True).data
+
+    def get_madden_rating(self, obj):
+        # Only return data from the current Madden game or one version behind
+        min_year = _current_madden_year() - 1
+        rating = obj.madden_ratings.filter(madden_year__gte=min_year).order_by("-madden_year").first()
+        if not rating:
+            return None
+        return PlayerMaddenRatingSerializer(rating).data
+
+    def get_latest_ff_ranking(self, obj):
+        # Only show ECR from the latest season present in the rankings table.
+        from django.db.models import Max
+        latest_season = (
+            PlayerFFRanking.objects.using("nfl")
+            .aggregate(max_season=Max("season"))
+            .get("max_season")
+        )
+        if latest_season is None:
+            return None
+        ranking = obj.ff_rankings.filter(season=latest_season).order_by("-week").first()
+        if not ranking:
+            return None
+        return PlayerFFRankingSerializer(ranking).data
 
 
 # =============================================================================
@@ -974,6 +1162,40 @@ class PlayerFFRankingSerializer(serializers.ModelSerializer):
             "rank_best",
             "rank_worst",
             "position_rank",
+        ]
+
+
+class PlayerMaddenRatingSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = PlayerMaddenRating
+        fields = [
+            "madden_year",
+            "position_snapshot",
+            "team_snapshot",
+            "overall",
+            "general_rating",
+            "passing_rating",
+            "receiving_rating",
+            "ball_carrier_rating",
+            "defense_rating",
+            "blocking_rating",
+            "kicking_rating",
+            "speed",
+            "strength",
+            "awareness",
+            "agility",
+            "acceleration",
+            "tackle",
+            "power_moves",
+            "finesse_moves",
+            "throw_power",
+            "catching",
+            "route_running",
+            "run_block",
+            "pass_block",
+            "hit_power",
+            "man_coverage",
+            "zone_coverage",
         ]
 
 

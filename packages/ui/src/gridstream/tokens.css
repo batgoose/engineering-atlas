@@ -27,6 +27,13 @@
   --gs-amber-glow: rgba(255, 182, 18, 0.4);
   --gs-amber-border: rgba(255, 182, 18, 0.25);
 
+  /* ── Copper (awards, active contracts, premium accents) ─────── */
+  --gs-copper: #e8944a;
+  --gs-copper-bright: #f0b06a;
+  --gs-copper-dim: rgba(232, 148, 74, 0.65);
+  --gs-copper-glow: rgba(217, 119, 54, 0.35);
+  --gs-copper-border: rgba(232, 148, 74, 0.22);
+
   /* ── Signal colors ──────────────────────────────────────────── */
   --gs-green: #00e676;
   --gs-red: #ff3b4f;

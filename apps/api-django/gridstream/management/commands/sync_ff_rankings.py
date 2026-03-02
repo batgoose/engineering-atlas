@@ -30,6 +30,7 @@ from datetime import date, timedelta
 import requests
 from django.db import transaction
 
+from gridstream.cache import cache_delete_pattern
 from gridstream.models import Game, Player, PlayerFFRanking
 
 from ._base import ImportBaseCommand
@@ -109,6 +110,10 @@ class Command(ImportBaseCommand):
                 f"\nDone! {total_created} created, {total_updated} updated."
             )
         )
+        if not self.dry_run and (total_created or total_updated):
+            # Player detail payloads are cached for 15m; clear so ECR appears immediately.
+            cleared = cache_delete_pattern("gridstream:players:*")
+            self.stdout.write(f"  Cleared {cleared} cached player detail keys")
 
     # ── Historical sync ───────────────────────────────────────────────────
 

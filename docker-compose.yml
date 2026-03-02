@@ -189,6 +189,7 @@ services:
     restart: unless-stopped
     environment:
       - DEBUG=True
+      - LAN_DEV_HOST=${LAN_DEV_HOST:-}
       - DATABASE_URL=postgresql://atlas_user:atlas_password@pgbouncer-atlas:5432/atlas_db
       - NFL_DATABASE_URL=postgresql://admin:password@pgbouncer-nfl-v2:5432/nfl_data_v2
       - NFL_DATABASE_V1_URL=postgresql://admin:password@pgbouncer-nfl:5432/nfl_data

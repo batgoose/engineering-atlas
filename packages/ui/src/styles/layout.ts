@@ -1,6 +1,7 @@
 export const layout = {
   page: 'min-h-screen',
   container: 'mx-auto max-w-7xl px-4 sm:px-6 lg:px-8',
+  container4k: 'mx-auto w-full max-w-[1600px] px-4 sm:px-6 lg:px-8 min-[2560px]:max-w-[2200px] min-[2560px]:px-10',
   containerNarrow: 'mx-auto max-w-3xl px-4 sm:px-6 lg:px-8',
   containerWide: 'mx-auto max-w-8xl px-4 sm:px-6 lg:px-8',
 

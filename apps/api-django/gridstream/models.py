@@ -202,12 +202,18 @@ class Player(models.Model):
     )
     STATUS_CHOICES = [
         ("ACT", "Active"),
+        ("DEV", "Developmental"),
         ("RES", "Reserve/Injured"),
+        ("RSR", "Reserve"),
+        ("RSN", "Reserve/Future"),
         ("INA", "Inactive"),
+        ("NWT", "Not With Team"),
         ("PUP", "PUP"),
         ("SUS", "Suspended"),
         ("NFI", "Non-Football Injury"),
         ("EXE", "Exempt"),
+        ("TRD", "Traded"),
+        ("TRC", "Trade Complete"),
         ("UFA", "Unrestricted Free Agent"),
         ("RFA", "Restricted Free Agent"),
         ("RET", "Retired"),
@@ -272,6 +278,46 @@ class Player(models.Model):
     years_experience = models.IntegerField(null=True, blank=True)
 
     is_active = models.BooleanField(default=True)
+
+    # ── Materialized career stats ─────────────────────────
+    # Populated by `manage.py materialize_player_career_stats`.
+    # Used by the players directory to avoid a 2s GROUP BY over PlayerGameStats.
+    mat_games_played = models.IntegerField(default=0)
+    mat_seasons_count = models.IntegerField(default=0)
+    mat_first_season = models.IntegerField(null=True, blank=True)
+    mat_last_season = models.IntegerField(null=True, blank=True)
+    mat_completions = models.IntegerField(default=0)
+    mat_pass_attempts = models.IntegerField(default=0)
+    mat_passing_yards = models.IntegerField(default=0)
+    mat_passing_tds = models.IntegerField(default=0)
+    mat_interceptions_thrown = models.IntegerField(default=0)
+    mat_sacks_taken = models.IntegerField(default=0)
+    mat_carries = models.IntegerField(default=0)
+    mat_rushing_yards = models.IntegerField(default=0)
+    mat_rushing_tds = models.IntegerField(default=0)
+    mat_rushing_long = models.IntegerField(default=0)
+    mat_receptions = models.IntegerField(default=0)
+    mat_targets = models.IntegerField(default=0)
+    mat_receiving_yards = models.IntegerField(default=0)
+    mat_receiving_tds = models.IntegerField(default=0)
+    mat_receiving_long = models.IntegerField(default=0)
+    mat_pass_first_downs = models.IntegerField(default=0)
+    mat_rush_first_downs = models.IntegerField(default=0)
+    mat_rec_first_downs = models.IntegerField(default=0)
+    mat_fumbles_rushing = models.IntegerField(default=0)
+    mat_fumbles_receiving = models.IntegerField(default=0)
+    mat_fumbles_sacks = models.IntegerField(default=0)
+    mat_fumbles_lost_rushing = models.IntegerField(default=0)
+    mat_fumbles_lost_receiving = models.IntegerField(default=0)
+    mat_fumbles_lost_sacks = models.IntegerField(default=0)
+    mat_tackles_total = models.IntegerField(default=0)
+    mat_sacks_made = models.FloatField(default=0.0)
+    mat_interceptions_caught = models.IntegerField(default=0)
+    mat_passes_defended = models.IntegerField(default=0)
+    mat_forced_fumbles = models.IntegerField(default=0)
+    mat_fg_made = models.IntegerField(default=0)
+    mat_fg_attempts = models.IntegerField(default=0)
+    mat_punt_attempts = models.IntegerField(default=0)
 
     # ── Timestamps ───────────────────────────────────────
     last_roster_check = models.DateTimeField(
@@ -1797,6 +1843,38 @@ class PlayerFFRanking(models.Model):
         )
 
 
+class PlayerAward(models.Model):
+    """
+    Major annual NFL awards sourced from the ESPN core API.
+
+    Covers: Super Bowl MVP, NFL MVP, Offensive/Defensive POTY,
+    Offensive/Defensive ROTY, Comeback Player, Walter Payton MOTY.
+    Coach of the Year is excluded (no athlete reference).
+
+    Populated by: sync_espn_awards management command.
+    Source: sports.core.api.espn.com/v2/sports/football/leagues/nfl/seasons/{year}/awards
+    """
+
+    player = models.ForeignKey(
+        Player, on_delete=models.CASCADE, related_name="awards"
+    )
+    season = models.IntegerField(db_index=True)
+    espn_award_id = models.CharField(max_length=20)
+    name = models.CharField(max_length=120)
+    description = models.CharField(max_length=200, blank=True)
+
+    class Meta:
+        unique_together = ["player", "season", "espn_award_id"]
+        ordering = ["-season", "name"]
+        indexes = [
+            models.Index(fields=["player", "season"]),
+        ]
+        app_label = "gridstream"
+
+    def __str__(self):
+        return f"{self.player.display_name} — {self.name} ({self.season})"
+
+
 class PlayerNextGenStats(models.Model):
     """
     NFL Next Gen Stats (NGS) — tracking-based advanced metrics from 2016+.
@@ -1851,3 +1929,102 @@ class PlayerNextGenStats(models.Model):
             f"{self.player.display_name} NGS-{self.stat_type} "
             f"{week_label} {self.season}"
         )
+
+
+class PlayerMaddenRating(models.Model):
+    """
+    Madden NFL player ratings sourced from maddenratings.weebly.com.
+
+    One row per (player, madden_year). madden_year corresponds to the game
+    title number (e.g., 24 for Madden NFL 24, which covers the 2023 NFL season).
+
+    Madden year → approximate NFL season:
+      24 → 2023 NFL season  (released Aug 2023)
+      25 → 2024 NFL season  (released Aug 2024, if/when available)
+
+    Populated by: sync_madden_ratings management command.
+    Source: https://maddenratings.weebly.com/
+    """
+
+    player = models.ForeignKey(
+        Player, on_delete=models.CASCADE, related_name="madden_ratings"
+    )
+    madden_year = models.SmallIntegerField(
+        help_text="Madden game title number (e.g., 24 for Madden NFL 24)"
+    )
+    position_snapshot = models.CharField(
+        max_length=5, help_text="Position as listed in Madden roster file"
+    )
+    team_snapshot = models.CharField(
+        max_length=40, blank=True, help_text="Team name as listed in Madden roster file"
+    )
+
+    # Core rating
+    overall = models.SmallIntegerField(help_text="Overall rating (OVR)")
+    general_rating = models.SmallIntegerField(
+        null=True,
+        blank=True,
+        help_text="General category score",
+    )
+    passing_rating = models.SmallIntegerField(
+        null=True,
+        blank=True,
+        help_text="Passing category score",
+    )
+    receiving_rating = models.SmallIntegerField(
+        null=True,
+        blank=True,
+        help_text="Receiving category score",
+    )
+    ball_carrier_rating = models.SmallIntegerField(
+        null=True,
+        blank=True,
+        help_text="Ball-carrying category score",
+    )
+    defense_rating = models.SmallIntegerField(
+        null=True,
+        blank=True,
+        help_text="Defense category score",
+    )
+    blocking_rating = models.SmallIntegerField(
+        null=True,
+        blank=True,
+        help_text="Blocking category score",
+    )
+    kicking_rating = models.SmallIntegerField(
+        null=True,
+        blank=True,
+        help_text="Kicking category score",
+    )
+
+    # Key attributes — kept to the most universally useful subset
+    speed = models.SmallIntegerField(null=True, blank=True)
+    strength = models.SmallIntegerField(null=True, blank=True)
+    awareness = models.SmallIntegerField(null=True, blank=True)
+    agility = models.SmallIntegerField(null=True, blank=True)
+    acceleration = models.SmallIntegerField(null=True, blank=True)
+
+    # Position-group specifics
+    tackle = models.SmallIntegerField(null=True, blank=True, help_text="Tackle (DEF)")
+    power_moves = models.SmallIntegerField(null=True, blank=True, help_text="Power Moves (DL)")
+    finesse_moves = models.SmallIntegerField(null=True, blank=True, help_text="Finesse Moves (DL)")
+    throw_power = models.SmallIntegerField(null=True, blank=True, help_text="Throw Power (QB)")
+    catching = models.SmallIntegerField(null=True, blank=True, help_text="Catching (WR/TE/RB)")
+    route_running = models.SmallIntegerField(null=True, blank=True, help_text="Short Route Running (WR/TE)")
+    run_block = models.SmallIntegerField(null=True, blank=True, help_text="Run Block (OL)")
+    pass_block = models.SmallIntegerField(null=True, blank=True, help_text="Pass Block (OL)")
+    hit_power = models.SmallIntegerField(null=True, blank=True, help_text="Hit Power (DB/LB)")
+    man_coverage = models.SmallIntegerField(null=True, blank=True, help_text="Man Coverage (DB)")
+    zone_coverage = models.SmallIntegerField(null=True, blank=True, help_text="Zone Coverage (DB)")
+
+    class Meta:
+        unique_together = ["player", "madden_year"]
+        indexes = [
+            models.Index(fields=["madden_year", "overall"]),
+            models.Index(fields=["player"]),
+        ]
+        ordering = ["-madden_year"]
+        app_label = "gridstream"
+
+    def __str__(self):
+        return f"{self.player.display_name} Madden{self.madden_year} OVR {self.overall}"

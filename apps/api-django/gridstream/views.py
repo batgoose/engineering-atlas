@@ -30,16 +30,38 @@ OpenAPI prep note:
 """
 
 import logging
+from datetime import date
 from collections import defaultdict
+from functools import lru_cache
 
 from django.conf import settings
 from django.db import connections
-from django.db.models import Q, F, Sum, Count, Case, When, Value, IntegerField, Avg
-from django.db.models.functions import Coalesce
+from django.db.models import (
+    Q,
+    F,
+    Sum,
+    Count,
+    Min,
+    Max,
+    Case,
+    When,
+    Value,
+    IntegerField,
+    FloatField,
+    ExpressionWrapper,
+    Avg,
+    OuterRef,
+    Subquery,
+    Exists,
+)
+from django.db.models.functions import Coalesce, Greatest, Least
+from django.db.models.expressions import RawSQL
+from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.exceptions import NotFound
+from rest_framework.filters import OrderingFilter
 
 # Optional OpenAPI decorators.
 # If drf-spectacular is not installed yet, these no-op shims let us keep
@@ -65,6 +87,7 @@ from .models import (
     Team,
     Venue,
     Player,
+    PlayerContract,
     PlayerTransaction,
     Season,
     Game,
@@ -133,6 +156,13 @@ from .cache import (
 logger = logging.getLogger(__name__)
 
 TEAM_ABBR_NORMALIZE = {"STL": "LA", "SD": "LAC", "OAK": "LV"}
+
+
+@lru_cache(maxsize=16)
+def _raw_table_exists_cached(table_name):
+    with connections["nfl"].cursor() as cursor:
+        cursor.execute("SELECT to_regclass(%s)", [table_name])
+        return cursor.fetchone()[0] is not None
 
 
 # =============================================================================
@@ -265,6 +295,369 @@ class PlayerViewSet(viewsets.ReadOnlyModelViewSet):
 
     filterset_class = PlayerFilter
     pagination_class = StandardPagination
+    filter_backends = [DjangoFilterBackend, OrderingFilter]
+    ordering_fields = [
+        "last_name",
+        "first_name",
+        "display_name",
+        "current_team__abbreviation",
+        "position",
+        "birth_date",
+        "roster_status",
+        "draft_year",
+        "draft_overall",
+        "games_played",
+        "seasons_count",
+        "last_season_played",
+        "first_season_played",
+        "games_started",
+        "offensive_snaps",
+        "snap_pct",
+        "career_completions",
+        "career_pass_attempts",
+        "career_completion_pct",
+        "career_passing_yards",
+        "career_pass_yards_per_game",
+        "career_pass_yards_per_attempt",
+        "career_passing_tds",
+        "career_interceptions_thrown",
+        "career_passer_rating",
+        "career_sacks_taken",
+        "career_carries",
+        "career_rushing_yards",
+        "career_rush_yards_per_game",
+        "career_yards_per_carry",
+        "career_rushing_tds",
+        "career_receptions",
+        "career_targets",
+        "career_catch_pct",
+        "career_receiving_yards",
+        "career_rec_yards_per_game",
+        "career_yards_per_reception",
+        "career_yards_per_target",
+        "career_receiving_tds",
+        "career_scrimmage_yards",
+        "career_total_touchdowns",
+        "career_touchdowns_per_game",
+        "career_long_gain",
+        "career_first_downs",
+        "career_fumbles",
+        "career_fumbles_lost",
+        "career_tackles_total",
+        "career_sacks_made",
+        "career_interceptions_caught",
+        "career_passes_defended",
+        "career_forced_fumbles",
+        "career_fg_made",
+        "career_fg_attempts",
+        "career_punt_attempts",
+        "max_contract_apy",
+        "max_contract_value",
+        "is_active",
+    ]
+
+    @staticmethod
+    def _raw_table_exists(table_name):
+        return _raw_table_exists_cached(table_name)
+
+    @staticmethod
+    def _parse_positive_int(value):
+        try:
+            parsed = int(value)
+        except (TypeError, ValueError):
+            return None
+        return parsed if parsed > 0 else None
+
+    @staticmethod
+    def _parse_bool_value(value):
+        if value is None:
+            return None
+        normalized = str(value).strip().lower()
+        if normalized in {"1", "true", "yes", "y"}:
+            return True
+        if normalized in {"0", "false", "no", "n"}:
+            return False
+        return None
+
+    @staticmethod
+    def _is_default_directory_request(request):
+        """
+        Default view is the first page with no query filters/sorts/scope overrides.
+
+        We allow optional explicit page/page_size only when they match defaults.
+        """
+        for key in request.query_params.keys():
+            value = str(request.query_params.get(key) or "").strip()
+            if key == "page":
+                if value and value != "1":
+                    return False
+                continue
+            if key == "page_size":
+                if value and value != "25":
+                    return False
+                continue
+            return False
+        return True
+
+    def _resolve_current_season_year(self):
+        season_max = Season.objects.aggregate(max_year=Max("year")).get("max_year")
+        stats_max = PlayerGameStats.objects.aggregate(max_year=Max("season_year")).get(
+            "max_year"
+        )
+        candidates = [year for year in (season_max, stats_max) if isinstance(year, int)]
+        if candidates:
+            return max(candidates)
+        return date.today().year
+
+    def _apply_default_current_scope(self, queryset, request):
+        """
+        Keep the default directory focused on currently relevant players.
+
+        Scope can be overridden with ?scope=all.
+        """
+        scope_value = str(request.query_params.get("scope") or "current").strip().lower()
+        if scope_value in {"all", "full", "historical"}:
+            return queryset
+
+        is_active_value = self._parse_bool_value(request.query_params.get("is_active"))
+        if is_active_value is False:
+            return queryset
+
+        # Explicit season queries are usually historical drill-downs.
+        if request.query_params.get("season"):
+            return queryset
+
+        current_season = self._resolve_current_season_year()
+        recency_cutoff = max(1999, current_season - 1)
+        recent_stats = PlayerGameStats.objects.filter(
+            player_id=OuterRef("pk"), season_year__gte=recency_cutoff
+        )
+        return queryset.filter(
+            Q(current_team__isnull=False)
+            | Q(draft_year__gte=recency_cutoff)
+            | Exists(recent_stats)
+        )
+
+    def _build_position_facet_rows(self, queryset):
+        # Single query: fetch (position, position_group, depth_chart_position) for
+        # every player in the filtered set, then do the facet counting in Python.
+        # This replaces 26 individual COUNT queries (~744ms → ~10ms).
+        player_positions = list(
+            queryset.order_by()
+            .values_list("position", "position_group", "depth_chart_position")
+        )
+
+        pf = PlayerFilter
+        non_tackle_ol = pf.OL_CENTER_CODES | pf.OL_GUARD_CODES
+
+        def matches(token, pos, grp, depth):
+            pos = (pos or "").upper()
+            grp = (grp or "").upper()
+            depth = (depth or "").upper()
+
+            if token == "C":
+                return pos in pf.OL_CENTER_CODES or grp in pf.OL_CENTER_CODES or depth in pf.OL_CENTER_CODES
+            if token == "G":
+                return pos in pf.OL_GUARD_CODES or grp in pf.OL_GUARD_CODES or depth in pf.OL_GUARD_CODES
+            if token == "T":
+                return (
+                    pos in pf.OL_TACKLE_CODES
+                    or grp in pf.OL_TACKLE_CODES
+                    or depth in pf.OL_TACKLE_CODES
+                    or pos == "OL"
+                    or (grp == "OL" and pos not in non_tackle_ol)
+                )
+
+            expanded = pf.POSITION_ALIASES.get(token, {token})
+            return pos in expanded or grp in expanded or depth in expanded
+
+        rows = []
+        for token in pf.POSITION_FACET_ORDER:
+            count = sum(1 for pos, grp, depth in player_positions if matches(token, pos, grp, depth))
+            if count > 0:
+                rows.append({"key": token, "label": token, "count": count})
+        return sorted(rows, key=lambda row: (-row["count"], row["label"]))
+
+    def _stats_filter_kwargs(self):
+        """
+        Optional stats scope for player list aggregates.
+
+        stats_season limits game_stats rollups to a season.
+        stats_week further narrows inside that season.
+        """
+        stats_season = self._parse_positive_int(
+            self.request.query_params.get("stats_season")
+        )
+        stats_week = self._parse_positive_int(self.request.query_params.get("stats_week"))
+        if stats_season is None:
+            stats_week = None
+
+        if stats_season is None:
+            return {}, None, None
+
+        game_stats_scope = Q(game_stats__season_year=stats_season)
+        if stats_week is not None:
+            game_stats_scope &= Q(game_stats__week=stats_week)
+
+        return {"filter": game_stats_scope}, stats_season, stats_week
+
+    def _raw_usage_metrics_for_players(self, players, *, stats_season=None, stats_week=None):
+        """
+        Compute starts/offensive snaps/snap% for only the current page of players.
+        """
+        if not players:
+            return {}
+
+        starts_by_gsis = {}
+        snaps_by_source = {}
+        pct_by_source = {}
+        pct_count_by_source = {}
+
+        if self._raw_table_exists("raw.raw_nflverse_depth_charts"):
+            gsis_ids = list(
+                {
+                    str(player.gsis_id).strip()
+                    for player in players
+                    if getattr(player, "gsis_id", None)
+                }
+            )
+            if gsis_ids:
+                where_clauses = ["d.depth_rank = 1", "d.player_id = ANY(%s)"]
+                params = [gsis_ids]
+                if stats_season is not None:
+                    where_clauses.append("d.season = %s")
+                    params.append(stats_season)
+                if stats_week is not None:
+                    where_clauses.append("d.week = %s")
+                    params.append(stats_week)
+                with connections["nfl"].cursor() as cursor:
+                    cursor.execute(
+                        f"""
+                        SELECT d.player_id, COUNT(DISTINCT (d.season, d.week, d.team))::bigint
+                        FROM raw.raw_nflverse_depth_charts d
+                        WHERE {' AND '.join(where_clauses)}
+                        GROUP BY d.player_id
+                        """,
+                        params,
+                    )
+                    starts_by_gsis = {
+                        str(player_id): int(count or 0)
+                        for player_id, count in cursor.fetchall()
+                    }
+
+        if self._raw_table_exists("raw.raw_nflverse_snap_counts"):
+            source_ids = list(
+                {
+                    identifier
+                    for player in players
+                    for identifier in (
+                        str(getattr(player, "pfr_id", "")).strip(),
+                        str(getattr(player, "gsis_id", "")).strip(),
+                    )
+                    if identifier
+                }
+            )
+            if source_ids:
+                where_clauses = ["s.player_id = ANY(%s)"]
+                params = [source_ids]
+                if stats_season is not None:
+                    where_clauses.append("s.season = %s")
+                    params.append(stats_season)
+                if stats_week is not None:
+                    where_clauses.append("s.week = %s")
+                    params.append(stats_week)
+                with connections["nfl"].cursor() as cursor:
+                    cursor.execute(
+                        f"""
+                        SELECT
+                            s.player_id,
+                            SUM(COALESCE(s.offense_snaps, 0))::bigint AS offensive_snaps,
+                            AVG(
+                                NULLIF(
+                                    substring(
+                                        COALESCE(s.payload->>'offense_pct', '')
+                                        FROM '([0-9]+(?:\\.[0-9]+)?)'
+                                    ),
+                                    ''
+                                )::double precision
+                            ) AS snap_pct,
+                            COUNT(
+                                NULLIF(
+                                    substring(
+                                        COALESCE(s.payload->>'offense_pct', '')
+                                        FROM '([0-9]+(?:\\.[0-9]+)?)'
+                                    ),
+                                    ''
+                                )
+                            )::bigint AS snap_pct_count
+                        FROM raw.raw_nflverse_snap_counts s
+                        WHERE {' AND '.join(where_clauses)}
+                        GROUP BY s.player_id
+                        """,
+                        params,
+                    )
+                    for player_id, offensive_snaps, snap_pct, snap_pct_count in cursor.fetchall():
+                        key = str(player_id)
+                        snaps_by_source[key] = int(offensive_snaps or 0)
+                        pct_by_source[key] = float(snap_pct) if snap_pct is not None else None
+                        pct_count_by_source[key] = int(snap_pct_count or 0)
+
+        metrics_by_player_id = {}
+        for player in players:
+            gsis_id = str(getattr(player, "gsis_id", "")).strip()
+            pfr_id = str(getattr(player, "pfr_id", "")).strip()
+            source_keys = [key for key in {gsis_id, pfr_id} if key]
+
+            offensive_snaps = sum(snaps_by_source.get(source, 0) for source in source_keys)
+
+            pct_total = 0.0
+            pct_weight = 0
+            for source in source_keys:
+                pct_value = pct_by_source.get(source)
+                pct_count = pct_count_by_source.get(source, 0)
+                if pct_value is None or pct_count <= 0:
+                    continue
+                pct_total += pct_value * pct_count
+                pct_weight += pct_count
+            snap_pct = (pct_total / pct_weight) if pct_weight > 0 else None
+
+            metrics_by_player_id[str(player.id)] = {
+                "games_started": starts_by_gsis.get(gsis_id, 0),
+                "offensive_snaps": offensive_snaps,
+                "snap_pct": snap_pct,
+            }
+
+        return metrics_by_player_id
+
+    def _merge_page_usage_metrics(
+        self, serialized_rows, page_players, *, stats_season=None, stats_week=None
+    ):
+        if not serialized_rows or not page_players:
+            return
+        metrics_by_player_id = self._raw_usage_metrics_for_players(
+            page_players, stats_season=stats_season, stats_week=stats_week
+        )
+        if not metrics_by_player_id:
+            return
+        for row in serialized_rows:
+            player_id = str(row.get("id"))
+            metrics = metrics_by_player_id.get(player_id)
+            if not metrics:
+                continue
+            row["games_started"] = metrics["games_started"]
+            row["offensive_snaps"] = metrics["offensive_snaps"]
+            row["snap_pct"] = metrics["snap_pct"]
+
+    def _get_player_for_detail_action(self, pk):
+        player = (
+            Player.objects.using("nfl")
+            .select_related("current_team", "draft_team")
+            .filter(pk=pk)
+            .first()
+        )
+        if not player:
+            raise NotFound("No Player matches the given query.")
+        return player
 
     def get_queryset(self):
         if self.action == "retrieve":
@@ -277,15 +670,579 @@ class PlayerViewSet(viewsets.ReadOnlyModelViewSet):
                 "combine_results",
                 "college_history",
                 "social_accounts",
+                "awards",
             )
-        return Player.objects.select_related("current_team").order_by(
-            "-is_active", "last_name", "first_name"
+        games_started_expr = Value(0, output_field=IntegerField())
+        offensive_snaps_expr = Value(0, output_field=IntegerField())
+        snap_pct_expr = Value(None, output_field=FloatField())
+        stats_filter_kwargs, _, _ = self._stats_filter_kwargs()
+        requested_ordering = str(self.request.query_params.get("ordering") or "")
+        requested_ordering_fields = {
+            token.strip().lstrip("-")
+            for token in requested_ordering.split(",")
+            if token and token.strip()
+        }
+        include_contract_rollup = bool(
+            {"max_contract_apy", "max_contract_value"} & requested_ordering_fields
+        )
+
+        contract_rollup = None
+        if include_contract_rollup:
+            contract_rollup = (
+                PlayerContract.objects.filter(player_id=OuterRef("pk"))
+                .order_by()
+                .values("player_id")
+                .annotate(max_total=Max("total_value"), max_apy=Max("apy"))
+            )
+
+        use_materialized = not stats_filter_kwargs
+
+        contract_annotations = (
+            {
+                "max_contract_value": Coalesce(
+                    Subquery(contract_rollup.values("max_total")[:1]), Value(0)
+                ),
+                "max_contract_apy": Coalesce(
+                    Subquery(contract_rollup.values("max_apy")[:1]), Value(0)
+                ),
+            }
+            if include_contract_rollup and contract_rollup is not None
+            else {}
+        )
+
+        placeholder_name_expr = Case(
+            When(display_name__istartswith="Player ", then=Value(1)),
+            default=Value(0),
+            output_field=IntegerField(),
+        )
+
+        if use_materialized:
+            # Fast path: read pre-aggregated career stats from the Player row itself.
+            # No JOIN to gridstream_playergamestats — drops query from ~2s to ~35ms.
+            first_annotate = dict(
+                games_played=F("mat_games_played"),
+                seasons_count=F("mat_seasons_count"),
+                first_season_played=F("mat_first_season"),
+                last_season_played=F("mat_last_season"),
+                **contract_annotations,
+                games_started=games_started_expr,
+                offensive_snaps=offensive_snaps_expr,
+                snap_pct=snap_pct_expr,
+                career_completions=F("mat_completions"),
+                career_pass_attempts=F("mat_pass_attempts"),
+                career_passing_yards=F("mat_passing_yards"),
+                career_passing_tds=F("mat_passing_tds"),
+                career_interceptions_thrown=F("mat_interceptions_thrown"),
+                career_sacks_taken=F("mat_sacks_taken"),
+                career_carries=F("mat_carries"),
+                career_rushing_yards=F("mat_rushing_yards"),
+                career_rushing_tds=F("mat_rushing_tds"),
+                career_rushing_long=F("mat_rushing_long"),
+                career_receptions=F("mat_receptions"),
+                career_targets=F("mat_targets"),
+                career_receiving_yards=F("mat_receiving_yards"),
+                career_receiving_tds=F("mat_receiving_tds"),
+                career_receiving_long=F("mat_receiving_long"),
+                career_pass_first_downs=F("mat_pass_first_downs"),
+                career_rush_first_downs=F("mat_rush_first_downs"),
+                career_rec_first_downs=F("mat_rec_first_downs"),
+                career_fumbles_rushing=F("mat_fumbles_rushing"),
+                career_fumbles_receiving=F("mat_fumbles_receiving"),
+                career_fumbles_sacks=F("mat_fumbles_sacks"),
+                career_fumbles_lost_rushing=F("mat_fumbles_lost_rushing"),
+                career_fumbles_lost_receiving=F("mat_fumbles_lost_receiving"),
+                career_fumbles_lost_sacks=F("mat_fumbles_lost_sacks"),
+                career_tackles_total=F("mat_tackles_total"),
+                career_sacks_made=F("mat_sacks_made"),
+                career_interceptions_caught=F("mat_interceptions_caught"),
+                career_passes_defended=F("mat_passes_defended"),
+                career_forced_fumbles=F("mat_forced_fumbles"),
+                career_fg_made=F("mat_fg_made"),
+                career_fg_attempts=F("mat_fg_attempts"),
+                career_punt_attempts=F("mat_punt_attempts"),
+                is_placeholder_name=placeholder_name_expr,
+            )
+        else:
+            # Slow path: compute career stats dynamically for the requested season scope.
+            first_annotate = dict(
+                games_played=Count("game_stats", distinct=True, **stats_filter_kwargs),
+                seasons_count=Count("game_stats__season_year", distinct=True, **stats_filter_kwargs),
+                first_season_played=Min("game_stats__season_year", **stats_filter_kwargs),
+                last_season_played=Max("game_stats__season_year", **stats_filter_kwargs),
+                **contract_annotations,
+                games_started=games_started_expr,
+                offensive_snaps=offensive_snaps_expr,
+                snap_pct=snap_pct_expr,
+                career_completions=Coalesce(Sum("game_stats__completions", **stats_filter_kwargs), Value(0)),
+                career_pass_attempts=Coalesce(Sum("game_stats__pass_attempts", **stats_filter_kwargs), Value(0)),
+                career_passing_yards=Coalesce(Sum("game_stats__passing_yards", **stats_filter_kwargs), Value(0)),
+                career_passing_tds=Coalesce(Sum("game_stats__passing_tds", **stats_filter_kwargs), Value(0)),
+                career_interceptions_thrown=Coalesce(
+                    Sum("game_stats__interceptions_thrown", **stats_filter_kwargs), Value(0)
+                ),
+                career_sacks_taken=Coalesce(Sum("game_stats__sacks_taken", **stats_filter_kwargs), Value(0)),
+                career_carries=Coalesce(Sum("game_stats__carries", **stats_filter_kwargs), Value(0)),
+                career_rushing_yards=Coalesce(Sum("game_stats__rushing_yards", **stats_filter_kwargs), Value(0)),
+                career_rushing_tds=Coalesce(Sum("game_stats__rushing_tds", **stats_filter_kwargs), Value(0)),
+                career_rushing_long=Coalesce(Max("game_stats__rushing_long", **stats_filter_kwargs), Value(0)),
+                career_receptions=Coalesce(Sum("game_stats__receptions", **stats_filter_kwargs), Value(0)),
+                career_targets=Coalesce(Sum("game_stats__targets", **stats_filter_kwargs), Value(0)),
+                career_receiving_yards=Coalesce(
+                    Sum("game_stats__receiving_yards", **stats_filter_kwargs), Value(0)
+                ),
+                career_receiving_tds=Coalesce(Sum("game_stats__receiving_tds", **stats_filter_kwargs), Value(0)),
+                career_receiving_long=Coalesce(Max("game_stats__receiving_long", **stats_filter_kwargs), Value(0)),
+                career_pass_first_downs=Coalesce(
+                    Sum("game_stats__passing_first_downs", **stats_filter_kwargs), Value(0)
+                ),
+                career_rush_first_downs=Coalesce(
+                    Sum("game_stats__rushing_first_downs", **stats_filter_kwargs), Value(0)
+                ),
+                career_rec_first_downs=Coalesce(
+                    Sum("game_stats__receiving_first_downs", **stats_filter_kwargs), Value(0)
+                ),
+                career_fumbles_rushing=Coalesce(
+                    Sum("game_stats__rushing_fumbles", **stats_filter_kwargs), Value(0)
+                ),
+                career_fumbles_receiving=Coalesce(
+                    Sum("game_stats__receiving_fumbles", **stats_filter_kwargs), Value(0)
+                ),
+                career_fumbles_sacks=Coalesce(
+                    Sum("game_stats__sack_fumbles", **stats_filter_kwargs), Value(0)
+                ),
+                career_fumbles_lost_rushing=Coalesce(
+                    Sum("game_stats__rushing_fumbles_lost", **stats_filter_kwargs), Value(0)
+                ),
+                career_fumbles_lost_receiving=Coalesce(
+                    Sum("game_stats__receiving_fumbles_lost", **stats_filter_kwargs), Value(0)
+                ),
+                career_fumbles_lost_sacks=Coalesce(
+                    Sum("game_stats__sack_fumbles_lost", **stats_filter_kwargs), Value(0)
+                ),
+                career_tackles_total=Coalesce(Sum("game_stats__tackles_total", **stats_filter_kwargs), Value(0)),
+                career_sacks_made=Coalesce(Sum("game_stats__sacks_made", **stats_filter_kwargs), Value(0.0)),
+                career_interceptions_caught=Coalesce(
+                    Sum("game_stats__interceptions_caught", **stats_filter_kwargs), Value(0)
+                ),
+                career_passes_defended=Coalesce(
+                    Sum("game_stats__passes_defended", **stats_filter_kwargs), Value(0)
+                ),
+                career_forced_fumbles=Coalesce(
+                    Sum("game_stats__forced_fumbles", **stats_filter_kwargs), Value(0)
+                ),
+                career_fg_made=Coalesce(Sum("game_stats__fg_made", **stats_filter_kwargs), Value(0)),
+                career_fg_attempts=Coalesce(Sum("game_stats__fg_attempts", **stats_filter_kwargs), Value(0)),
+                career_punt_attempts=Coalesce(
+                    Sum("game_stats__punt_attempts", **stats_filter_kwargs), Value(0)
+                ),
+                is_placeholder_name=placeholder_name_expr,
+            )
+
+        return (
+            Player.objects.select_related("current_team")
+            .annotate(**first_annotate)
+            .annotate(
+                career_completion_pct=Case(
+                    When(
+                        career_pass_attempts__gt=0,
+                        then=ExpressionWrapper(
+                            F("career_completions") * 100.0 / F("career_pass_attempts"),
+                            output_field=FloatField(),
+                        ),
+                    ),
+                    default=Value(0.0),
+                    output_field=FloatField(),
+                ),
+                career_pass_yards_per_game=Case(
+                    When(
+                        games_played__gt=0,
+                        then=ExpressionWrapper(
+                            F("career_passing_yards") * 1.0 / F("games_played"),
+                            output_field=FloatField(),
+                        ),
+                    ),
+                    default=Value(0.0),
+                    output_field=FloatField(),
+                ),
+                career_pass_yards_per_attempt=Case(
+                    When(
+                        career_pass_attempts__gt=0,
+                        then=ExpressionWrapper(
+                            F("career_passing_yards") * 1.0 / F("career_pass_attempts"),
+                            output_field=FloatField(),
+                        ),
+                    ),
+                    default=Value(0.0),
+                    output_field=FloatField(),
+                ),
+                # Compute NFL passer rating from aggregate passing components.
+                # Raw per-game passer_rating is not consistently populated.
+                career_passer_rating=Case(
+                    When(
+                        career_pass_attempts__gt=0,
+                        then=ExpressionWrapper(
+                            (
+                                Least(
+                                    Value(2.375),
+                                    Greatest(
+                                        Value(0.0),
+                                        ExpressionWrapper(
+                                            (
+                                                (
+                                                    F("career_completions") * 1.0
+                                                    / F("career_pass_attempts")
+                                                )
+                                                - Value(0.3)
+                                            )
+                                            * Value(5.0),
+                                            output_field=FloatField(),
+                                        ),
+                                    ),
+                                )
+                                + Least(
+                                    Value(2.375),
+                                    Greatest(
+                                        Value(0.0),
+                                        ExpressionWrapper(
+                                            (
+                                                (
+                                                    F("career_passing_yards") * 1.0
+                                                    / F("career_pass_attempts")
+                                                )
+                                                - Value(3.0)
+                                            )
+                                            * Value(0.25),
+                                            output_field=FloatField(),
+                                        ),
+                                    ),
+                                )
+                                + Least(
+                                    Value(2.375),
+                                    Greatest(
+                                        Value(0.0),
+                                        ExpressionWrapper(
+                                            (
+                                                F("career_passing_tds") * 1.0
+                                                / F("career_pass_attempts")
+                                            )
+                                            * Value(20.0),
+                                            output_field=FloatField(),
+                                        ),
+                                    ),
+                                )
+                                + Least(
+                                    Value(2.375),
+                                    Greatest(
+                                        Value(0.0),
+                                        ExpressionWrapper(
+                                            Value(2.375)
+                                            - (
+                                                (
+                                                    F("career_interceptions_thrown") * 1.0
+                                                    / F("career_pass_attempts")
+                                                )
+                                                * Value(25.0)
+                                            ),
+                                            output_field=FloatField(),
+                                        ),
+                                    ),
+                                )
+                            )
+                            * Value(100.0)
+                            / Value(6.0),
+                            output_field=FloatField(),
+                        ),
+                    ),
+                    default=Value(0.0),
+                    output_field=FloatField(),
+                ),
+                career_rush_yards_per_game=Case(
+                    When(
+                        games_played__gt=0,
+                        then=ExpressionWrapper(
+                            F("career_rushing_yards") * 1.0 / F("games_played"),
+                            output_field=FloatField(),
+                        ),
+                    ),
+                    default=Value(0.0),
+                    output_field=FloatField(),
+                ),
+                career_yards_per_carry=Case(
+                    When(
+                        career_carries__gt=0,
+                        then=ExpressionWrapper(
+                            F("career_rushing_yards") * 1.0 / F("career_carries"),
+                            output_field=FloatField(),
+                        ),
+                    ),
+                    default=Value(0.0),
+                    output_field=FloatField(),
+                ),
+                career_catch_pct=Case(
+                    When(
+                        career_targets__gt=0,
+                        then=ExpressionWrapper(
+                            F("career_receptions") * 100.0 / F("career_targets"),
+                            output_field=FloatField(),
+                        ),
+                    ),
+                    default=Value(0.0),
+                    output_field=FloatField(),
+                ),
+                career_rec_yards_per_game=Case(
+                    When(
+                        games_played__gt=0,
+                        then=ExpressionWrapper(
+                            F("career_receiving_yards") * 1.0 / F("games_played"),
+                            output_field=FloatField(),
+                        ),
+                    ),
+                    default=Value(0.0),
+                    output_field=FloatField(),
+                ),
+                career_yards_per_reception=Case(
+                    When(
+                        career_receptions__gt=0,
+                        then=ExpressionWrapper(
+                            F("career_receiving_yards") * 1.0 / F("career_receptions"),
+                            output_field=FloatField(),
+                        ),
+                    ),
+                    default=Value(0.0),
+                    output_field=FloatField(),
+                ),
+                career_yards_per_target=Case(
+                    When(
+                        career_targets__gt=0,
+                        then=ExpressionWrapper(
+                            F("career_receiving_yards") * 1.0 / F("career_targets"),
+                            output_field=FloatField(),
+                        ),
+                    ),
+                    default=Value(0.0),
+                    output_field=FloatField(),
+                ),
+                career_scrimmage_yards=F("career_rushing_yards") + F("career_receiving_yards"),
+                career_total_touchdowns=F("career_passing_tds")
+                + F("career_rushing_tds")
+                + F("career_receiving_tds"),
+                career_touchdowns_per_game=Case(
+                    When(
+                        games_played__gt=0,
+                        then=ExpressionWrapper(
+                            (
+                                F("career_passing_tds")
+                                + F("career_rushing_tds")
+                                + F("career_receiving_tds")
+                            )
+                            * 1.0
+                            / F("games_played"),
+                            output_field=FloatField(),
+                        ),
+                    ),
+                    default=Value(0.0),
+                    output_field=FloatField(),
+                ),
+                career_long_gain=Greatest(
+                    F("career_rushing_long"), F("career_receiving_long")
+                ),
+                career_first_downs=F("career_pass_first_downs")
+                + F("career_rush_first_downs")
+                + F("career_rec_first_downs"),
+                career_fumbles=F("career_fumbles_rushing")
+                + F("career_fumbles_receiving")
+                + F("career_fumbles_sacks"),
+                career_fumbles_lost=F("career_fumbles_lost_rushing")
+                + F("career_fumbles_lost_receiving")
+                + F("career_fumbles_lost_sacks"),
+            )
+            .order_by(
+                "is_placeholder_name",
+                "-is_active",
+                "-games_played",
+                "draft_overall",
+                "last_name",
+                "first_name",
+            )
         )
 
     def get_serializer_class(self):
         if self.action == "retrieve":
             return PlayerDetailSerializer
         return PlayerListSerializer
+
+    def _build_list_facets(self, queryset, request):
+        """
+        Build facet counts across the *filtered queryset* (not paginated page).
+        """
+        team_rows = []
+        for row in (
+            queryset.values("current_team__abbreviation")
+            .annotate(count=Count("id", distinct=True))
+            .order_by("-count", "current_team__abbreviation")
+        ):
+            team_key = (row.get("current_team__abbreviation") or "FA").upper()
+            team_rows.append(
+                {
+                    "key": team_key,
+                    "label": team_key,
+                    "count": row.get("count", 0),
+                }
+            )
+
+        position_rows = self._build_position_facet_rows(queryset)
+
+        draft_rows = []
+        for row in (
+            queryset.values("draft_year")
+            .annotate(count=Count("id", distinct=True))
+            .order_by()
+        ):
+            draft_year = row.get("draft_year")
+            if draft_year is None:
+                draft_rows.append(
+                    {"key": "UNDRAFTED", "label": "Undrafted", "count": row.get("count", 0)}
+                )
+                continue
+            draft_rows.append(
+                {
+                    "key": str(draft_year),
+                    "label": str(draft_year),
+                    "count": row.get("count", 0),
+                }
+            )
+
+        draft_rows.sort(
+            key=lambda item: (
+                item["key"] == "UNDRAFTED",
+                -int(item["key"]) if item["key"] != "UNDRAFTED" else 0,
+            )
+        )
+
+        season_qs = PlayerGameStats.objects.filter(player_id__in=queryset.order_by().values("id"))
+
+        season_rows = []
+        for row in (
+            season_qs.values("season_year")
+            .annotate(count=Count("player_id", distinct=True))
+            .order_by("-season_year")
+        ):
+            season = row.get("season_year")
+            if season is None:
+                continue
+            season_rows.append(
+                {
+                    "key": str(season),
+                    "label": str(season),
+                    "count": row.get("count", 0),
+                }
+            )
+
+        # Single query for roster status facets — avoids 7 separate COUNT queries.
+        raw_roster = list(
+            queryset.order_by()
+            .values_list("roster_status", "current_team_id", "is_active")
+        )
+        def _roster_counts(rows):
+            counts = {label: 0 for label in ("Active", "Inactive", "Retired", "Released", "Injured Reserve", "Practice Squad", "Free Agent")}
+            for status, team_id, is_active in rows:
+                if status == "ACT" and team_id is not None and is_active:
+                    counts["Active"] += 1
+                elif status == "INA":
+                    counts["Inactive"] += 1
+                elif status == "RET":
+                    counts["Retired"] += 1
+                elif status == "CUT":
+                    counts["Released"] += 1
+                elif status == "RES":
+                    counts["Injured Reserve"] += 1
+                elif status == "PRA":
+                    counts["Practice Squad"] += 1
+                if team_id is None and is_active:
+                    counts["Free Agent"] += 1
+            return counts
+        roster_counts = _roster_counts(raw_roster)
+        roster_rows = []
+        for label, count in roster_counts.items():
+            if count <= 0:
+                continue
+            roster_rows.append(
+                {
+                    "key": label,
+                    "label": label,
+                    "count": count,
+                }
+            )
+
+        return {
+            "team": team_rows,
+            "position": position_rows,
+            "draftYear": draft_rows,
+            "season": season_rows,
+            "rosterStatus": roster_rows,
+        }
+
+    def list(self, request, *args, **kwargs):
+        default_ck = None
+        if self._is_default_directory_request(request):
+            default_ck = cache_key("players_directory", identifier="default_active_v2")
+            cached_default = cache_get(default_ck)
+            if cached_default is not None:
+                return Response(cached_default)
+
+        cache_params = {
+            key: request.query_params.getlist(key)
+            for key in sorted(request.query_params.keys())
+        }
+        ck = cache_key("players_directory", params=cache_params)
+        cached = cache_get(ck)
+        if cached is not None:
+            return Response(cached)
+
+        queryset = self.get_queryset()
+        _, stats_season, stats_week = self._stats_filter_kwargs()
+        has_roster_status_filter = bool(
+            str(request.query_params.get("roster_status") or "").strip()
+        )
+        if request.query_params.get("is_active") is None and not has_roster_status_filter:
+            queryset = queryset.filter(PlayerFilter.active_league_clause())
+        queryset = self.filter_queryset(queryset)
+        if stats_season is not None:
+            stats_player_rows = PlayerGameStats.objects.filter(season_year=stats_season)
+            if stats_week is not None:
+                stats_player_rows = stats_player_rows.filter(week=stats_week)
+            queryset = queryset.filter(pk__in=stats_player_rows.values("player_id"))
+        queryset = self._apply_default_current_scope(queryset, request)
+        facets = self._build_list_facets(queryset, request)
+
+        page = self.paginate_queryset(queryset)
+        if page is not None:
+            serializer = self.get_serializer(page, many=True)
+            self._merge_page_usage_metrics(
+                serializer.data,
+                page,
+                stats_season=stats_season,
+                stats_week=stats_week,
+            )
+            response = self.get_paginated_response(serializer.data)
+            response.data["facets"] = facets
+            cache_set(ck, response.data, TTL_SHORT)
+            if default_ck is not None:
+                cache_set(default_ck, response.data, TTL_MEDIUM)
+            return response
+
+        serializer = self.get_serializer(queryset, many=True)
+        payload = {
+            "count": queryset.count(),
+            "next": None,
+            "previous": None,
+            "results": serializer.data,
+            "facets": facets,
+        }
+        cache_set(ck, payload, TTL_SHORT)
+        if default_ck is not None:
+            cache_set(default_ck, payload, TTL_MEDIUM)
+        return Response(payload)
 
     @cached_view("players", ttl=TTL_MEDIUM)
     def retrieve(self, request, *args, **kwargs):
@@ -298,7 +1255,7 @@ class PlayerViewSet(viewsets.ReadOnlyModelViewSet):
 
         Per-game stats for this player, most recent first.
         """
-        player = self.get_object()
+        player = self._get_player_for_detail_action(pk)
         stats = (
             PlayerGameStats.objects.filter(player=player)
             .select_related("team", "opponent", "player")
@@ -327,7 +1284,7 @@ class PlayerViewSet(viewsets.ReadOnlyModelViewSet):
         Aggregated stats: home/away, by opponent, by month.
         Returns pre-aggregated data for the frontend splits tables.
         """
-        player = self.get_object()
+        player = self._get_player_for_detail_action(pk)
         season = request.query_params.get("season")
 
         stats_qs = PlayerGameStats.objects.filter(player=player)
@@ -340,32 +1297,65 @@ class PlayerViewSet(viewsets.ReadOnlyModelViewSet):
         if cached:
             return Response(cached)
 
-        # Home / Away split
-        home_stats = stats_qs.filter(game__home_team=F("team")).aggregate(
-            games=Count("id"),
-            pass_yds=Coalesce(Sum("passing_yards"), 0),
-            pass_tds=Coalesce(Sum("passing_tds"), 0),
-            rush_yds=Coalesce(Sum("rushing_yards"), 0),
-            rush_tds=Coalesce(Sum("rushing_tds"), 0),
-            rec_yds=Coalesce(Sum("receiving_yards"), 0),
-            rec_tds=Coalesce(Sum("receiving_tds"), 0),
-            ppr=Coalesce(Sum("fantasy_points_ppr"), 0.0),
-        )
+        # Shared aggregate field set for all splits
+        def split_agg(qs):
+            return qs.aggregate(
+                games=Count("id"),
+                # Offense
+                pass_yds=Coalesce(Sum("passing_yards"), 0),
+                pass_tds=Coalesce(Sum("passing_tds"), 0),
+                pass_first_downs=Coalesce(Sum("passing_first_downs"), 0),
+                rush_yds=Coalesce(Sum("rushing_yards"), 0),
+                rush_tds=Coalesce(Sum("rushing_tds"), 0),
+                rush_first_downs=Coalesce(Sum("rushing_first_downs"), 0),
+                rec_yds=Coalesce(Sum("receiving_yards"), 0),
+                rec_tds=Coalesce(Sum("receiving_tds"), 0),
+                rec_first_downs=Coalesce(Sum("receiving_first_downs"), 0),
+                fumbles=Coalesce(
+                    Sum("rushing_fumbles") + Sum("receiving_fumbles"), 0
+                ),
+                fumbles_lost=Coalesce(
+                    Sum("rushing_fumbles_lost") + Sum("receiving_fumbles_lost"), 0
+                ),
+                forced_fumbles=Coalesce(Sum("forced_fumbles"), 0),
+                ppr=Coalesce(Sum("fantasy_points_ppr"), 0.0),
+                # Defense
+                def_tackles=Coalesce(Sum("tackles_total"), 0),
+                def_sacks=Coalesce(Sum("sacks_made"), 0.0),
+                def_qb_hits=Coalesce(Sum("qb_hits"), 0),
+                def_pd=Coalesce(Sum("passes_defended"), 0),
+                def_ints=Coalesce(Sum("interceptions_caught"), 0),
+                def_int_tds=Coalesce(Sum("interception_tds"), 0),
+                def_tds=Coalesce(Sum("defensive_tds"), 0),
+            )
 
-        away_stats = stats_qs.exclude(game__home_team=F("team")).aggregate(
-            games=Count("id"),
-            pass_yds=Coalesce(Sum("passing_yards"), 0),
-            pass_tds=Coalesce(Sum("passing_tds"), 0),
-            rush_yds=Coalesce(Sum("rushing_yards"), 0),
-            rush_tds=Coalesce(Sum("rushing_tds"), 0),
-            rec_yds=Coalesce(Sum("receiving_yards"), 0),
-            rec_tds=Coalesce(Sum("receiving_tds"), 0),
-            ppr=Coalesce(Sum("fantasy_points_ppr"), 0.0),
+        # Annotate each row with whether the player was the home team,
+        # used for win/loss splits without requiring a subquery.
+        wins_base = stats_qs.annotate(
+            _is_home=Case(
+                When(game__home_team=F("team"), then=Value(1)),
+                default=Value(0),
+                output_field=IntegerField(),
+            )
         )
 
         result = {
-            "home": home_stats,
-            "away": away_stats,
+            "home": split_agg(stats_qs.filter(game__home_team=F("team"))),
+            "away": split_agg(stats_qs.exclude(game__home_team=F("team"))),
+            "regular": split_agg(stats_qs.filter(season_type="REG")),
+            "postseason": split_agg(stats_qs.exclude(season_type="REG")),
+            "grass": split_agg(stats_qs.filter(game__venue__surface__icontains="grass")),
+            "turf": split_agg(stats_qs.exclude(game__venue__surface__icontains="grass").exclude(game__venue__surface="")),
+            "wins": split_agg(wins_base.filter(
+                Q(_is_home=1, game__home_score__gt=F("game__away_score")) |
+                Q(_is_home=0, game__away_score__gt=F("game__home_score"))
+            )),
+            "losses": split_agg(wins_base.filter(
+                Q(_is_home=1, game__home_score__lt=F("game__away_score")) |
+                Q(_is_home=0, game__away_score__lt=F("game__home_score"))
+            )),
+            "division": split_agg(stats_qs.filter(game__is_division_game=True)),
+            "nondivision": split_agg(stats_qs.filter(game__is_division_game=False)),
         }
 
         cache_set(ck, result, TTL_LONG)

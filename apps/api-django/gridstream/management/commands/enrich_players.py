@@ -164,12 +164,14 @@ class Command(BaseCommand):
                 skipped += 1
                 continue
 
-            # Resolve team
-            team_abbr = _safe_str(row.get("team_abbr"))
+            # Resolve team (players.csv v2 uses latest_team), but do NOT
+            # overwrite canonical current roster/team state for existing players.
+            # sync_rosters is the source of truth for current-team assignment.
+            team_abbr = _safe_str(row.get("latest_team") or row.get("team_abbr"))
             current_team = teams.get(team_abbr)
 
-            # Resolve draft team
-            draft_team_abbr = _safe_str(row.get("draft_club"))
+            # Resolve draft team (players.csv v2 uses draft_team)
+            draft_team_abbr = _safe_str(row.get("draft_team") or row.get("draft_club"))
             draft_team = teams.get(draft_team_abbr)
 
             # Parse height — nflverse stores as integer inches
@@ -192,11 +194,9 @@ class Command(BaseCommand):
             if position_group not in valid_groups:
                 position_group = ""
 
-            # Determine roster status
-            status = _safe_str(row.get("status"), 5)
-            valid_statuses = {c[0] for c in Player.STATUS_CHOICES}
-            if status not in valid_statuses:
-                status = ""
+            # Keep players.csv status for create-time bootstrap only.
+            # Existing player status is maintained by sync_rosters.
+            status = _safe_str(row.get("status"), 5).strip().upper()
 
             # Draft info
             draft_year = _safe_int(row.get("draft_year"))
@@ -216,8 +216,6 @@ class Command(BaseCommand):
                 "suffix": _safe_str(row.get("suffix"), 10),
                 "position": position,
                 "position_group": position_group,
-                "current_team": current_team,
-                "roster_status": status,
                 "headshot_url": _safe_str(row.get("headshot"), 500),
                 "height": height_str,
                 "height_inches": height_inches,
@@ -234,8 +232,6 @@ class Command(BaseCommand):
                 "rookie_season": _safe_int(row.get("rookie_season")),
                 "entry_year": _safe_int(row.get("entry_year")),
                 "years_experience": _safe_int(row.get("years_of_experience")),
-                "jersey_number": _safe_str(row.get("jersey_number"), 3),
-                "is_active": status in ("ACT", "PRA", "RES", "PUP", ""),
                 # Cross-platform IDs
                 "espn_id": _safe_str(row.get("espn_id"), 20),
                 "pfr_id": _safe_str(row.get("pfr_id"), 20),
@@ -245,9 +241,18 @@ class Command(BaseCommand):
                 "smart_id": _safe_str(row.get("smart_id"), 50),
             }
 
+            create_defaults = {
+                **defaults,
+                "current_team": current_team,
+                "roster_status": status,
+                "jersey_number": _safe_str(row.get("jersey_number"), 3),
+                "is_active": status not in ("RET", "CUT"),
+            }
+
             _, was_created = Player.objects.using("nfl").update_or_create(
                 gsis_id=gsis_id,
                 defaults=defaults,
+                create_defaults=create_defaults,
             )
 
             if was_created:

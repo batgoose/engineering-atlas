@@ -60,6 +60,7 @@ class Command(BaseCommand):
         ("materialize_team_game_stats", {}),
         ("import_nflverse_snap_counts", {}),
         ("import_nflverse_depth_charts", {}),
+        ("sync_player_positions", {}),
         ("import_nflverse_standings", {}),
         ("import_nflverse_draft_picks", {}),
         ("import_nflverse_draft_values", {}),

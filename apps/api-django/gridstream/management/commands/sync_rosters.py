@@ -3,7 +3,12 @@ Management command: sync_rosters
 
 Compares current nflverse roster data against the Player table.
 Detects team changes and creates PlayerTransaction records.
-Updates current_team, roster_status, jersey_number.
+Updates current_team and jersey_number.
+
+Important:
+The roster_{year}.csv file reflects most-recent game-week roster state, so
+weekly availability codes (for example INA) are not used as canonical player
+roster_status here.
 
 Designed to run daily (cron/celery beat) or on-demand.
 
@@ -32,6 +37,16 @@ ROSTER_URL_TEMPLATE = (
     "https://github.com/nflverse/nflverse-data/releases/download/"
     "rosters/roster_{year}.csv"
 )
+VALID_STATUS_CODES = {code for code, _ in Player.STATUS_CHOICES}
+FREE_AGENT_STATUS_CODES = {"UFA", "RFA"}
+OUT_OF_LEAGUE_STATUS_CODES = {"RET", "CUT"}
+WEEKLY_STATUS_MAP = {
+    # Weekly game-day inactive still means in-league active.
+    "INA": "ACT",
+    # Common shorthand in weekly feeds.
+    "IR": "RES",
+    "FA": "UFA",
+}
 
 
 def _safe_str(val, max_len=None):
@@ -52,8 +67,18 @@ def _safe_int(val):
         return None
 
 
+def _canonical_roster_status(code):
+    normalized = _safe_str(code, 5).strip().upper()
+    if not normalized:
+        return ""
+    mapped = WEEKLY_STATUS_MAP.get(normalized, normalized)
+    if mapped in VALID_STATUS_CODES:
+        return mapped
+    return ""
+
+
 class Command(BaseCommand):
-    help = "Sync player rosters from nflverse — detect team changes and update statuses"
+    help = "Sync player teams/jerseys from nflverse roster snapshots"
 
     def add_arguments(self, parser):
         parser.add_argument(
@@ -104,22 +129,18 @@ class Command(BaseCommand):
         }
 
         team_changes = 0
-        status_updates = 0
+        weekly_status_mismatches = 0
         new_players = 0
         now = timezone.now()
 
         for gsis_id, row in roster_map.items():
             new_team_abbr = _safe_str(row.get("team"))
             new_team = teams.get(new_team_abbr)
-            new_status = _safe_str(row.get("status"), 5)
+            weekly_status = _safe_str(row.get("status"), 5).strip().upper()
+            canonical_status = _canonical_roster_status(weekly_status)
             new_jersey = _safe_str(row.get("jersey_number"), 3)
             full_name = _safe_str(row.get("full_name"), 80)
             position = _safe_str(row.get("position"), 5) or "DB"
-
-            # Validate status
-            valid_statuses = {c[0] for c in Player.STATUS_CHOICES}
-            if new_status not in valid_statuses:
-                new_status = ""
 
             player = players.get(gsis_id)
 
@@ -147,7 +168,12 @@ class Command(BaseCommand):
                         short_name=full_name,
                         position=position,
                         current_team=new_team,
-                        roster_status=new_status,
+                        roster_status=canonical_status or ("ACT" if new_team else ""),
+                        is_active=(
+                            canonical_status not in OUT_OF_LEAGUE_STATUS_CODES
+                            if canonical_status
+                            else bool(new_team)
+                        ),
                         jersey_number=new_jersey,
                         last_roster_check=now,
                     )
@@ -166,38 +192,52 @@ class Command(BaseCommand):
                         f"{old_team_abbr or 'FA'} → {new_team_abbr}"
                     )
                 else:
-                    # Create transaction record
-                    PlayerTransaction.objects.using("nfl").create(
-                        player=player,
-                        transaction_type="signed",  # generic — refine later
-                        date=date.today(),
-                        from_team=old_team,
-                        to_team=new_team,
-                        description=(
-                            f"Roster sync: {player.display_name} moved from "
-                            f"{old_team_abbr or 'FA'} to {new_team_abbr}"
-                        ),
-                        season=season,
+                    # Skip creating a transaction if the player was FA/null
+                    # and already has an active contract with the destination
+                    # team signed in a prior season — this is a data-state
+                    # reconciliation, not a real new signing event.
+                    is_fa_to_team = old_team is None
+                    already_contracted = (
+                        is_fa_to_team
+                        and player.contracts.using("nfl")
+                        .filter(is_active=True, team=new_team, year_signed__lt=season)
+                        .exists()
                     )
+                    if not already_contracted:
+                        PlayerTransaction.objects.using("nfl").create(
+                            player=player,
+                            transaction_type="signed",  # generic — refine later
+                            date=date.today(),
+                            from_team=old_team,
+                            to_team=new_team,
+                            description=(
+                                f"Roster sync: {player.display_name} moved from "
+                                f"{old_team_abbr or 'FA'} to {new_team_abbr}"
+                            ),
+                            season=season,
+                        )
                     player.current_team = new_team
 
-            # ── Check for status change ──────────────────────
-            if new_status and new_status != player.roster_status:
-                status_updates += 1
-                if dry_run:
-                    self.stdout.write(
-                        f"  [STATUS] {player.display_name}: "
-                        f"{player.roster_status or '?'} → {new_status}"
-                    )
+            # Weekly roster snapshots can disagree with canonical status.
+            if weekly_status and weekly_status != (player.roster_status or ""):
+                weekly_status_mismatches += 1
 
             # ── Update fields ────────────────────────────────
             if not dry_run:
                 changed = False
-                if new_status and new_status != player.roster_status:
-                    player.roster_status = new_status
-                    changed = True
                 if new_jersey and new_jersey != player.jersey_number:
                     player.jersey_number = new_jersey
+                    changed = True
+                if canonical_status and canonical_status != (player.roster_status or ""):
+                    player.roster_status = canonical_status
+                    changed = True
+                target_is_active = (
+                    canonical_status not in OUT_OF_LEAGUE_STATUS_CODES
+                    if canonical_status
+                    else bool(new_team)
+                )
+                if player.is_active != target_is_active:
+                    player.is_active = target_is_active
                     changed = True
                 # Always update last_roster_check
                 player.last_roster_check = now
@@ -208,18 +248,48 @@ class Command(BaseCommand):
         # (potentially released/retired)
         roster_gsis_ids = set(roster_map.keys())
         for gsis_id, player in players.items():
-            if (
-                player.current_team
-                and player.roster_status in ("ACT", "PRA", "RES")
-                and gsis_id not in roster_gsis_ids
-            ):
-                # Player was active but not on any roster now
-                if dry_run:
-                    self.stdout.write(
-                        f"  [MISSING] {player.display_name} "
-                        f"({player.current_team.abbreviation}) "
-                        f"— not found on {season} roster"
-                    )
+            if gsis_id in roster_gsis_ids:
+                continue
+
+            normalized_status = _safe_str(player.roster_status, 5).strip().upper()
+            should_stay_active = normalized_status in FREE_AGENT_STATUS_CODES
+            target_status = (
+                normalized_status
+                if normalized_status in OUT_OF_LEAGUE_STATUS_CODES
+                else ("UFA" if should_stay_active else "CUT")
+            )
+            needs_reconcile = (
+                player.current_team_id is not None
+                or player.is_active != should_stay_active
+                or (player.roster_status or "") != target_status
+            )
+            if not needs_reconcile:
+                continue
+
+            if dry_run:
+                team_abbr = player.current_team.abbreviation if player.current_team else "FA"
+                self.stdout.write(
+                    f"  [MISSING] {player.display_name} ({team_abbr}) "
+                    f"— not found on {season} roster"
+                )
+                continue
+
+            changed = False
+            if player.current_team_id is not None:
+                player.current_team = None
+                changed = True
+
+            if (player.roster_status or "") != target_status:
+                player.roster_status = target_status
+                changed = True
+
+            if player.is_active != should_stay_active:
+                player.is_active = should_stay_active
+                changed = True
+
+            if changed:
+                player.last_roster_check = now
+                player.save(using="nfl")
 
         if dry_run:
             self.stdout.write(self.style.WARNING("\nDry run — no changes made"))
@@ -228,7 +298,7 @@ class Command(BaseCommand):
             self.style.SUCCESS(
                 f"\nSync complete! "
                 f"{team_changes} team changes, "
-                f"{status_updates} status updates, "
+                f"{weekly_status_mismatches} weekly status mismatches observed, "
                 f"{new_players} new players"
             )
         )

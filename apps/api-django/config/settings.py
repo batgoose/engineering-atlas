@@ -10,6 +10,13 @@ environ.Env.read_env(os.path.join(BASE_DIR, ".env"))
 
 SECRET_KEY = env("SECRET_KEY")
 DEBUG = env("DEBUG")
+LAN_DEV_HOST = env("LAN_DEV_HOST", default="").strip()
+
+
+def _append_unique(target, values):
+    for value in values:
+        if value and value not in target:
+            target.append(value)
 
 ALLOWED_HOSTS = [
     "localhost",
@@ -85,6 +92,17 @@ CSRF_TRUSTED_ORIGINS = [
     "http://app.localhost",
     "https://lxjshlcs-3000.use2.devtunnels.ms",
 ]
+
+if LAN_DEV_HOST:
+    _append_unique(ALLOWED_HOSTS, [LAN_DEV_HOST])
+    _append_unique(
+        CORS_ALLOWED_ORIGINS,
+        [f"http://{LAN_DEV_HOST}:3000", f"http://{LAN_DEV_HOST}"],
+    )
+    _append_unique(
+        CSRF_TRUSTED_ORIGINS,
+        [f"http://{LAN_DEV_HOST}:3000", f"http://{LAN_DEV_HOST}"],
+    )
 
 TEMPLATES = [
     {

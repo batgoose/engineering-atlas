@@ -39,5 +39,4 @@ main
 *.so
 *.dylib
 .claude/settings.json
-docs/nfl-data-audit-gap-analysis-2026-02-23.md
-docs/nfl-data-audit-gap-analysis-2026-02-23.md
+docs/*
