@@ -1855,9 +1855,7 @@ class PlayerAward(models.Model):
     Source: sports.core.api.espn.com/v2/sports/football/leagues/nfl/seasons/{year}/awards
     """
 
-    player = models.ForeignKey(
-        Player, on_delete=models.CASCADE, related_name="awards"
-    )
+    player = models.ForeignKey(Player, on_delete=models.CASCADE, related_name="awards")
     season = models.IntegerField(db_index=True)
     espn_award_id = models.CharField(max_length=20)
     name = models.CharField(max_length=120)
@@ -2006,16 +2004,36 @@ class PlayerMaddenRating(models.Model):
 
     # Position-group specifics
     tackle = models.SmallIntegerField(null=True, blank=True, help_text="Tackle (DEF)")
-    power_moves = models.SmallIntegerField(null=True, blank=True, help_text="Power Moves (DL)")
-    finesse_moves = models.SmallIntegerField(null=True, blank=True, help_text="Finesse Moves (DL)")
-    throw_power = models.SmallIntegerField(null=True, blank=True, help_text="Throw Power (QB)")
-    catching = models.SmallIntegerField(null=True, blank=True, help_text="Catching (WR/TE/RB)")
-    route_running = models.SmallIntegerField(null=True, blank=True, help_text="Short Route Running (WR/TE)")
-    run_block = models.SmallIntegerField(null=True, blank=True, help_text="Run Block (OL)")
-    pass_block = models.SmallIntegerField(null=True, blank=True, help_text="Pass Block (OL)")
-    hit_power = models.SmallIntegerField(null=True, blank=True, help_text="Hit Power (DB/LB)")
-    man_coverage = models.SmallIntegerField(null=True, blank=True, help_text="Man Coverage (DB)")
-    zone_coverage = models.SmallIntegerField(null=True, blank=True, help_text="Zone Coverage (DB)")
+    power_moves = models.SmallIntegerField(
+        null=True, blank=True, help_text="Power Moves (DL)"
+    )
+    finesse_moves = models.SmallIntegerField(
+        null=True, blank=True, help_text="Finesse Moves (DL)"
+    )
+    throw_power = models.SmallIntegerField(
+        null=True, blank=True, help_text="Throw Power (QB)"
+    )
+    catching = models.SmallIntegerField(
+        null=True, blank=True, help_text="Catching (WR/TE/RB)"
+    )
+    route_running = models.SmallIntegerField(
+        null=True, blank=True, help_text="Short Route Running (WR/TE)"
+    )
+    run_block = models.SmallIntegerField(
+        null=True, blank=True, help_text="Run Block (OL)"
+    )
+    pass_block = models.SmallIntegerField(
+        null=True, blank=True, help_text="Pass Block (OL)"
+    )
+    hit_power = models.SmallIntegerField(
+        null=True, blank=True, help_text="Hit Power (DB/LB)"
+    )
+    man_coverage = models.SmallIntegerField(
+        null=True, blank=True, help_text="Man Coverage (DB)"
+    )
+    zone_coverage = models.SmallIntegerField(
+        null=True, blank=True, help_text="Zone Coverage (DB)"
+    )
 
     class Meta:
         unique_together = ["player", "madden_year"]

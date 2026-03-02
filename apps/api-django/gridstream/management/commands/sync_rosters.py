@@ -228,7 +228,9 @@ class Command(BaseCommand):
                 if new_jersey and new_jersey != player.jersey_number:
                     player.jersey_number = new_jersey
                     changed = True
-                if canonical_status and canonical_status != (player.roster_status or ""):
+                if canonical_status and canonical_status != (
+                    player.roster_status or ""
+                ):
                     player.roster_status = canonical_status
                     changed = True
                 target_is_active = (
@@ -267,7 +269,9 @@ class Command(BaseCommand):
                 continue
 
             if dry_run:
-                team_abbr = player.current_team.abbreviation if player.current_team else "FA"
+                team_abbr = (
+                    player.current_team.abbreviation if player.current_team else "FA"
+                )
                 self.stdout.write(
                     f"  [MISSING] {player.display_name} ({team_abbr}) "
                     f"— not found on {season} roster"

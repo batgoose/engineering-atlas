@@ -18,7 +18,6 @@ from django.db import connections
 
 from gridstream.models import Player
 
-
 NON_ALNUM_RE = re.compile(r"[^A-Z0-9/]+")
 
 # Map source labels into canonical Player.position values.
@@ -168,7 +167,14 @@ class Command(BaseCommand):
 
         players = (
             Player.objects.using("nfl")
-            .only("id", "gsis_id", "pfr_id", "position", "position_group", "depth_chart_position")
+            .only(
+                "id",
+                "gsis_id",
+                "pfr_id",
+                "position",
+                "position_group",
+                "depth_chart_position",
+            )
             .iterator(chunk_size=2000)
         )
 
@@ -198,11 +204,15 @@ class Command(BaseCommand):
             if not source:
                 continue
 
-            canonical = _canonical_position(depth_token) or _canonical_position(position_token)
+            canonical = _canonical_position(depth_token) or _canonical_position(
+                position_token
+            )
             if not canonical:
                 continue
 
-            next_group = POSITION_GROUP_BY_POSITION.get(canonical, player.position_group or "")
+            next_group = POSITION_GROUP_BY_POSITION.get(
+                canonical, player.position_group or ""
+            )
             next_depth = _depth_position_detail(depth_token or position_token)
 
             changed = False
@@ -224,7 +234,9 @@ class Command(BaseCommand):
             position_counter[canonical] += 1
 
         if dry_run:
-            self.stdout.write(self.style.WARNING("DRY RUN: no DB updates will be applied."))
+            self.stdout.write(
+                self.style.WARNING("DRY RUN: no DB updates will be applied.")
+            )
         elif updates:
             Player.objects.using("nfl").bulk_update(
                 updates,
@@ -254,7 +266,9 @@ class Command(BaseCommand):
             cursor.execute("SELECT to_regclass(%s)", [full_name])
             return cursor.fetchone()[0] is not None
 
-    def _load_depth_rows(self, *, season: int | None, min_season: int | None) -> dict[str, dict[str, str]]:
+    def _load_depth_rows(
+        self, *, season: int | None, min_season: int | None
+    ) -> dict[str, dict[str, str]]:
         if not self._raw_table_exists("raw.raw_nflverse_depth_charts"):
             return {}
 
@@ -300,7 +314,9 @@ class Command(BaseCommand):
                 }
         return rows
 
-    def _load_snap_rows(self, *, season: int | None, min_season: int | None) -> dict[str, str]:
+    def _load_snap_rows(
+        self, *, season: int | None, min_season: int | None
+    ) -> dict[str, str]:
         if not self._raw_table_exists("raw.raw_nflverse_snap_counts"):
             return {}
 

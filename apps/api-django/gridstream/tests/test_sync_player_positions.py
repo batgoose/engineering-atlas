@@ -13,8 +13,7 @@ pytestmark = [pytest.mark.django_db(databases=["default", "nfl"])]
 def _ensure_raw_tables():
     with connections["nfl"].cursor() as cursor:
         cursor.execute("CREATE SCHEMA IF NOT EXISTS raw")
-        cursor.execute(
-            """
+        cursor.execute("""
             CREATE TABLE IF NOT EXISTS raw.raw_nflverse_depth_charts (
                 id BIGSERIAL PRIMARY KEY,
                 season INTEGER,
@@ -24,10 +23,8 @@ def _ensure_raw_tables():
                 depth_rank INTEGER,
                 payload JSONB NOT NULL DEFAULT '{}'::jsonb
             )
-            """
-        )
-        cursor.execute(
-            """
+            """)
+        cursor.execute("""
             CREATE TABLE IF NOT EXISTS raw.raw_nflverse_snap_counts (
                 id BIGSERIAL PRIMARY KEY,
                 season INTEGER,
@@ -38,8 +35,7 @@ def _ensure_raw_tables():
                 special_snaps INTEGER,
                 payload JSONB NOT NULL DEFAULT '{}'::jsonb
             )
-            """
-        )
+            """)
 
 
 class TestSyncPlayerPositions:

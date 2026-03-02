@@ -13,18 +13,35 @@ type SplitTab = 'home-away' | 'win-loss' | 'reg-post' | 'surface' | 'division';
 
 const SPLIT_TABS: { id: SplitTab; label: string }[] = [
   { id: 'home-away', label: 'Home / Away' },
-  { id: 'win-loss',  label: 'Win / Loss' },
-  { id: 'reg-post',  label: 'Reg / Post' },
-  { id: 'surface',   label: 'Surface' },
-  { id: 'division',  label: 'Division' },
+  { id: 'win-loss', label: 'Win / Loss' },
+  { id: 'reg-post', label: 'Reg / Post' },
+  { id: 'surface', label: 'Surface' },
+  { id: 'division', label: 'Division' },
 ];
 
 // Position group detection
 type PositionGroup = 'offense' | 'defense' | 'kicker' | 'punter' | 'ol';
 
 const DEFENSE_POSITIONS = new Set([
-  'DE', 'DT', 'NT', 'DL', 'OLB', 'ILB', 'MLB', 'LB', 'EDGE',
-  'CB', 'S', 'SS', 'FS', 'DB', 'LDE', 'RDE', 'RDT', 'LDT', 'SAF',
+  'DE',
+  'DT',
+  'NT',
+  'DL',
+  'OLB',
+  'ILB',
+  'MLB',
+  'LB',
+  'EDGE',
+  'CB',
+  'S',
+  'SS',
+  'FS',
+  'DB',
+  'LDE',
+  'RDE',
+  'RDT',
+  'LDT',
+  'SAF',
 ]);
 const OL_POSITIONS = new Set(['C', 'G', 'T', 'OT', 'OG', 'OL', 'LS']);
 
@@ -55,7 +72,11 @@ function buildSelfHref(playerId: string, season: number | null, gamelogPage: num
 
 // ─── Offense splits table ───────────────────────────────────────────────────
 
-function OffenseSplitsTable({ rows }: { rows: { label: string; s: GridstreamPlayerSplitAggregate }[] }) {
+function OffenseSplitsTable({
+  rows,
+}: {
+  rows: { label: string; s: GridstreamPlayerSplitAggregate }[];
+}) {
   const noData = rows.every((r) => r.s.games === 0);
   const d = (g: number, n: number) => (g ? n : '—');
   const sep = { borderLeft: '1px solid rgba(0,229,255,0.1)' } as const;
@@ -67,10 +88,18 @@ function OffenseSplitsTable({ rows }: { rows: { label: string; s: GridstreamPlay
           <tr>
             <th className="gs-players-table-head-cell is-sticky">Split</th>
             <th className="gs-players-table-head-cell is-numeric">G</th>
-            <th className="gs-player-detail-group-th is-pass" colSpan={3}>Passing</th>
-            <th className="gs-player-detail-group-th is-rush" colSpan={3}>Rushing</th>
-            <th className="gs-player-detail-group-th is-rec" colSpan={3}>Receiving</th>
-            <th className="gs-players-table-head-cell is-numeric" style={sep}>Fum</th>
+            <th className="gs-player-detail-group-th is-pass" colSpan={3}>
+              Passing
+            </th>
+            <th className="gs-player-detail-group-th is-rush" colSpan={3}>
+              Rushing
+            </th>
+            <th className="gs-player-detail-group-th is-rec" colSpan={3}>
+              Receiving
+            </th>
+            <th className="gs-players-table-head-cell is-numeric" style={sep}>
+              Fum
+            </th>
             <th className="gs-players-table-head-cell is-numeric">Lost</th>
             <th className="gs-players-table-head-cell is-numeric">PPR</th>
           </tr>
@@ -109,7 +138,9 @@ function OffenseSplitsTable({ rows }: { rows: { label: string; s: GridstreamPlay
                   <td className="gs-players-table-cell is-numeric">{d(g, s.recYds)}</td>
                   <td className="gs-players-table-cell is-numeric">{d(g, s.recTds)}</td>
                   <td className="gs-players-table-cell is-numeric">{d(g, s.recFirstDowns)}</td>
-                  <td className="gs-players-table-cell is-numeric" style={sep}>{d(g, s.fumbles)}</td>
+                  <td className="gs-players-table-cell is-numeric" style={sep}>
+                    {d(g, s.fumbles)}
+                  </td>
                   <td className="gs-players-table-cell is-numeric">{d(g, s.fumblesLost)}</td>
                   <td className="gs-players-table-cell is-numeric">{g ? s.ppr.toFixed(1) : '—'}</td>
                 </tr>
@@ -125,9 +156,13 @@ function OffenseSplitsTable({ rows }: { rows: { label: string; s: GridstreamPlay
                   <td className="gs-players-table-cell is-numeric">{avg(s.recYds)}</td>
                   <td className="gs-players-table-cell is-numeric">{avg(s.recTds)}</td>
                   <td className="gs-players-table-cell is-numeric">{avg(s.recFirstDowns)}</td>
-                  <td className="gs-players-table-cell is-numeric" style={sep}>{avg(s.fumbles)}</td>
+                  <td className="gs-players-table-cell is-numeric" style={sep}>
+                    {avg(s.fumbles)}
+                  </td>
                   <td className="gs-players-table-cell is-numeric">{avg(s.fumblesLost)}</td>
-                  <td className="gs-players-table-cell is-numeric">{g ? (s.ppr / g).toFixed(1) : '—'}</td>
+                  <td className="gs-players-table-cell is-numeric">
+                    {g ? (s.ppr / g).toFixed(1) : '—'}
+                  </td>
                 </tr>
               </Fragment>
             );
@@ -141,10 +176,14 @@ function OffenseSplitsTable({ rows }: { rows: { label: string; s: GridstreamPlay
 
 // ─── Defense splits table ───────────────────────────────────────────────────
 
-function DefenseSplitsTable({ rows }: { rows: { label: string; s: GridstreamPlayerSplitAggregate }[] }) {
+function DefenseSplitsTable({
+  rows,
+}: {
+  rows: { label: string; s: GridstreamPlayerSplitAggregate }[];
+}) {
   const noData = rows.every((r) => r.s.games === 0);
   const d = (g: number, n: number) => (g ? n : '—');
-  const fmt = (n: number, decimals = 1) => n ? n.toFixed(decimals) : '—';
+  const fmt = (n: number, decimals = 1) => (n ? n.toFixed(decimals) : '—');
 
   return (
     <div className="gs-players-table-wrap">
@@ -257,16 +296,17 @@ export default function PlayerStatsTabs({
           >
             Splits
           </button>
-          {primaryTab === 'splits' && SPLIT_TABS.map(({ id, label }) => (
-            <button
-              key={id}
-              type="button"
-              onClick={() => setSplitTab(id)}
-              className={`gs-player-detail-stats-tab is-split-sub${splitTab === id ? ' is-active' : ''}`}
-            >
-              {label}
-            </button>
-          ))}
+          {primaryTab === 'splits' &&
+            SPLIT_TABS.map(({ id, label }) => (
+              <button
+                key={id}
+                type="button"
+                onClick={() => setSplitTab(id)}
+                className={`gs-player-detail-stats-tab is-split-sub${splitTab === id ? ' is-active' : ''}`}
+              >
+                {label}
+              </button>
+            ))}
         </div>
         <div className="gs-player-detail-season-selector">
           <span className="gs-players-kicker">Season</span>
@@ -286,9 +326,7 @@ export default function PlayerStatsTabs({
                 {season}
               </Link>
             ))}
-            {seasonOptions.length === 0 && (
-              <span className="gs-players-chip">No season data.</span>
-            )}
+            {seasonOptions.length === 0 && <span className="gs-players-chip">No season data.</span>}
           </div>
         </div>
       </div>
@@ -298,20 +336,45 @@ export default function PlayerStatsTabs({
           <>
             <div className="gs-players-table-wrap">
               {isDefense ? (
-                <table className="gs-players-table gs-player-detail-table" style={{ minWidth: 720 }}>
+                <table
+                  className="gs-players-table gs-player-detail-table"
+                  style={{ minWidth: 720 }}
+                >
                   <thead>
                     <tr>
-                      <th className="gs-players-table-head-cell is-sticky" rowSpan={2}>Wk</th>
-                      <th className="gs-players-table-head-cell" rowSpan={2}>Team</th>
-                      <th className="gs-players-table-head-cell" rowSpan={2}>Opp</th>
-                      <th className="gs-players-table-head-cell is-numeric" rowSpan={2}>Tkl</th>
-                      <th className="gs-players-table-head-cell is-numeric" rowSpan={2}>Sack</th>
-                      <th className="gs-players-table-head-cell is-numeric" rowSpan={2}>QB Hit</th>
-                      <th className="gs-players-table-head-cell is-numeric" rowSpan={2}>PD</th>
-                      <th className="gs-players-table-head-cell is-numeric" rowSpan={2}>INT</th>
-                      <th className="gs-players-table-head-cell is-numeric" rowSpan={2}>INT TD</th>
-                      <th className="gs-players-table-head-cell is-numeric" rowSpan={2}>FF</th>
-                      <th className="gs-players-table-head-cell is-numeric" rowSpan={2}>Def TD</th>
+                      <th className="gs-players-table-head-cell is-sticky" rowSpan={2}>
+                        Wk
+                      </th>
+                      <th className="gs-players-table-head-cell" rowSpan={2}>
+                        Team
+                      </th>
+                      <th className="gs-players-table-head-cell" rowSpan={2}>
+                        Opp
+                      </th>
+                      <th className="gs-players-table-head-cell is-numeric" rowSpan={2}>
+                        Tkl
+                      </th>
+                      <th className="gs-players-table-head-cell is-numeric" rowSpan={2}>
+                        Sack
+                      </th>
+                      <th className="gs-players-table-head-cell is-numeric" rowSpan={2}>
+                        QB Hit
+                      </th>
+                      <th className="gs-players-table-head-cell is-numeric" rowSpan={2}>
+                        PD
+                      </th>
+                      <th className="gs-players-table-head-cell is-numeric" rowSpan={2}>
+                        INT
+                      </th>
+                      <th className="gs-players-table-head-cell is-numeric" rowSpan={2}>
+                        INT TD
+                      </th>
+                      <th className="gs-players-table-head-cell is-numeric" rowSpan={2}>
+                        FF
+                      </th>
+                      <th className="gs-players-table-head-cell is-numeric" rowSpan={2}>
+                        Def TD
+                      </th>
                     </tr>
                     <tr />
                   </thead>
@@ -323,64 +386,105 @@ export default function PlayerStatsTabs({
                         </td>
                         <td className="gs-players-table-cell">{entry.teamAbbr}</td>
                         <td className="gs-players-table-cell">{entry.opponentAbbr}</td>
-                        <td className="gs-players-table-cell is-numeric">{entry.tacklesTotal || '—'}</td>
+                        <td className="gs-players-table-cell is-numeric">
+                          {entry.tacklesTotal || '—'}
+                        </td>
                         <td className="gs-players-table-cell is-numeric">
                           {entry.sacksMade ? entry.sacksMade.toFixed(1) : '—'}
                         </td>
                         <td className="gs-players-table-cell is-numeric">{entry.qbHits || '—'}</td>
-                        <td className="gs-players-table-cell is-numeric">{entry.passesDefended || '—'}</td>
-                        <td className="gs-players-table-cell is-numeric">{entry.interceptionsCaught || '—'}</td>
-                        <td className="gs-players-table-cell is-numeric">{entry.interceptionTds || '—'}</td>
-                        <td className="gs-players-table-cell is-numeric">{entry.forcedFumbles || '—'}</td>
-                        <td className="gs-players-table-cell is-numeric">{entry.defensiveTds || '—'}</td>
+                        <td className="gs-players-table-cell is-numeric">
+                          {entry.passesDefended || '—'}
+                        </td>
+                        <td className="gs-players-table-cell is-numeric">
+                          {entry.interceptionsCaught || '—'}
+                        </td>
+                        <td className="gs-players-table-cell is-numeric">
+                          {entry.interceptionTds || '—'}
+                        </td>
+                        <td className="gs-players-table-cell is-numeric">
+                          {entry.forcedFumbles || '—'}
+                        </td>
+                        <td className="gs-players-table-cell is-numeric">
+                          {entry.defensiveTds || '—'}
+                        </td>
                       </tr>
                     ))}
                   </tbody>
-                  {gamelog.items.length > 1 && (() => {
-                    const tot = gamelog.items.reduce(
-                      (acc, e) => ({
-                        tackles: acc.tackles + (e.tacklesTotal ?? 0),
-                        sacks: acc.sacks + (e.sacksMade ?? 0),
-                        qbHits: acc.qbHits + (e.qbHits ?? 0),
-                        pd: acc.pd + (e.passesDefended ?? 0),
-                        ints: acc.ints + (e.interceptionsCaught ?? 0),
-                        intTds: acc.intTds + (e.interceptionTds ?? 0),
-                        ff: acc.ff + (e.forcedFumbles ?? 0),
-                        defTds: acc.defTds + (e.defensiveTds ?? 0),
-                      }),
-                      { tackles: 0, sacks: 0, qbHits: 0, pd: 0, ints: 0, intTds: 0, ff: 0, defTds: 0 }
-                    );
-                    const dv = (n: number) => n || '—';
-                    return (
-                      <tfoot>
-                        <tr className="gs-player-detail-totals-row">
-                          <td className="gs-players-table-cell is-sticky">TOT</td>
-                          <td className="gs-players-table-cell" />
-                          <td className="gs-players-table-cell" />
-                          <td className="gs-players-table-cell is-numeric">{dv(tot.tackles)}</td>
-                          <td className="gs-players-table-cell is-numeric">{tot.sacks ? tot.sacks.toFixed(1) : '—'}</td>
-                          <td className="gs-players-table-cell is-numeric">{dv(tot.qbHits)}</td>
-                          <td className="gs-players-table-cell is-numeric">{dv(tot.pd)}</td>
-                          <td className="gs-players-table-cell is-numeric">{dv(tot.ints)}</td>
-                          <td className="gs-players-table-cell is-numeric">{dv(tot.intTds)}</td>
-                          <td className="gs-players-table-cell is-numeric">{dv(tot.ff)}</td>
-                          <td className="gs-players-table-cell is-numeric">{dv(tot.defTds)}</td>
-                        </tr>
-                      </tfoot>
-                    );
-                  })()}
+                  {gamelog.items.length > 1 &&
+                    (() => {
+                      const tot = gamelog.items.reduce(
+                        (acc, e) => ({
+                          tackles: acc.tackles + (e.tacklesTotal ?? 0),
+                          sacks: acc.sacks + (e.sacksMade ?? 0),
+                          qbHits: acc.qbHits + (e.qbHits ?? 0),
+                          pd: acc.pd + (e.passesDefended ?? 0),
+                          ints: acc.ints + (e.interceptionsCaught ?? 0),
+                          intTds: acc.intTds + (e.interceptionTds ?? 0),
+                          ff: acc.ff + (e.forcedFumbles ?? 0),
+                          defTds: acc.defTds + (e.defensiveTds ?? 0),
+                        }),
+                        {
+                          tackles: 0,
+                          sacks: 0,
+                          qbHits: 0,
+                          pd: 0,
+                          ints: 0,
+                          intTds: 0,
+                          ff: 0,
+                          defTds: 0,
+                        }
+                      );
+                      const dv = (n: number) => n || '—';
+                      return (
+                        <tfoot>
+                          <tr className="gs-player-detail-totals-row">
+                            <td className="gs-players-table-cell is-sticky">TOT</td>
+                            <td className="gs-players-table-cell" />
+                            <td className="gs-players-table-cell" />
+                            <td className="gs-players-table-cell is-numeric">{dv(tot.tackles)}</td>
+                            <td className="gs-players-table-cell is-numeric">
+                              {tot.sacks ? tot.sacks.toFixed(1) : '—'}
+                            </td>
+                            <td className="gs-players-table-cell is-numeric">{dv(tot.qbHits)}</td>
+                            <td className="gs-players-table-cell is-numeric">{dv(tot.pd)}</td>
+                            <td className="gs-players-table-cell is-numeric">{dv(tot.ints)}</td>
+                            <td className="gs-players-table-cell is-numeric">{dv(tot.intTds)}</td>
+                            <td className="gs-players-table-cell is-numeric">{dv(tot.ff)}</td>
+                            <td className="gs-players-table-cell is-numeric">{dv(tot.defTds)}</td>
+                          </tr>
+                        </tfoot>
+                      );
+                    })()}
                 </table>
               ) : (
-                <table className="gs-players-table gs-player-detail-table" style={{ minWidth: 860 }}>
+                <table
+                  className="gs-players-table gs-player-detail-table"
+                  style={{ minWidth: 860 }}
+                >
                   <thead>
                     <tr>
-                      <th className="gs-players-table-head-cell is-sticky" rowSpan={2}>Wk</th>
-                      <th className="gs-players-table-head-cell" rowSpan={2}>Team</th>
-                      <th className="gs-players-table-head-cell" rowSpan={2}>Opp</th>
-                      <th className="gs-player-detail-group-th is-pass" colSpan={5}>Passing</th>
-                      <th className="gs-player-detail-group-th is-rush" colSpan={3}>Rushing</th>
-                      <th className="gs-player-detail-group-th is-rec" colSpan={3}>Receiving</th>
-                      <th className="gs-players-table-head-cell is-numeric" rowSpan={2}>PPR</th>
+                      <th className="gs-players-table-head-cell is-sticky" rowSpan={2}>
+                        Wk
+                      </th>
+                      <th className="gs-players-table-head-cell" rowSpan={2}>
+                        Team
+                      </th>
+                      <th className="gs-players-table-head-cell" rowSpan={2}>
+                        Opp
+                      </th>
+                      <th className="gs-player-detail-group-th is-pass" colSpan={5}>
+                        Passing
+                      </th>
+                      <th className="gs-player-detail-group-th is-rush" colSpan={3}>
+                        Rushing
+                      </th>
+                      <th className="gs-player-detail-group-th is-rec" colSpan={3}>
+                        Receiving
+                      </th>
+                      <th className="gs-players-table-head-cell is-numeric" rowSpan={2}>
+                        PPR
+                      </th>
                     </tr>
                     <tr>
                       <th className="gs-players-table-head-cell is-numeric">Cmp</th>
@@ -404,68 +508,106 @@ export default function PlayerStatsTabs({
                         </td>
                         <td className="gs-players-table-cell">{entry.teamAbbr}</td>
                         <td className="gs-players-table-cell">{entry.opponentAbbr}</td>
-                        <td className="gs-players-table-cell is-numeric">{entry.passComp || '—'}</td>
+                        <td className="gs-players-table-cell is-numeric">
+                          {entry.passComp || '—'}
+                        </td>
                         <td className="gs-players-table-cell is-numeric">{entry.passAtt || '—'}</td>
-                        <td className="gs-players-table-cell is-numeric">{entry.passYards || '—'}</td>
+                        <td className="gs-players-table-cell is-numeric">
+                          {entry.passYards || '—'}
+                        </td>
                         <td className="gs-players-table-cell is-numeric">{entry.passTd || '—'}</td>
-                        <td className="gs-players-table-cell is-numeric">{entry.interceptionsThrown || '—'}</td>
+                        <td className="gs-players-table-cell is-numeric">
+                          {entry.interceptionsThrown || '—'}
+                        </td>
                         <td className="gs-players-table-cell is-numeric">{entry.carries || '—'}</td>
-                        <td className="gs-players-table-cell is-numeric">{entry.rushYards || '—'}</td>
+                        <td className="gs-players-table-cell is-numeric">
+                          {entry.rushYards || '—'}
+                        </td>
                         <td className="gs-players-table-cell is-numeric">{entry.rushTd || '—'}</td>
-                        <td className="gs-players-table-cell is-numeric">{entry.receptions || '—'}</td>
-                        <td className="gs-players-table-cell is-numeric">{entry.receivingYards || '—'}</td>
-                        <td className="gs-players-table-cell is-numeric">{entry.receivingTd || '—'}</td>
+                        <td className="gs-players-table-cell is-numeric">
+                          {entry.receptions || '—'}
+                        </td>
+                        <td className="gs-players-table-cell is-numeric">
+                          {entry.receivingYards || '—'}
+                        </td>
+                        <td className="gs-players-table-cell is-numeric">
+                          {entry.receivingTd || '—'}
+                        </td>
                         <td className="gs-players-table-cell is-numeric">
                           {entry.fantasyPointsPpr.toFixed(1)}
                         </td>
                       </tr>
                     ))}
                   </tbody>
-                  {gamelog.items.length > 1 && (() => {
-                    const tot = gamelog.items.reduce(
-                      (acc, e) => ({
-                        passComp: acc.passComp + (e.passComp ?? 0),
-                        passAtt:  acc.passAtt  + (e.passAtt  ?? 0),
-                        passYards: acc.passYards + (e.passYards ?? 0),
-                        passTd:   acc.passTd   + (e.passTd   ?? 0),
-                        int:      acc.int      + (e.interceptionsThrown ?? 0),
-                        carries:  acc.carries  + (e.carries  ?? 0),
-                        rushYards: acc.rushYards + (e.rushYards ?? 0),
-                        rushTd:   acc.rushTd   + (e.rushTd   ?? 0),
-                        receptions: acc.receptions + (e.receptions ?? 0),
-                        recYards: acc.recYards  + (e.receivingYards ?? 0),
-                        recTd:    acc.recTd    + (e.receivingTd ?? 0),
-                        ppr:      acc.ppr      + e.fantasyPointsPpr,
-                      }),
-                      { passComp: 0, passAtt: 0, passYards: 0, passTd: 0, int: 0, carries: 0, rushYards: 0, rushTd: 0, receptions: 0, recYards: 0, recTd: 0, ppr: 0 }
-                    );
-                    const dv = (n: number) => n || '—';
-                    return (
-                      <tfoot>
-                        <tr className="gs-player-detail-totals-row">
-                          <td className="gs-players-table-cell is-sticky">TOT</td>
-                          <td className="gs-players-table-cell" />
-                          <td className="gs-players-table-cell" />
-                          <td className="gs-players-table-cell is-numeric">{dv(tot.passComp)}</td>
-                          <td className="gs-players-table-cell is-numeric">{dv(tot.passAtt)}</td>
-                          <td className="gs-players-table-cell is-numeric">{dv(tot.passYards)}</td>
-                          <td className="gs-players-table-cell is-numeric">{dv(tot.passTd)}</td>
-                          <td className="gs-players-table-cell is-numeric">{dv(tot.int)}</td>
-                          <td className="gs-players-table-cell is-numeric">{dv(tot.carries)}</td>
-                          <td className="gs-players-table-cell is-numeric">{dv(tot.rushYards)}</td>
-                          <td className="gs-players-table-cell is-numeric">{dv(tot.rushTd)}</td>
-                          <td className="gs-players-table-cell is-numeric">{dv(tot.receptions)}</td>
-                          <td className="gs-players-table-cell is-numeric">{dv(tot.recYards)}</td>
-                          <td className="gs-players-table-cell is-numeric">{dv(tot.recTd)}</td>
-                          <td className="gs-players-table-cell is-numeric">{tot.ppr.toFixed(1)}</td>
-                        </tr>
-                      </tfoot>
-                    );
-                  })()}
+                  {gamelog.items.length > 1 &&
+                    (() => {
+                      const tot = gamelog.items.reduce(
+                        (acc, e) => ({
+                          passComp: acc.passComp + (e.passComp ?? 0),
+                          passAtt: acc.passAtt + (e.passAtt ?? 0),
+                          passYards: acc.passYards + (e.passYards ?? 0),
+                          passTd: acc.passTd + (e.passTd ?? 0),
+                          int: acc.int + (e.interceptionsThrown ?? 0),
+                          carries: acc.carries + (e.carries ?? 0),
+                          rushYards: acc.rushYards + (e.rushYards ?? 0),
+                          rushTd: acc.rushTd + (e.rushTd ?? 0),
+                          receptions: acc.receptions + (e.receptions ?? 0),
+                          recYards: acc.recYards + (e.receivingYards ?? 0),
+                          recTd: acc.recTd + (e.receivingTd ?? 0),
+                          ppr: acc.ppr + e.fantasyPointsPpr,
+                        }),
+                        {
+                          passComp: 0,
+                          passAtt: 0,
+                          passYards: 0,
+                          passTd: 0,
+                          int: 0,
+                          carries: 0,
+                          rushYards: 0,
+                          rushTd: 0,
+                          receptions: 0,
+                          recYards: 0,
+                          recTd: 0,
+                          ppr: 0,
+                        }
+                      );
+                      const dv = (n: number) => n || '—';
+                      return (
+                        <tfoot>
+                          <tr className="gs-player-detail-totals-row">
+                            <td className="gs-players-table-cell is-sticky">TOT</td>
+                            <td className="gs-players-table-cell" />
+                            <td className="gs-players-table-cell" />
+                            <td className="gs-players-table-cell is-numeric">{dv(tot.passComp)}</td>
+                            <td className="gs-players-table-cell is-numeric">{dv(tot.passAtt)}</td>
+                            <td className="gs-players-table-cell is-numeric">
+                              {dv(tot.passYards)}
+                            </td>
+                            <td className="gs-players-table-cell is-numeric">{dv(tot.passTd)}</td>
+                            <td className="gs-players-table-cell is-numeric">{dv(tot.int)}</td>
+                            <td className="gs-players-table-cell is-numeric">{dv(tot.carries)}</td>
+                            <td className="gs-players-table-cell is-numeric">
+                              {dv(tot.rushYards)}
+                            </td>
+                            <td className="gs-players-table-cell is-numeric">{dv(tot.rushTd)}</td>
+                            <td className="gs-players-table-cell is-numeric">
+                              {dv(tot.receptions)}
+                            </td>
+                            <td className="gs-players-table-cell is-numeric">{dv(tot.recYards)}</td>
+                            <td className="gs-players-table-cell is-numeric">{dv(tot.recTd)}</td>
+                            <td className="gs-players-table-cell is-numeric">
+                              {tot.ppr.toFixed(1)}
+                            </td>
+                          </tr>
+                        </tfoot>
+                      );
+                    })()}
                 </table>
               )}
               {gamelog.items.length === 0 && (
-                <div className="gs-players-empty">No gamelog rows found for the selected season.</div>
+                <div className="gs-players-empty">
+                  No gamelog rows found for the selected season.
+                </div>
               )}
             </div>
             {gamelog.totalPages > 1 && (
@@ -499,23 +641,53 @@ export default function PlayerStatsTabs({
         )}
 
         {primaryTab === 'splits' && splitTab === 'home-away' && (
-          <SplitsTable group={group} rows={[{ label: 'Home', s: splits.home }, { label: 'Away', s: splits.away }]} />
+          <SplitsTable
+            group={group}
+            rows={[
+              { label: 'Home', s: splits.home },
+              { label: 'Away', s: splits.away },
+            ]}
+          />
         )}
 
         {primaryTab === 'splits' && splitTab === 'win-loss' && (
-          <SplitsTable group={group} rows={[{ label: 'Wins', s: splits.wins }, { label: 'Losses', s: splits.losses }]} />
+          <SplitsTable
+            group={group}
+            rows={[
+              { label: 'Wins', s: splits.wins },
+              { label: 'Losses', s: splits.losses },
+            ]}
+          />
         )}
 
         {primaryTab === 'splits' && splitTab === 'reg-post' && (
-          <SplitsTable group={group} rows={[{ label: 'Regular Season', s: splits.regular }, { label: 'Postseason', s: splits.postseason }]} />
+          <SplitsTable
+            group={group}
+            rows={[
+              { label: 'Regular Season', s: splits.regular },
+              { label: 'Postseason', s: splits.postseason },
+            ]}
+          />
         )}
 
         {primaryTab === 'splits' && splitTab === 'surface' && (
-          <SplitsTable group={group} rows={[{ label: 'Grass', s: splits.grass }, { label: 'Turf', s: splits.turf }]} />
+          <SplitsTable
+            group={group}
+            rows={[
+              { label: 'Grass', s: splits.grass },
+              { label: 'Turf', s: splits.turf },
+            ]}
+          />
         )}
 
         {primaryTab === 'splits' && splitTab === 'division' && (
-          <SplitsTable group={group} rows={[{ label: 'Division', s: splits.division }, { label: 'Non-Division', s: splits.nondivision }]} />
+          <SplitsTable
+            group={group}
+            rows={[
+              { label: 'Division', s: splits.division },
+              { label: 'Non-Division', s: splits.nondivision },
+            ]}
+          />
         )}
       </div>
     </section>

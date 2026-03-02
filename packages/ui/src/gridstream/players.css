@@ -8,8 +8,20 @@
 .gs-players-page {
   min-height: 100vh;
   background:
-    repeating-linear-gradient(45deg, rgba(255, 255, 255, 0.03) 0px, rgba(255, 255, 255, 0.03) 1px, transparent 1px, transparent 4px),
-    repeating-linear-gradient(-45deg, rgba(0, 0, 0, 0.2) 0px, rgba(0, 0, 0, 0.2) 1px, transparent 1px, transparent 4px),
+    repeating-linear-gradient(
+      45deg,
+      rgba(255, 255, 255, 0.03) 0px,
+      rgba(255, 255, 255, 0.03) 1px,
+      transparent 1px,
+      transparent 4px
+    ),
+    repeating-linear-gradient(
+      -45deg,
+      rgba(0, 0, 0, 0.2) 0px,
+      rgba(0, 0, 0, 0.2) 1px,
+      transparent 1px,
+      transparent 4px
+    ),
     radial-gradient(1200px 520px at 50% -180px, rgba(0, 229, 255, 0.14), transparent 65%),
     linear-gradient(180deg, #0d1828 0%, #0a1420 36%, #091220 100%);
   background-attachment: fixed;
@@ -1259,7 +1271,9 @@
 }
 
 @keyframes gs-players-spin {
-  to { transform: rotate(360deg); }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .gs-players-table {
@@ -1290,7 +1304,9 @@
   left: 0;
   z-index: 5;
   background: rgba(7, 20, 36, 0.99);
-  box-shadow: 2px 0 10px rgba(0, 0, 0, 0.45), 1px 0 0 rgba(0, 229, 255, 0.06);
+  box-shadow:
+    2px 0 10px rgba(0, 0, 0, 0.45),
+    1px 0 0 rgba(0, 229, 255, 0.06);
 }
 
 .gs-players-table-head-cell.is-numeric {
@@ -1363,7 +1379,9 @@
   left: 0;
   z-index: 2;
   background: rgba(6, 17, 31, 0.97);
-  box-shadow: 2px 0 10px rgba(0, 0, 0, 0.45), 1px 0 0 rgba(0, 229, 255, 0.06);
+  box-shadow:
+    2px 0 10px rgba(0, 0, 0, 0.45),
+    1px 0 0 rgba(0, 229, 255, 0.06);
 }
 
 .gs-players-table tbody tr:nth-child(2n) .gs-players-table-cell {
@@ -1377,7 +1395,9 @@
 
 .gs-players-table tbody tr:hover .gs-players-table-cell.is-sticky {
   background: rgba(5, 28, 48, 0.95);
-  box-shadow: inset 2px 0 0 rgba(0, 229, 255, 0.5), 2px 0 10px rgba(0, 0, 0, 0.45);
+  box-shadow:
+    inset 2px 0 0 rgba(0, 229, 255, 0.5),
+    2px 0 10px rgba(0, 0, 0, 0.45);
 }
 
 .gs-players-player-cell {
@@ -1695,8 +1715,12 @@ details.hud-panel > summary.gs-players-kicker {
   justify-content: space-between;
   user-select: none;
 }
-details.hud-panel > summary.gs-players-kicker::-webkit-details-marker { display: none; }
-details.hud-panel > summary.gs-players-kicker::marker { content: none; }
+details.hud-panel > summary.gs-players-kicker::-webkit-details-marker {
+  display: none;
+}
+details.hud-panel > summary.gs-players-kicker::marker {
+  content: none;
+}
 
 .gs-panel-toggle-icon {
   font-size: 15px;
@@ -1707,8 +1731,12 @@ details.hud-panel > summary.gs-players-kicker::marker { content: none; }
   transition: color 0.15s;
   flex-shrink: 0;
 }
-.gs-panel-toggle-icon::before { content: '+'; }
-details[open] > summary .gs-panel-toggle-icon::before { content: '−'; }
+.gs-panel-toggle-icon::before {
+  content: '+';
+}
+details[open] > summary .gs-panel-toggle-icon::before {
+  content: '−';
+}
 
 details.hud-panel > summary.gs-players-kicker:hover .gs-panel-toggle-icon {
   color: rgba(0, 229, 255, 0.95);
@@ -1769,7 +1797,9 @@ details.hud-panel > summary.gs-players-kicker:hover .gs-panel-toggle-icon {
   display: flex;
   align-items: flex-end;
   justify-content: center;
-  transition: border-color 0.25s ease, box-shadow 0.25s ease;
+  transition:
+    border-color 0.25s ease,
+    box-shadow 0.25s ease;
 }
 
 .gs-player-detail-headshot {
@@ -2194,7 +2224,6 @@ details.hud-panel > summary.gs-players-kicker:hover .gs-panel-toggle-icon {
   min-width: 0;
 }
 
-
 /* =============================================================================
    PLAYER DETAIL — HEADER BADGES
    ============================================================================= */
@@ -2259,7 +2288,9 @@ details.hud-panel > summary.gs-players-kicker:hover .gs-panel-toggle-icon {
   border-radius: 6px;
   background: rgba(0, 229, 255, 0.04);
   text-decoration: none;
-  transition: border-color 0.14s ease, background 0.14s ease;
+  transition:
+    border-color 0.14s ease,
+    background 0.14s ease;
 }
 
 .gs-player-detail-social-link:hover {
@@ -2315,7 +2346,7 @@ details.hud-panel > summary.gs-players-kicker:hover .gs-panel-toggle-icon {
   font-weight: 700;
   letter-spacing: 0.1em;
   background:
-    url("data:image/svg+xml;base64,PHN2ZyB2aWV3Qm94PScwIDAgMjAwIDIwMCcgeG1sbnM9J2h0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnJz48ZmlsdGVyIGlkPSdub2lzZUZpbHRlcic+PGZlVHVyYnVsZW5jZSB0eXBlPSdmcmFjdGFsTm9pc2UnIGJhc2VGcmVxdWVuY3k9JzIuODUnIG51bU9jdGF2ZXM9JzMnIHN0aXRjaFRpbGVzPSdzdGl0Y2gnLz48L2ZpbHRlcj48cmVjdCB3aWR0aD0nMTAwJScgaGVpZ2h0PScxMDAlJyBvcGFjaXR5PScwLjQ1JyBmaWx0ZXI9J3VybCgjbm9pc2VGaWx0ZXIpJy8+PC9zdmc+"),
+    url('data:image/svg+xml;base64,PHN2ZyB2aWV3Qm94PScwIDAgMjAwIDIwMCcgeG1sbnM9J2h0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnJz48ZmlsdGVyIGlkPSdub2lzZUZpbHRlcic+PGZlVHVyYnVsZW5jZSB0eXBlPSdmcmFjdGFsTm9pc2UnIGJhc2VGcmVxdWVuY3k9JzIuODUnIG51bU9jdGF2ZXM9JzMnIHN0aXRjaFRpbGVzPSdzdGl0Y2gnLz48L2ZpbHRlcj48cmVjdCB3aWR0aD0nMTAwJScgaGVpZ2h0PScxMDAlJyBvcGFjaXR5PScwLjQ1JyBmaWx0ZXI9J3VybCgjbm9pc2VGaWx0ZXIpJy8+PC9zdmc+'),
     linear-gradient(180deg, #f0b06a 0%, #c46830 100%);
   background-clip: text;
   -webkit-background-clip: text;
@@ -2474,9 +2505,11 @@ details.hud-panel > summary.gs-players-kicker:hover .gs-panel-toggle-icon {
   padding: 2px 7px;
   border-radius: 3px;
   background:
-    url("data:image/svg+xml;base64,PHN2ZyB2aWV3Qm94PScwIDAgMjAwIDIwMCcgeG1sbnM9J2h0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnJz48ZmlsdGVyIGlkPSdub2lzZUZpbHRlcic+PGZlVHVyYnVsZW5jZSB0eXBlPSdmcmFjdGFsTm9pc2UnIGJhc2VGcmVxdWVuY3k9JzIuODUnIG51bU9jdGF2ZXM9JzMnIHN0aXRjaFRpbGVzPSdzdGl0Y2gnLz48L2ZpbHRlcj48cmVjdCB3aWR0aD0nMTAwJScgaGVpZ2h0PScxMDAlJyBvcGFjaXR5PScwLjQ1JyBmaWx0ZXI9J3VybCgjbm9pc2VGaWx0ZXIpJy8+PC9zdmc+"),
-    linear-gradient(180deg, #D97736 0%, #A63C14 100%);
-  box-shadow: inset 0 1px 0 0 rgba(255, 255, 255, 0.15), 0 2px 4px rgba(0, 0, 0, 0.4);
+    url('data:image/svg+xml;base64,PHN2ZyB2aWV3Qm94PScwIDAgMjAwIDIwMCcgeG1sbnM9J2h0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnJz48ZmlsdGVyIGlkPSdub2lzZUZpbHRlcic+PGZlVHVyYnVsZW5jZSB0eXBlPSdmcmFjdGFsTm9pc2UnIGJhc2VGcmVxdWVuY3k9JzIuODUnIG51bU9jdGF2ZXM9JzMnIHN0aXRjaFRpbGVzPSdzdGl0Y2gnLz48L2ZpbHRlcj48cmVjdCB3aWR0aD0nMTAwJScgaGVpZ2h0PScxMDAlJyBvcGFjaXR5PScwLjQ1JyBmaWx0ZXI9J3VybCgjbm9pc2VGaWx0ZXIpJy8+PC9zdmc+'),
+    linear-gradient(180deg, #d97736 0%, #a63c14 100%);
+  box-shadow:
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.15),
+    0 2px 4px rgba(0, 0, 0, 0.4);
   flex-shrink: 0;
 }
 
@@ -2730,12 +2763,36 @@ details.hud-panel > summary.gs-players-kicker:hover .gs-panel-toggle-icon {
   padding: 1px 6px;
   display: inline-block;
 }
-.gs-player-madden-ovr--mythic  { color: #cda8ff; background: rgba(163, 106, 255, 0.20); border: 1px solid rgba(163, 106, 255, 0.50); }
-.gs-player-madden-ovr--elite   { color: #52ff8e; background: rgba(82, 255, 142, 0.12); border: 1px solid rgba(82, 255, 142, 0.35); }
-.gs-player-madden-ovr--good    { color: #9df56d; background: rgba(157, 245, 109, 0.10); border: 1px solid rgba(157, 245, 109, 0.28); }
-.gs-player-madden-ovr--average { color: #ffd15c; background: rgba(255, 209, 92, 0.10); border: 1px solid rgba(255, 209, 92, 0.30); }
-.gs-player-madden-ovr--below   { color: #ff9f57; background: rgba(255, 159, 87, 0.10); border: 1px solid rgba(255, 159, 87, 0.30); }
-.gs-player-madden-ovr--poor    { color: #ff6060; background: rgba(255, 96, 96, 0.10); border: 1px solid rgba(255, 96, 96, 0.32); }
+.gs-player-madden-ovr--mythic {
+  color: #cda8ff;
+  background: rgba(163, 106, 255, 0.2);
+  border: 1px solid rgba(163, 106, 255, 0.5);
+}
+.gs-player-madden-ovr--elite {
+  color: #52ff8e;
+  background: rgba(82, 255, 142, 0.12);
+  border: 1px solid rgba(82, 255, 142, 0.35);
+}
+.gs-player-madden-ovr--good {
+  color: #9df56d;
+  background: rgba(157, 245, 109, 0.1);
+  border: 1px solid rgba(157, 245, 109, 0.28);
+}
+.gs-player-madden-ovr--average {
+  color: #ffd15c;
+  background: rgba(255, 209, 92, 0.1);
+  border: 1px solid rgba(255, 209, 92, 0.3);
+}
+.gs-player-madden-ovr--below {
+  color: #ff9f57;
+  background: rgba(255, 159, 87, 0.1);
+  border: 1px solid rgba(255, 159, 87, 0.3);
+}
+.gs-player-madden-ovr--poor {
+  color: #ff6060;
+  background: rgba(255, 96, 96, 0.1);
+  border: 1px solid rgba(255, 96, 96, 0.32);
+}
 
 /* Madden item in profile snapshot — anchors the popup */
 .gs-player-detail-item--madden {
@@ -2754,11 +2811,15 @@ details.hud-panel > summary.gs-players-kicker:hover .gs-panel-toggle-icon {
   border: 1px solid rgba(0, 229, 255, 0.22);
   border-radius: 8px;
   padding: 12px 14px 14px;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(0, 229, 255, 0.06);
+  box-shadow:
+    0 8px 32px rgba(0, 0, 0, 0.6),
+    0 0 0 1px rgba(0, 229, 255, 0.06);
   opacity: 0;
   visibility: hidden;
   pointer-events: none;
-  transition: opacity 0.15s ease, visibility 0.15s ease;
+  transition:
+    opacity 0.15s ease,
+    visibility 0.15s ease;
 }
 
 .gs-player-detail-item--madden:hover .gs-player-madden-popup {
@@ -2802,12 +2863,24 @@ details.hud-panel > summary.gs-players-kicker:hover .gs-panel-toggle-icon {
   height: 100%;
   border-radius: 3px;
 }
-.gs-player-detail-madden-bar--mythic  { background: #a36aff; }
-.gs-player-detail-madden-bar--elite   { background: #39d972; }
-.gs-player-detail-madden-bar--good    { background: #8acc4c; }
-.gs-player-detail-madden-bar--average { background: #e8c24b; }
-.gs-player-detail-madden-bar--below   { background: #df9154; }
-.gs-player-detail-madden-bar--poor    { background: #d45757; }
+.gs-player-detail-madden-bar--mythic {
+  background: #a36aff;
+}
+.gs-player-detail-madden-bar--elite {
+  background: #39d972;
+}
+.gs-player-detail-madden-bar--good {
+  background: #8acc4c;
+}
+.gs-player-detail-madden-bar--average {
+  background: #e8c24b;
+}
+.gs-player-detail-madden-bar--below {
+  background: #df9154;
+}
+.gs-player-detail-madden-bar--poor {
+  background: #d45757;
+}
 
 .gs-player-madden-popup-label {
   font-size: 9px;
@@ -3014,7 +3087,9 @@ details.hud-panel > summary.gs-players-kicker:hover .gs-panel-toggle-icon {
   letter-spacing: 0.1em;
   text-transform: uppercase;
   cursor: pointer;
-  transition: color 0.15s, border-color 0.15s;
+  transition:
+    color 0.15s,
+    border-color 0.15s;
   white-space: nowrap;
   margin-bottom: -1px; /* align with header border */
 }

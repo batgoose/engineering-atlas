@@ -4,7 +4,7 @@
  * Route: /gridstream/games?season=2025&week=22
  *
  * Week-by-week game browser for all NFL seasons (1999–2025).
- * Click a card to open the game view at /gridstream?game={id}.
+ * Click a card to open the game view at /gridstream/games/{id}.
  */
 
 import { useSearchParams, useRouter } from 'next/navigation';
@@ -713,7 +713,7 @@ export default function GamesPage() {
     };
   }, [games]);
 
-  const openGame = useCallback((id: number) => router.push(`/gridstream?game=${id}`), [router]);
+  const openGame = useCallback((id: number) => router.push(`/gridstream/games/${id}`), [router]);
 
   const fallbackTeamOptions = useMemo(() => {
     if (!games) return [];

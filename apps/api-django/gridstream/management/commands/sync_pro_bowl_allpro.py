@@ -21,6 +21,7 @@ Usage:
     python manage.py sync_pro_bowl_allpro --type allpro
     python manage.py sync_pro_bowl_allpro --dry-run
 """
+
 import datetime
 import json
 import logging
@@ -64,7 +65,9 @@ _NON_PLAYER_RE = re.compile(
 )
 
 # Generational suffix at end of a normalized name (after _normalize: no punctuation)
-_GEN_SUFFIX_RE = re.compile(r"\s+(?:i{1,3}|iv|vi{0,3}|ix|xi{0,2}|jr|sr)$", re.IGNORECASE)
+_GEN_SUFFIX_RE = re.compile(
+    r"\s+(?:i{1,3}|iv|vi{0,3}|ix|xi{0,2}|jr|sr)$", re.IGNORECASE
+)
 
 
 # ─── Wikipedia helpers ────────────────────────────────────────────────────────
@@ -286,8 +289,8 @@ def _parse_pro_bowl(wikitext: str) -> list[str]:
         r"==\s*Rosters?\s*==",
         r"==\s*AFC\s+rosters?\s*==",
         r"==\s*NFC\s+rosters?\s*==",
-        r"==\s*Starting\s+lineups?\s*==",   # 2010-2016 format
-        r"==\s*Team\s+\w+\s*==",            # "Team Rice", "Team Carter" etc.
+        r"==\s*Starting\s+lineups?\s*==",  # 2010-2016 format
+        r"==\s*Team\s+\w+\s*==",  # "Team Rice", "Team Carter" etc.
     ]
     starts = [
         m.start()
@@ -350,7 +353,14 @@ def _parse_pro_bowl(wikitext: str) -> list[str]:
 # ─── DB write helper ───────────────────────────────────────────────────────────
 
 
-def _upsert(player_pk: int, season: int, award_id: str, name: str, description: str, dry_run: bool) -> str:
+def _upsert(
+    player_pk: int,
+    season: int,
+    award_id: str,
+    name: str,
+    description: str,
+    dry_run: bool,
+) -> str:
     """Write one award row; return 'created' | 'updated' | 'dry'."""
     if dry_run:
         return "dry"
@@ -370,16 +380,32 @@ class Command(BaseCommand):
     help = "Sync Pro Bowl and AP All-Pro selections from Wikipedia into PlayerAward."
 
     def add_arguments(self, parser):
-        parser.add_argument("--season", type=int, default=None,
-                            help="Sync a single season (e.g. 2024).")
-        parser.add_argument("--start-season", type=int, default=2000,
-                            help="Earliest season to sync (default 2000).")
-        parser.add_argument("--end-season", type=int, default=None,
-                            help="Latest season to sync (default: current year).")
-        parser.add_argument("--type", choices=["probowl", "allpro", "both"],
-                            default="both", dest="sync_type")
-        parser.add_argument("--dry-run", action="store_true",
-                            help="Fetch and parse but do not write to DB.")
+        parser.add_argument(
+            "--season", type=int, default=None, help="Sync a single season (e.g. 2024)."
+        )
+        parser.add_argument(
+            "--start-season",
+            type=int,
+            default=2000,
+            help="Earliest season to sync (default 2000).",
+        )
+        parser.add_argument(
+            "--end-season",
+            type=int,
+            default=None,
+            help="Latest season to sync (default: current year).",
+        )
+        parser.add_argument(
+            "--type",
+            choices=["probowl", "allpro", "both"],
+            default="both",
+            dest="sync_type",
+        )
+        parser.add_argument(
+            "--dry-run",
+            action="store_true",
+            help="Fetch and parse but do not write to DB.",
+        )
 
     def handle(self, *args, **options):
         dry_run = options["dry_run"]
@@ -407,10 +433,12 @@ class Command(BaseCommand):
                 self._sync_probowl(season, lookup, dry_run, totals)
                 time.sleep(REQUEST_DELAY)
 
-        self.stdout.write(self.style.SUCCESS(
-            f"\nDone. created={totals['created']}, updated={totals['updated']}, "
-            f"dry={totals['dry']}, unmatched={totals['unmatched']}"
-        ))
+        self.stdout.write(
+            self.style.SUCCESS(
+                f"\nDone. created={totals['created']}, updated={totals['updated']}, "
+                f"dry={totals['dry']}, unmatched={totals['unmatched']}"
+            )
+        )
 
     # ── All-Pro ─────────────────────────────────────────────────────────────
 
@@ -433,8 +461,7 @@ class Command(BaseCommand):
                     self.stdout.write(f"  [UNMATCHED] {season} {desc}: {display}")
                 continue
 
-            result = _upsert(player_pk, season, award_id, desc,
-                             f"AP {desc}", dry_run)
+            result = _upsert(player_pk, season, award_id, desc, f"AP {desc}", dry_run)
             totals[result] += 1
             season_counts[result] = season_counts.get(result, 0) + 1
             if dry_run:
@@ -458,7 +485,9 @@ class Command(BaseCommand):
         if not wikitext:
             wikitext = _fetch_wikitext(f"{pb_year} Pro Bowl")
         if not wikitext:
-            logger.debug("Pro Bowl page not found for season %s (pb_year=%s)", season, pb_year)
+            logger.debug(
+                "Pro Bowl page not found for season %s (pb_year=%s)", season, pb_year
+            )
             return
 
         player_names = _parse_pro_bowl(wikitext)
@@ -473,8 +502,14 @@ class Command(BaseCommand):
                     self.stdout.write(f"  [UNMATCHED] {season} Pro Bowl: {display}")
                 continue
 
-            result = _upsert(player_pk, season, AWARD_PROBOWL, "Pro Bowl",
-                             "NFL Pro Bowl selection", dry_run)
+            result = _upsert(
+                player_pk,
+                season,
+                AWARD_PROBOWL,
+                "Pro Bowl",
+                "NFL Pro Bowl selection",
+                dry_run,
+            )
             totals[result] += 1
             season_counts[result] = season_counts.get(result, 0) + 1
             if dry_run:

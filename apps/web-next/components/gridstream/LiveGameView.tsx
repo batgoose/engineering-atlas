@@ -14,6 +14,7 @@
 
 import { useState, useEffect, useCallback, type CSSProperties } from 'react';
 import { createPortal } from 'react-dom';
+import Link from 'next/link';
 import type { LiveGameState, PlayActorInfo, FantasyRosterEntry } from '@atlas/sdk/gridstream/types';
 import {
   gridstreamColors as C,
@@ -502,7 +503,7 @@ export function LiveGameView({
             GRIDSTREAM
           </span>
           <div style={{ width: 1, height: 20, background: C.panelBorder }} />
-          <a
+          <Link
             href="/gridstream/games"
             style={{
               fontFamily: F.display,
@@ -515,7 +516,7 @@ export function LiveGameView({
             }}
           >
             ◂ GAMES
-          </a>
+          </Link>
           <span
             style={{
               fontFamily: F.display,

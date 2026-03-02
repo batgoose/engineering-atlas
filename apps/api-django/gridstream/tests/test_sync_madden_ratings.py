@@ -5,7 +5,10 @@ from unittest.mock import Mock, patch
 import pytest
 from django.core.management import call_command
 
-from gridstream.management.commands.sync_madden_ratings import Command, _current_madden_year
+from gridstream.management.commands.sync_madden_ratings import (
+    Command,
+    _current_madden_year,
+)
 from gridstream.models import PlayerMaddenRating
 
 pytestmark = [
@@ -167,7 +170,9 @@ def test_sync_madden_26_scrapes_sitemap_and_updates_player(player_wr):
             verbosity=0,
         )
 
-    rating = PlayerMaddenRating.objects.using("nfl").get(player=player_wr, madden_year=26)
+    rating = PlayerMaddenRating.objects.using("nfl").get(
+        player=player_wr, madden_year=26
+    )
     assert rating.overall == 93
     assert rating.general_rating == 88
     assert rating.passing_rating == 24

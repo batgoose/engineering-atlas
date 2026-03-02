@@ -84,7 +84,9 @@ class Command(BaseCommand):
         include_otc = options["include_otc"]
         active_only = options["active_players_only"]
         dry_run = options["dry_run"]
-        skip = {p.strip().lower() for p in options["skip_phases"].split(",") if p.strip()}
+        skip = {
+            p.strip().lower() for p in options["skip_phases"].split(",") if p.strip()
+        }
 
         start_time = time.monotonic()
 
@@ -119,16 +121,29 @@ class Command(BaseCommand):
         if "players" not in skip:
             self.stdout.write(self.style.HTTP_INFO("\n[ Phase 1: Player Data ]"))
             # Bio, IDs, headshots — skip combine/contracts (handled separately)
-            run("enrich_players (bio only)", "enrich_players",
-                players_only=True, skip_combine=True, skip_contracts=True)
+            run(
+                "enrich_players (bio only)",
+                "enrich_players",
+                players_only=True,
+                skip_combine=True,
+                skip_contracts=True,
+            )
             # Roster changes, transactions, jersey numbers, team assignments
             run("sync_rosters", "sync_rosters", season=season)
             # Backfill depth chart position from raw nflverse data
             run("sync_player_positions", "sync_player_positions")
             # Raw depth chart data for current season
-            run("import_nflverse_depth_charts", "import_nflverse_depth_charts", season=season)
+            run(
+                "import_nflverse_depth_charts",
+                "import_nflverse_depth_charts",
+                season=season,
+            )
             # Raw snap counts
-            run("import_nflverse_snap_counts", "import_nflverse_snap_counts", season=season)
+            run(
+                "import_nflverse_snap_counts",
+                "import_nflverse_snap_counts",
+                season=season,
+            )
 
         # ── Phase 2: Game data ────────────────────────────────────────────────
         if "games" not in skip:
@@ -144,22 +159,42 @@ class Command(BaseCommand):
             # Raw nflverse player stats for current season
             run("import_player_game_stats", "import_player_game_stats", season=season)
             # Materialize into modeled PlayerGameStats
-            run("materialize_player_game_stats", "materialize_player_game_stats", season=season)
+            run(
+                "materialize_player_game_stats",
+                "materialize_player_game_stats",
+                season=season,
+            )
             # Raw nflverse team stats
             run("import_team_game_stats", "import_team_game_stats", season=season)
             # Materialize into modeled TeamGameStats
-            run("materialize_team_game_stats", "materialize_team_game_stats", season=season)
+            run(
+                "materialize_team_game_stats",
+                "materialize_team_game_stats",
+                season=season,
+            )
 
         # ── Phase 4: Analytics ────────────────────────────────────────────────
         if "analytics" not in skip:
             self.stdout.write(self.style.HTTP_INFO("\n[ Phase 4: Analytics ]"))
             # NFL Next Gen Stats (passing, rushing, receiving)
-            run("sync_nextgen_stats (passing)", "sync_nextgen_stats",
-                season=season, stat_type="passing")
-            run("sync_nextgen_stats (rushing)", "sync_nextgen_stats",
-                season=season, stat_type="rushing")
-            run("sync_nextgen_stats (receiving)", "sync_nextgen_stats",
-                season=season, stat_type="receiving")
+            run(
+                "sync_nextgen_stats (passing)",
+                "sync_nextgen_stats",
+                season=season,
+                stat_type="passing",
+            )
+            run(
+                "sync_nextgen_stats (rushing)",
+                "sync_nextgen_stats",
+                season=season,
+                stat_type="rushing",
+            )
+            run(
+                "sync_nextgen_stats (receiving)",
+                "sync_nextgen_stats",
+                season=season,
+                stat_type="receiving",
+            )
             # Current-week fantasy expert consensus rankings
             run("sync_ff_rankings", "sync_ff_rankings", current=True)
             # Standings
@@ -191,15 +226,17 @@ class Command(BaseCommand):
         )
 
         for label, status, elapsed in results:
-            marker = self.style.SUCCESS("✓") if status == "OK" else self.style.ERROR("✗")
+            marker = (
+                self.style.SUCCESS("✓") if status == "OK" else self.style.ERROR("✗")
+            )
             self.stdout.write(f"  {marker}  {label:<45}  {elapsed:>6.0f}s")
 
         if failed:
-            self.stdout.write(
-                self.style.ERROR(f"\n  {len(failed)} command(s) failed:")
-            )
+            self.stdout.write(self.style.ERROR(f"\n  {len(failed)} command(s) failed:"))
             for label, status in failed:
                 self.stdout.write(self.style.ERROR(f"    • {label}: {status}"))
             raise SystemExit(1)
         else:
-            self.stdout.write(self.style.SUCCESS(f"\n  All {len(results)} commands succeeded.\n"))
+            self.stdout.write(
+                self.style.SUCCESS(f"\n  All {len(results)} commands succeeded.\n")
+            )

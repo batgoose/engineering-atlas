@@ -23,6 +23,8 @@ def _current_madden_year() -> int:
     if today.month >= 8:
         game_year += 1
     return game_year
+
+
 from .models import (
     Team,
     TeamLogo,
@@ -209,8 +211,12 @@ class PlayerListSerializer(serializers.ModelSerializer):
     roster_status_display = serializers.SerializerMethodField()
     age = serializers.SerializerMethodField()
     games_played = serializers.IntegerField(read_only=True, default=0)
-    games_started = serializers.IntegerField(read_only=True, default=None, allow_null=True)
-    offensive_snaps = serializers.IntegerField(read_only=True, default=None, allow_null=True)
+    games_started = serializers.IntegerField(
+        read_only=True, default=None, allow_null=True
+    )
+    offensive_snaps = serializers.IntegerField(
+        read_only=True, default=None, allow_null=True
+    )
     snap_pct = serializers.FloatField(read_only=True, default=None, allow_null=True)
     first_season_played = serializers.IntegerField(read_only=True, default=None)
     last_season_played = serializers.IntegerField(read_only=True, default=None)
@@ -348,7 +354,10 @@ class PlayerListSerializer(serializers.ModelSerializer):
             return None
         today = date.today()
         years = today.year - obj.birth_date.year
-        birthday_passed = (today.month, today.day) >= (obj.birth_date.month, obj.birth_date.day)
+        birthday_passed = (today.month, today.day) >= (
+            obj.birth_date.month,
+            obj.birth_date.day,
+        )
         return years if birthday_passed else years - 1
 
 
@@ -521,11 +530,13 @@ class PlayerDetailSerializer(serializers.ModelSerializer):
 
     def get_first_season_played(self, obj):
         from django.db.models import Min
+
         result = obj.game_stats.aggregate(Min("season_year"))
         return result["season_year__min"]
 
     def get_last_season_played(self, obj):
         from django.db.models import Max
+
         result = obj.game_stats.aggregate(Max("season_year"))
         return result["season_year__max"]
 
@@ -536,7 +547,11 @@ class PlayerDetailSerializer(serializers.ModelSerializer):
     def get_madden_rating(self, obj):
         # Only return data from the current Madden game or one version behind
         min_year = _current_madden_year() - 1
-        rating = obj.madden_ratings.filter(madden_year__gte=min_year).order_by("-madden_year").first()
+        rating = (
+            obj.madden_ratings.filter(madden_year__gte=min_year)
+            .order_by("-madden_year")
+            .first()
+        )
         if not rating:
             return None
         return PlayerMaddenRatingSerializer(rating).data
@@ -544,6 +559,7 @@ class PlayerDetailSerializer(serializers.ModelSerializer):
     def get_latest_ff_ranking(self, obj):
         # Only show ECR from the latest season present in the rankings table.
         from django.db.models import Max
+
         latest_season = (
             PlayerFFRanking.objects.using("nfl")
             .aggregate(max_season=Max("season"))

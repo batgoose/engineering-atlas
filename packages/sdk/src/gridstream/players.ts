@@ -2663,13 +2663,26 @@ interface ApiGridstreamPlayerGamelogRow {
 type SplitAggRow = Partial<
   Record<
     | 'games'
-    | 'pass_yds' | 'pass_tds' | 'pass_first_downs'
-    | 'rush_yds' | 'rush_tds' | 'rush_first_downs'
-    | 'rec_yds' | 'rec_tds' | 'rec_first_downs'
-    | 'fumbles' | 'fumbles_lost' | 'forced_fumbles'
+    | 'pass_yds'
+    | 'pass_tds'
+    | 'pass_first_downs'
+    | 'rush_yds'
+    | 'rush_tds'
+    | 'rush_first_downs'
+    | 'rec_yds'
+    | 'rec_tds'
+    | 'rec_first_downs'
+    | 'fumbles'
+    | 'fumbles_lost'
+    | 'forced_fumbles'
     | 'ppr'
-    | 'def_tackles' | 'def_sacks' | 'def_qb_hits'
-    | 'def_pd' | 'def_ints' | 'def_int_tds' | 'def_tds',
+    | 'def_tackles'
+    | 'def_sacks'
+    | 'def_qb_hits'
+    | 'def_pd'
+    | 'def_ints'
+    | 'def_int_tds'
+    | 'def_tds',
     number
   >
 >;

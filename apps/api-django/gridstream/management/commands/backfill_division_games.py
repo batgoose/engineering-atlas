@@ -1,18 +1,19 @@
 """
 Backfill is_division_game for all Game records based on NFL division membership.
 """
+
 from django.core.management.base import BaseCommand
 from gridstream.models import Game
 
 DIVISIONS = {
-    frozenset(['BUF', 'MIA', 'NE',  'NYJ']): 'AFC East',
-    frozenset(['BAL', 'CIN', 'CLE', 'PIT']): 'AFC North',
-    frozenset(['HOU', 'IND', 'JAX', 'TEN']): 'AFC South',
-    frozenset(['DEN', 'KC',  'LV',  'LAC']): 'AFC West',
-    frozenset(['DAL', 'NYG', 'PHI', 'WAS']): 'NFC East',
-    frozenset(['CHI', 'DET', 'GB',  'MIN']): 'NFC North',
-    frozenset(['ATL', 'CAR', 'NO',  'TB' ]): 'NFC South',
-    frozenset(['ARI', 'LA',  'SEA', 'SF' ]): 'NFC West',
+    frozenset(["BUF", "MIA", "NE", "NYJ"]): "AFC East",
+    frozenset(["BAL", "CIN", "CLE", "PIT"]): "AFC North",
+    frozenset(["HOU", "IND", "JAX", "TEN"]): "AFC South",
+    frozenset(["DEN", "KC", "LV", "LAC"]): "AFC West",
+    frozenset(["DAL", "NYG", "PHI", "WAS"]): "NFC East",
+    frozenset(["CHI", "DET", "GB", "MIN"]): "NFC North",
+    frozenset(["ATL", "CAR", "NO", "TB"]): "NFC South",
+    frozenset(["ARI", "LA", "SEA", "SF"]): "NFC West",
 }
 
 # Map each team → its division set (for O(1) lookup)
@@ -23,11 +24,14 @@ for division_teams in DIVISIONS:
 
 
 class Command(BaseCommand):
-    help = 'Backfill is_division_game on all Game records.'
+    help = "Backfill is_division_game on all Game records."
 
     def handle(self, *args, **options):
-        games = Game.objects.select_related('home_team', 'away_team').only(
-            'id', 'is_division_game', 'home_team__abbreviation', 'away_team__abbreviation'
+        games = Game.objects.select_related("home_team", "away_team").only(
+            "id",
+            "is_division_game",
+            "home_team__abbreviation",
+            "away_team__abbreviation",
         )
 
         to_update = []
@@ -55,16 +59,16 @@ class Command(BaseCommand):
                 to_update.append(game)
 
         if unknown_teams:
-            self.stdout.write(self.style.WARNING(
-                f'Unknown team abbreviations (skipped): {sorted(unknown_teams)}'
-            ))
+            self.stdout.write(
+                self.style.WARNING(
+                    f"Unknown team abbreviations (skipped): {sorted(unknown_teams)}"
+                )
+            )
 
         if to_update:
             BATCH = 2000
             for i in range(0, len(to_update), BATCH):
-                Game.objects.bulk_update(to_update[i:i + BATCH], ['is_division_game'])
-            self.stdout.write(self.style.SUCCESS(
-                f'Updated {len(to_update)} games.'
-            ))
+                Game.objects.bulk_update(to_update[i : i + BATCH], ["is_division_game"])
+            self.stdout.write(self.style.SUCCESS(f"Updated {len(to_update)} games."))
         else:
-            self.stdout.write('No changes needed.')
+            self.stdout.write("No changes needed.")

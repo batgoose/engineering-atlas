@@ -14,7 +14,6 @@ from __future__ import annotations
 from django.core.management.base import BaseCommand
 from django.db import connections
 
-
 SQL = """
 UPDATE gridstream_player p
 SET
@@ -160,8 +159,12 @@ class Command(BaseCommand):
         dry_run = options["dry_run"]
 
         if dry_run:
-            self.stdout.write(self.style.WARNING("DRY RUN — no changes will be written."))
-            self.stdout.write("Would execute career stats aggregation UPDATE on gridstream_player.")
+            self.stdout.write(
+                self.style.WARNING("DRY RUN — no changes will be written.")
+            )
+            self.stdout.write(
+                "Would execute career stats aggregation UPDATE on gridstream_player."
+            )
             return
 
         self.stdout.write("Materializing career stats … ", ending="")

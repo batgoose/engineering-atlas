@@ -240,7 +240,9 @@ class PlayerFilter(django_filters.FilterSet):
         stats_season = self._parse_positive_int(
             self.request.query_params.get("stats_season")
         )
-        stats_week = self._parse_positive_int(self.request.query_params.get("stats_week"))
+        stats_week = self._parse_positive_int(
+            self.request.query_params.get("stats_week")
+        )
         if stats_season is None:
             return None, None
         return stats_season, stats_week
@@ -340,7 +342,9 @@ class PlayerFilter(django_filters.FilterSet):
                 )
                 if stats_week is not None:
                     stats_exclude_rows = stats_exclude_rows.filter(week=stats_week)
-                filtered = filtered.exclude(pk__in=stats_exclude_rows.values("player_id"))
+                filtered = filtered.exclude(
+                    pk__in=stats_exclude_rows.values("player_id")
+                )
         if exclude_free_agents:
             filtered = filtered.exclude(current_team__isnull=True)
         return filtered
@@ -375,7 +379,9 @@ class PlayerFilter(django_filters.FilterSet):
                 clause |= Q(current_team__isnull=True) & self.active_league_clause()
                 continue
             if token in {"ACTIVE", "ACT"}:
-                clause |= Q(roster_status="ACT", current_team__isnull=False, is_active=True)
+                clause |= Q(
+                    roster_status="ACT", current_team__isnull=False, is_active=True
+                )
                 continue
             if token in {"INACTIVE", "INA"}:
                 clause |= Q(roster_status="INA") | self.inactive_league_clause()

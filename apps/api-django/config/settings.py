@@ -18,6 +18,7 @@ def _append_unique(target, values):
         if value and value not in target:
             target.append(value)
 
+
 ALLOWED_HOSTS = [
     "localhost",
     "127.0.0.1",

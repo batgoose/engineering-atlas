@@ -410,11 +410,7 @@ function formatPercentMetric(value: number | null | undefined): string {
 
 // Returns a heat CSS modifier class based on value thresholds.
 // hot/cold are inclusive bounds; pass undefined to skip that tier.
-function numHeat(
-  value: number | null | undefined,
-  hot: number,
-  cold?: number
-): string {
+function numHeat(value: number | null | undefined, hot: number, cold?: number): string {
   if (value == null) return '';
   if (value >= hot) return 'is-hot';
   if (cold != null && value <= cold) return 'is-cold';
@@ -1217,9 +1213,7 @@ export default function GridstreamPlayersPage() {
           >
             {player.displayName}
           </Link>
-          {player.position && (
-            <span className="gs-players-pos-badge">{player.position}</span>
-          )}
+          {player.position && <span className="gs-players-pos-badge">{player.position}</span>}
         </td>
       );
     }
@@ -2273,7 +2267,10 @@ export default function GridstreamPlayersPage() {
                   </div>
                 </div>
               </div>
-              <div className={`gs-players-table-wrap ${loading ? 'is-loading' : ''}`} aria-busy={loading}>
+              <div
+                className={`gs-players-table-wrap ${loading ? 'is-loading' : ''}`}
+                aria-busy={loading}
+              >
                 <table className="gs-players-table">
                   <thead>
                     <tr>
@@ -2315,7 +2312,9 @@ export default function GridstreamPlayersPage() {
                           onMouseEnter={() => router.prefetch(playerHref)}
                           onClick={() => router.push(playerHref)}
                         >
-                          {visibleColumnOptions.map((column) => renderPlayerCell(player, column.key))}
+                          {visibleColumnOptions.map((column) =>
+                            renderPlayerCell(player, column.key)
+                          )}
                         </tr>
                       );
                     })}

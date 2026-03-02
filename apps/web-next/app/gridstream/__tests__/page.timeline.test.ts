@@ -8,7 +8,7 @@ import type {
   RunningPlayerTotals,
 } from '@atlas/sdk/gridstream/api-transforms';
 
-import { __gridstreamTestUtils } from '../page';
+import { __gridstreamTestUtils } from '../games/[gameId]/page';
 
 function makePlay(overrides: Record<string, unknown>): ApiPlayDetail {
   return {

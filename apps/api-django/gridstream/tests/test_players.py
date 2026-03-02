@@ -45,7 +45,9 @@ class TestPlayerList:
         positions = {p["position"] for p in resp.data["results"]}
         assert positions == {"QB"}
 
-    def test_filter_by_position_alias_t_includes_ol_group(self, api_client, team_sea, db):
+    def test_filter_by_position_alias_t_includes_ol_group(
+        self, api_client, team_sea, db
+    ):
         from gridstream.models import Player
 
         Player.objects.using("nfl").create(
@@ -67,7 +69,9 @@ class TestPlayerList:
         names = [p["display_name"] for p in resp.data["results"]]
         assert "Charles Cross" in names
 
-    def test_ol_position_facets_split_center_guard_tackle(self, api_client, team_sea, db):
+    def test_ol_position_facets_split_center_guard_tackle(
+        self, api_client, team_sea, db
+    ):
         from gridstream.models import Player
 
         Player.objects.using("nfl").create(
@@ -203,7 +207,9 @@ class TestPlayerList:
         assert "Retired But Marked Active" not in default_names
 
         explicit_active_resp = api_client.get(url, {"is_active": "true"})
-        explicit_active_names = [p["display_name"] for p in explicit_active_resp.data["results"]]
+        explicit_active_names = [
+            p["display_name"] for p in explicit_active_resp.data["results"]
+        ]
         assert "Retired But Marked Active" not in explicit_active_names
 
         inactive_resp = api_client.get(url, {"is_active": "false", "scope": "all"})
@@ -414,7 +420,9 @@ class TestPlayerList:
         assert row["games_started"] == 2
         assert row["snap_pct"] == pytest.approx(95.0)
 
-    def test_filter_by_season_played(self, api_client, player_qb, player_wr, player_game_stats_qb):
+    def test_filter_by_season_played(
+        self, api_client, player_qb, player_wr, player_game_stats_qb
+    ):
         url = reverse("player-list")
 
         # QB fixture has a 2024 game stats row; WR fixture has none.
@@ -425,7 +433,9 @@ class TestPlayerList:
         assert "Geno Smith" in names
         assert "DK Metcalf" not in names
 
-    def test_filter_by_multiple_draft_years(self, api_client, player_qb, player_wr, player_was_qb):
+    def test_filter_by_multiple_draft_years(
+        self, api_client, player_qb, player_wr, player_was_qb
+    ):
         url = reverse("player-list")
         resp = api_client.get(url, {"draft_year": "2013,2024"})
 
@@ -468,7 +478,14 @@ class TestPlayerList:
         assert "DK Metcalf" in names
 
     def test_stats_scope_can_limit_rollups_to_season_or_week(
-        self, api_client, player_qb, player_game_stats_qb, game_live, team_sea, team_was, db
+        self,
+        api_client,
+        player_qb,
+        player_game_stats_qb,
+        game_live,
+        team_sea,
+        team_was,
+        db,
     ):
         from gridstream.models import PlayerGameStats
 
@@ -629,7 +646,9 @@ class TestPlayerList:
         expected_b = max(0.0, min(2.375, ((403 / 46) - 3.0) * 0.25))
         expected_c = max(0.0, min(2.375, (3 / 46) * 20.0))
         expected_d = max(0.0, min(2.375, 2.375 - ((1 / 46) * 25.0)))
-        expected_rating = ((expected_a + expected_b + expected_c + expected_d) / 6.0) * 100.0
+        expected_rating = (
+            (expected_a + expected_b + expected_c + expected_d) / 6.0
+        ) * 100.0
         assert row["career_passer_rating"] == pytest.approx(expected_rating, abs=0.01)
 
     def test_list_includes_global_facets(self, api_client, player_qb, player_wr):

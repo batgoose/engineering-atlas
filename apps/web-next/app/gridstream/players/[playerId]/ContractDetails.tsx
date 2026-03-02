@@ -6,14 +6,13 @@ import type { GridstreamPlayerContract, DeadMoneyScenarios } from '@atlas/sdk/gr
 type Scenario = keyof DeadMoneyScenarios;
 
 const SCENARIO_OPTIONS: { value: Scenario; label: string }[] = [
-  { value: 'cut',         label: 'Cut (pre-June 1)' },
-  { value: 'june1Cut',   label: 'Cut (post-June 1)' },
-  { value: 'trade',      label: 'Trade (pre-June 1)' },
+  { value: 'cut', label: 'Cut (pre-June 1)' },
+  { value: 'june1Cut', label: 'Cut (post-June 1)' },
+  { value: 'trade', label: 'Trade (pre-June 1)' },
   { value: 'june1Trade', label: 'Trade (post-June 1)' },
   { value: 'restructure', label: 'Restructure' },
-  { value: 'extension',  label: 'Extension' },
+  { value: 'extension', label: 'Extension' },
 ];
-
 
 function fmtMoney(value: number): string {
   if (value >= 1_000_000) return `$${(value / 1_000_000).toFixed(1)}M`;
@@ -31,9 +30,10 @@ export default function ContractDetails({ contracts }: ContractDetailsProps) {
   const currentYear = new Date().getFullYear();
 
   // Does any active contract have future dead money data?
-  const hasDeadMoney = contracts.some((c) =>
-    c.isActive &&
-    c.yearDetails?.some((d) => d.year >= currentYear && (d.deadMoney || d.capSavings))
+  const hasDeadMoney = contracts.some(
+    (c) =>
+      c.isActive &&
+      c.yearDetails?.some((d) => d.year >= currentYear && (d.deadMoney || d.capSavings))
   );
 
   const careerTotal = contracts.reduce((sum, c) => sum + (c.totalValue ?? 0), 0);
@@ -45,7 +45,8 @@ export default function ContractDetails({ contracts }: ContractDetailsProps) {
           Contract History
           {careerTotal > 0 && (
             <span className="gs-player-detail-career-total">
-              {' '}· career total: {fmtMoney(careerTotal)}
+              {' '}
+              · career total: {fmtMoney(careerTotal)}
             </span>
           )}
         </span>
@@ -54,13 +55,14 @@ export default function ContractDetails({ contracts }: ContractDetailsProps) {
 
       {contracts.map((c) => {
         const rows = c.yearDetails ?? [];
-        const totalBase    = rows.reduce((s, d) => s + (d.baseSalary      ?? 0), 0);
-        const totalSigning = rows.reduce((s, d) => s + (d.signingBonus    ?? 0), 0);
-        const totalRoster  = rows.reduce((s, d) => s + (d.rosterBonus     ?? 0), 0);
+        const totalBase = rows.reduce((s, d) => s + (d.baseSalary ?? 0), 0);
+        const totalSigning = rows.reduce((s, d) => s + (d.signingBonus ?? 0), 0);
+        const totalRoster = rows.reduce((s, d) => s + (d.rosterBonus ?? 0), 0);
         const totalGuarSal = rows.reduce((s, d) => s + (d.guaranteedSalary ?? 0), 0);
-        const totalCap     = rows.reduce((s, d) => s + (d.capHit          ?? 0), 0);
-        const derivedCapPct = c.apyCapPct
-          ?? (rows.length > 0 ? rows.reduce((s, d) => s + (d.capPct ?? 0), 0) / rows.length : null);
+        const totalCap = rows.reduce((s, d) => s + (d.capHit ?? 0), 0);
+        const derivedCapPct =
+          c.apyCapPct ??
+          (rows.length > 0 ? rows.reduce((s, d) => s + (d.capPct ?? 0), 0) / rows.length : null);
 
         // Show dead money columns only for active contracts that have DM data
         const showDM = hasDeadMoney && !!c.isActive;
@@ -81,9 +83,7 @@ export default function ContractDetails({ contracts }: ContractDetailsProps) {
                 {c.years != null && ` · ${c.years}yr`}
                 {c.totalValue != null && ` · ${fmtMoney(c.totalValue)}`}
               </span>
-              {c.isActive && (
-                <span className="gs-player-detail-contract-active">Active</span>
-              )}
+              {c.isActive && <span className="gs-player-detail-contract-active">Active</span>}
               {derivedCapPct != null && (
                 <span className="gs-player-detail-contract-cappct">
                   {derivedCapPct.toFixed(1)}% cap
@@ -151,16 +151,20 @@ export default function ContractDetails({ contracts }: ContractDetailsProps) {
                             </td>
                             {showDM && (
                               <td className="gs-player-detail-dm-col">
-                                {dm != null ? fmtMoney(Math.abs(dm)) : (isFuture ? '$0' : '—')}
+                                {dm != null ? fmtMoney(Math.abs(dm)) : isFuture ? '$0' : '—'}
                               </td>
                             )}
                             {showDM && (
-                              <td className={`gs-player-detail-dm-col${csNeg ? ' gs-player-detail-dm-over' : cs != null && cs > 0 ? ' gs-player-detail-dm-under' : ''}`}>
+                              <td
+                                className={`gs-player-detail-dm-col${csNeg ? ' gs-player-detail-dm-over' : cs != null && cs > 0 ? ' gs-player-detail-dm-under' : ''}`}
+                              >
                                 {cs != null
                                   ? csNeg
                                     ? `(${fmtMoney(Math.abs(cs))})`
                                     : fmtMoney(cs)
-                                  : (isFuture ? '$0' : '—')}
+                                  : isFuture
+                                    ? '$0'
+                                    : '—'}
                               </td>
                             )}
                           </tr>
@@ -170,9 +174,9 @@ export default function ContractDetails({ contracts }: ContractDetailsProps) {
                     <tfoot>
                       <tr className="gs-player-detail-cap-totals">
                         <td>Total</td>
-                        <td>{totalBase    > 0 ? fmtMoney(totalBase)    : '—'}</td>
+                        <td>{totalBase > 0 ? fmtMoney(totalBase) : '—'}</td>
                         <td>{totalSigning > 0 ? fmtMoney(totalSigning) : '—'}</td>
-                        <td>{totalRoster  > 0 ? fmtMoney(totalRoster)  : '—'}</td>
+                        <td>{totalRoster > 0 ? fmtMoney(totalRoster) : '—'}</td>
                         <td>{totalGuarSal > 0 ? fmtMoney(totalGuarSal) : '—'}</td>
                         <td className="gs-player-detail-cap-hit">
                           {totalCap > 0 ? fmtMoney(totalCap) : '—'}
@@ -202,7 +206,10 @@ export default function ContractDetails({ contracts }: ContractDetailsProps) {
                   )}
                   {showDM && (
                     <div className="gs-player-detail-scenario-inline">
-                      <label htmlFor="gs-scenario-select" className="gs-player-detail-scenario-label">
+                      <label
+                        htmlFor="gs-scenario-select"
+                        className="gs-player-detail-scenario-label"
+                      >
                         Scenario
                       </label>
                       <select
@@ -225,7 +232,6 @@ export default function ContractDetails({ contracts }: ContractDetailsProps) {
           </details>
         );
       })}
-
     </details>
   );
 }

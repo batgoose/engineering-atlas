@@ -29,7 +29,9 @@ from ._base import ImportBaseCommand
 logger = logging.getLogger(__name__)
 
 _SPARQL_URL = "https://query.wikidata.org/sparql"
-_USER_AGENT = "engineering-atlas-gridstream/1.0 (+https://github.com/jbooth/engineering-atlas)"
+_USER_AGENT = (
+    "engineering-atlas-gridstream/1.0 (+https://github.com/jbooth/engineering-atlas)"
+)
 
 
 def _norm(value: str) -> str:
@@ -115,7 +117,9 @@ class Command(ImportBaseCommand):
                     continue
                 rows_by_pfr[pfr].append(row)
             if chunk_index == 1 or chunk_index == total_chunks or chunk_index % 25 == 0:
-                self.stdout.write(f"  queried Wikidata chunks: {chunk_index}/{total_chunks}")
+                self.stdout.write(
+                    f"  queried Wikidata chunks: {chunk_index}/{total_chunks}"
+                )
 
         players_updated = 0
         entries_created = 0
@@ -140,7 +144,9 @@ class Command(ImportBaseCommand):
                     continue
 
                 with transaction.atomic(using="nfl"):
-                    PlayerCollegeHistory.objects.using("nfl").filter(player=player).delete()
+                    PlayerCollegeHistory.objects.using("nfl").filter(
+                        player=player
+                    ).delete()
                     PlayerCollegeHistory.objects.using("nfl").bulk_create(entries)
 
         self.stdout.write(
@@ -181,7 +187,9 @@ ORDER BY ?pfr_id ?start ?end
             )
             resp.raise_for_status()
         except Exception as exc:
-            logger.warning("Wikidata query failed for chunk (%d ids): %s", len(pfr_ids), exc)
+            logger.warning(
+                "Wikidata query failed for chunk (%d ids): %s", len(pfr_ids), exc
+            )
             return []
 
         rows = []
@@ -200,7 +208,9 @@ ORDER BY ?pfr_id ?start ?end
             )
         return rows
 
-    def _build_entries_for_player(self, player: Player, rows: list[dict]) -> list[PlayerCollegeHistory]:
+    def _build_entries_for_player(
+        self, player: Player, rows: list[dict]
+    ) -> list[PlayerCollegeHistory]:
         # Deduplicate by normalized college name while preserving first/earliest years.
         dedup: dict[str, dict] = {}
         for row in rows:

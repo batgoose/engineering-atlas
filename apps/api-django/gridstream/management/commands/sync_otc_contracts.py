@@ -93,7 +93,14 @@ _CONTRACT_COLS: dict[str, str | None] = {
 _ACTIVE_STATUSES = {"active", "restructured", "extension", "renegotiated"}
 
 # Dead money / cap savings scenario class names on OTC
-_DEAD_MONEY_SCENARIOS = ("cut", "june_1_cut", "trade", "june_1_trade", "restructure", "extension")
+_DEAD_MONEY_SCENARIOS = (
+    "cut",
+    "june_1_cut",
+    "trade",
+    "june_1_trade",
+    "restructure",
+    "extension",
+)
 
 
 def _parse_scenario_cell(cell_html: str) -> dict[str, int]:
@@ -205,7 +212,7 @@ class _TableParser(HTMLParser):
         self._table_class = ""
         self._in_thead = False
         self._in_tbody = False
-        self._header_row_idx = 0   # increments per <tr> inside <thead>
+        self._header_row_idx = 0  # increments per <tr> inside <thead>
         self._in_cell = False
         self._cell_buf = ""
         self._cell_team_abbr = ""  # extracted from team-link CSS class
@@ -228,7 +235,7 @@ class _TableParser(HTMLParser):
             if not self._in_tbody:
                 self._in_thead = True
         elif tag == "tbody":
-            self._in_thead = False   # implicit </thead>
+            self._in_thead = False  # implicit </thead>
             self._in_tbody = True
         elif tag == "tr" and self._in_table:
             if self._in_thead and not self._in_tbody:
@@ -269,7 +276,9 @@ class _TableParser(HTMLParser):
                 self._headers.append(self._cell_buf.strip())
             self._in_cell = False
         elif tag == "td":
-            val = self._cell_team_abbr if self._cell_team_abbr else self._cell_buf.strip()
+            val = (
+                self._cell_team_abbr if self._cell_team_abbr else self._cell_buf.strip()
+            )
             self._current_row.append(val)
             self._in_cell = False
         elif tag == "tr" and self._in_table:
@@ -318,7 +327,10 @@ def _find_contract_overview_table(tables: list[dict]) -> dict | None:
             continue
         headers_lower = [h.lower().strip() for h in t["headers"]]
         # Must have year_signed and a contract size indicator
-        has_year = any("year" in h and "sign" in h for h in headers_lower) or "year signed" in headers_lower
+        has_year = (
+            any("year" in h and "sign" in h for h in headers_lower)
+            or "year signed" in headers_lower
+        )
         has_total = "total" in headers_lower or "apy" in headers_lower
         if has_year and has_total:
             return t
@@ -365,7 +377,7 @@ def _parse_cap_history_rows(table: dict) -> list[dict]:
             if field == "year":
                 yr = _safe_int(val)
                 if yr is None or yr < 1990 or yr > 2040:
-                    break   # not a real year row; skip entire row
+                    break  # not a real year row; skip entire row
                 detail["year"] = yr
             elif field == "team":
                 detail["team"] = val
@@ -447,7 +459,9 @@ def _assign_year_details(
         return []
 
     # Sort contracts descending by year_signed
-    sorted_ov = sorted(overview_contracts, key=lambda c: c.get("year_signed", 0), reverse=True)
+    sorted_ov = sorted(
+        overview_contracts, key=lambda c: c.get("year_signed", 0), reverse=True
+    )
 
     # Build result: enrich each overview contract with its year_details
     result = []
@@ -480,7 +494,7 @@ def _name_to_slug(display_name: str) -> str:
     """'Jayden Daniels' → 'jayden-daniels', 'D.J. Moore' → 'dj-moore'"""
     name = display_name.lower().strip()
     name = re.sub(r"\s+(?:jr\.?|sr\.?|ii|iii|iv|v)$", "", name)
-    name = re.sub(r"\.(?!\s)", "", name)           # collapse dots (D.J. → dj)
+    name = re.sub(r"\.(?!\s)", "", name)  # collapse dots (D.J. → dj)
     name = re.sub(r"[^a-z0-9]+", "-", name)
     return name.strip("-")
 
@@ -558,11 +572,7 @@ class Command(BaseCommand):
 
         teams = {t.abbreviation: t for t in Team.objects.using("nfl").all()}
 
-        qs = (
-            Player.objects.using("nfl")
-            .exclude(otc_id="")
-            .filter(otc_id__isnull=False)
-        )
+        qs = Player.objects.using("nfl").exclude(otc_id="").filter(otc_id__isnull=False)
         if options["player_id"]:
             qs = qs.filter(pk=options["player_id"])
         elif options["otc_id"]:
@@ -579,9 +589,7 @@ class Command(BaseCommand):
         total = len(player_pks)
 
         self.stdout.write(
-            self.style.MIGRATE_HEADING(
-                f"\n── OTC Contract Sync ── {total:,} players\n"
-            )
+            self.style.MIGRATE_HEADING(f"\n── OTC Contract Sync ── {total:,} players\n")
         )
 
         session = requests.Session()
@@ -614,7 +622,9 @@ class Command(BaseCommand):
                 if resp.status_code == 429:
                     wait = float(resp.headers.get("Retry-After", 60))
                     self.stdout.write(
-                        self.style.WARNING(f"    → 429 rate limited, sleeping {wait:.0f}s")
+                        self.style.WARNING(
+                            f"    → 429 rate limited, sleeping {wait:.0f}s"
+                        )
                     )
                     time.sleep(wait)
                     continue
@@ -645,12 +655,15 @@ class Command(BaseCommand):
                         row["dead_money"] = dm["dead_money"]
                         row["cap_savings"] = dm["cap_savings"]
 
-                overview_rows = _parse_contract_overview_rows(overview_table) if overview_table else []
+                overview_rows = (
+                    _parse_contract_overview_rows(overview_table)
+                    if overview_table
+                    else []
+                )
                 contracts = _assign_year_details(overview_rows, cap_rows)
 
                 self.stdout.write(
-                    f"    → {len(contracts)} contract(s), "
-                    f"{len(cap_rows)} cap rows"
+                    f"    → {len(contracts)} contract(s), " f"{len(cap_rows)} cap rows"
                 )
             except Exception as exc:
                 logger.exception("Parse error for %s: %s", player, exc)
@@ -710,8 +723,10 @@ class Command(BaseCommand):
             total_value = c.get("total_value") or 0
             if not total_value and year_details:
                 total_value = sum(
-                    d.get("base_salary", 0) + d.get("signing_bonus", 0)
-                    + d.get("roster_bonus", 0) + d.get("other_bonus", 0)
+                    d.get("base_salary", 0)
+                    + d.get("signing_bonus", 0)
+                    + d.get("roster_bonus", 0)
+                    + d.get("other_bonus", 0)
                     + d.get("workout_bonus", 0)
                     for d in year_details
                 )
@@ -751,8 +766,12 @@ class Command(BaseCommand):
                         f"({len(year_details)} rows)"
                     )
             except Exception as exc:
-                logger.error("DB error for %s contract %s: %s", player, year_signed, exc)
-                self.stdout.write(self.style.ERROR(f"    → DB error ({year_signed}): {exc}"))
+                logger.error(
+                    "DB error for %s contract %s: %s", player, year_signed, exc
+                )
+                self.stdout.write(
+                    self.style.ERROR(f"    → DB error ({year_signed}): {exc}")
+                )
 
         # Enforce: a player can only have one active contract at a time.
         # OTC sometimes omits the status field for historical contracts, which

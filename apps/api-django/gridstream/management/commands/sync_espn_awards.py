@@ -24,6 +24,7 @@ Usage:
     python manage.py sync_espn_awards --start-season 2000
     python manage.py sync_espn_awards --dry-run
 """
+
 import logging
 import time
 import urllib.request
@@ -39,7 +40,7 @@ ESPN_AWARDS_URL = (
     "http://sports.core.api.espn.com/v2/sports/football/leagues/nfl"
     "/seasons/{season}/awards?lang=en&region=us&limit=100"
 )
-REQUEST_DELAY = 0.3   # seconds between API calls
+REQUEST_DELAY = 0.3  # seconds between API calls
 
 
 def _fetch_json(url: str) -> dict:
@@ -91,6 +92,7 @@ class Command(BaseCommand):
 
     def handle(self, *args, **options):
         import datetime
+
         dry_run = options["dry_run"]
         single = options["season"]
 
@@ -118,7 +120,9 @@ class Command(BaseCommand):
                 data = _fetch_json(url)
             except Exception as exc:
                 self.stdout.write(
-                    self.style.WARNING(f"  {season}: failed to fetch awards list — {exc}")
+                    self.style.WARNING(
+                        f"  {season}: failed to fetch awards list — {exc}"
+                    )
                 )
                 continue
 
@@ -151,7 +155,9 @@ class Command(BaseCommand):
                     if not player_pk:
                         logger.debug(
                             "No player match for ESPN ID %s (%s %s)",
-                            espn_athlete_id, season, name,
+                            espn_athlete_id,
+                            season,
+                            name,
                         )
                         unmatched += 1
                         continue
@@ -186,7 +192,9 @@ class Command(BaseCommand):
 
             time.sleep(REQUEST_DELAY)
 
-        self.stdout.write(self.style.SUCCESS(
-            f"\nDone. Created={created}, Updated={updated}, "
-            f"Skipped(no athlete)={skipped}, Unmatched={unmatched}"
-        ))
+        self.stdout.write(
+            self.style.SUCCESS(
+                f"\nDone. Created={created}, Updated={updated}, "
+                f"Skipped(no athlete)={skipped}, Unmatched={unmatched}"
+            )
+        )

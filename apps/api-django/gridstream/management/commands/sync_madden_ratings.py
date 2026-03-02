@@ -43,7 +43,9 @@ _XLSX_URL_TEMPLATE = (
 )
 
 _MADDENRATINGS_SITEMAP_INDEX = "https://www.maddenratings.com/sitemap_index.xml"
-_USER_AGENT = "engineering-atlas-gridstream/1.0 (+https://github.com/jbooth/engineering-atlas)"
+_USER_AGENT = (
+    "engineering-atlas-gridstream/1.0 (+https://github.com/jbooth/engineering-atlas)"
+)
 
 
 def _current_madden_year(today: date | None = None) -> int:
@@ -180,7 +182,9 @@ _ATTRIBUTE_LABEL_TO_FIELD = {
     "zone coverage": "zone_coverage",
 }
 
-_TITLE_RE = re.compile(r"<title>\s*(?P<title>.*?)\s*</title>", re.IGNORECASE | re.DOTALL)
+_TITLE_RE = re.compile(
+    r"<title>\s*(?P<title>.*?)\s*</title>", re.IGNORECASE | re.DOTALL
+)
 _TITLE_PLAYER_RE = re.compile(
     r"^(?P<name>.+?)\s+Madden(?:\s+NFL)?\s+(?P<year>\d+)\s+Rating(?:\s+\((?P<team>[^)]*)\))?",
     re.IGNORECASE,
@@ -242,8 +246,14 @@ class Command(ImportBaseCommand):
             created, updated, skipped = self._sync_from_xlsx(madden_year)
 
         if skipped:
-            self.stdout.write(self.style.WARNING(f"  Skipped {skipped} rows (no player match or missing OVR)"))
-        self.stdout.write(self.style.SUCCESS(f"\nDone! {created} created, {updated} updated."))
+            self.stdout.write(
+                self.style.WARNING(
+                    f"  Skipped {skipped} rows (no player match or missing OVR)"
+                )
+            )
+        self.stdout.write(
+            self.style.SUCCESS(f"\nDone! {created} created, {updated} updated.")
+        )
 
     # ---- Madden 24/25 legacy Excel path ---------------------------------
 
@@ -253,14 +263,18 @@ class Command(ImportBaseCommand):
 
         with self.timed_operation("Downloading Excel file"):
             try:
-                resp = requests.get(url, timeout=60, headers={"User-Agent": _USER_AGENT})
+                resp = requests.get(
+                    url, timeout=60, headers={"User-Agent": _USER_AGENT}
+                )
                 resp.raise_for_status()
             except Exception as exc:
                 self.stderr.write(self.style.ERROR(f"Download failed: {exc}"))
                 return 0, 0, 0
 
         with self.timed_operation("Parsing Excel"):
-            wb = openpyxl.load_workbook(io.BytesIO(resp.content), read_only=True, data_only=True)
+            wb = openpyxl.load_workbook(
+                io.BytesIO(resp.content), read_only=True, data_only=True
+            )
             ws = wb.active
             headers = [cell.value for cell in next(ws.iter_rows(min_row=1, max_row=1))]
             all_rows = [
@@ -277,7 +291,11 @@ class Command(ImportBaseCommand):
         has_full_name = "Full Name" in headers
         has_split_name = "First Name" in headers and "Last Name" in headers
         if not has_full_name and not has_split_name:
-            self.stderr.write(self.style.ERROR("Unrecognized column layout, cannot extract player names"))
+            self.stderr.write(
+                self.style.ERROR(
+                    "Unrecognized column layout, cannot extract player names"
+                )
+            )
             return 0, 0, 0
 
         with self.timed_operation("Building player cache"):
@@ -312,7 +330,12 @@ class Command(ImportBaseCommand):
             )
             if not player:
                 skipped += 1
-                logger.debug("No Madden XLSX player match: %s (%s, %s)", full_name, position, team)
+                logger.debug(
+                    "No Madden XLSX player match: %s (%s, %s)",
+                    full_name,
+                    position,
+                    team,
+                )
                 continue
 
             overall = self.safe_int(row.get("Overall Rating") or row.get("Overall"))
@@ -355,7 +378,9 @@ class Command(ImportBaseCommand):
             player_urls = self._fetch_maddenratings_player_urls(sitemap_urls)
         self.stdout.write(f"  {len(player_urls)} candidate player pages")
         if not player_urls:
-            self.stderr.write(self.style.ERROR("No player pages discovered from sitemap"))
+            self.stderr.write(
+                self.style.ERROR("No player pages discovered from sitemap")
+            )
             return 0, 0, 0
 
         with self.timed_operation("Building player cache"):
@@ -370,7 +395,9 @@ class Command(ImportBaseCommand):
         ]
         self.stdout.write(f"  {len(player_urls)} pages after slug prefilter")
         if not player_urls:
-            self.stderr.write(self.style.ERROR("No player pages left after slug prefilter"))
+            self.stderr.write(
+                self.style.ERROR("No player pages left after slug prefilter")
+            )
             return 0, 0, 0
 
         created = 0
@@ -380,14 +407,18 @@ class Command(ImportBaseCommand):
 
         for index, url in enumerate(player_urls, start=1):
             try:
-                resp = requests.get(url, timeout=45, headers={"User-Agent": _USER_AGENT})
+                resp = requests.get(
+                    url, timeout=45, headers={"User-Agent": _USER_AGENT}
+                )
                 resp.raise_for_status()
             except Exception as exc:
                 skipped += 1
                 logger.debug("Madden player page fetch failed for %s: %s", url, exc)
                 continue
 
-            parsed_row = self._parse_maddenratings_player_page(resp.text, url, madden_year)
+            parsed_row = self._parse_maddenratings_player_page(
+                resp.text, url, madden_year
+            )
             if not parsed_row:
                 skipped += 1
                 continue
@@ -613,7 +644,9 @@ class Command(ImportBaseCommand):
 
             slug_variants = {
                 _normalize_madden_slug(slugify(player.display_name)),
-                _normalize_madden_slug(slugify(f"{player.first_name} {player.last_name}")),
+                _normalize_madden_slug(
+                    slugify(f"{player.first_name} {player.last_name}")
+                ),
             }
             for slug_variant in slug_variants:
                 add_multi(slug_cache, slug_variant, player)
@@ -685,14 +718,18 @@ class Command(ImportBaseCommand):
             unique[player.id] = player
         return list(unique.values())
 
-    def _flush_batch(self, batch: list[tuple[Player, int, dict[str, int | str | None]]]):
+    def _flush_batch(
+        self, batch: list[tuple[Player, int, dict[str, int | str | None]]]
+    ):
         created = 0
         updated = 0
         if self.dry_run:
             return len(batch), 0
         with transaction.atomic(using="nfl"):
             for player, year, defaults in batch:
-                _, was_created = PlayerMaddenRating.objects.using("nfl").update_or_create(
+                _, was_created = PlayerMaddenRating.objects.using(
+                    "nfl"
+                ).update_or_create(
                     player=player,
                     madden_year=year,
                     defaults=defaults,
