@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, type CSSProperties } from 'react';
+import { useMemo, useState, type CSSProperties } from 'react';
 import type { HudTeam, PersonnelPlayerEntry, PersonnelState } from '@atlas/sdk/gridstream/types';
 import { gridstreamColors as C, gridstreamFonts as F } from '@atlas/sdk/gridstream/theme';
 import { TeamBadge } from './ScoreBug';
@@ -232,8 +232,10 @@ function groupPlayers(players: PersonnelPlayerEntry[]) {
 }
 
 export function PersonnelPanel({ away, home, personnel }: PersonnelPanelProps) {
+  const [selectedTeam, setSelectedTeam] = useState<'away' | 'home'>('away');
   return (
     <div>
+      {/* Header: source label + week */}
       <div
         style={{
           display: 'flex',
@@ -252,10 +254,58 @@ export function PersonnelPanel({ away, home, personnel }: PersonnelPanelProps) {
         </span>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))' }}>
-        <TeamColumn side="left" team={away} data={personnel.away} />
-        <TeamColumn side="right" team={home} data={personnel.home} />
+      {/* Team selector tabs */}
+      <div
+        style={{
+          display: 'flex',
+          borderBottom: `1px solid ${C.panelBorder}`,
+        }}
+      >
+        {(['away', 'home'] as const).map((side) => {
+          const team = side === 'away' ? away : home;
+          const isActive = selectedTeam === side;
+          return (
+            <button
+              key={side}
+              onClick={() => setSelectedTeam(side)}
+              style={{
+                flex: 1,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 8,
+                padding: '10px 16px',
+                background: isActive ? 'rgba(0,229,255,.04)' : 'transparent',
+                border: 'none',
+                borderBottom: isActive ? `2px solid ${C.cyan}` : '2px solid transparent',
+                cursor: 'pointer',
+                transition: 'all 0.15s',
+              }}
+            >
+              <TeamBadge team={team} size={22} hasPossession={false} />
+              <span
+                style={{
+                  fontFamily: F.body,
+                  fontWeight: 700,
+                  fontSize: 14,
+                  color: isActive ? C.textBright : C.textDim,
+                  transition: 'color 0.15s',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {team.displayName}
+              </span>
+            </button>
+          );
+        })}
       </div>
+
+      {/* Selected team roster */}
+      <TeamColumn
+        side="left"
+        team={selectedTeam === 'away' ? away : home}
+        data={selectedTeam === 'away' ? personnel.away : personnel.home}
+      />
     </div>
   );
 }
@@ -274,7 +324,6 @@ function TeamColumn({
     <div
       style={{
         padding: '14px 18px 18px',
-        borderRight: side === 'left' ? `1px solid ${C.panelBorder}` : 'none',
       }}
     >
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>

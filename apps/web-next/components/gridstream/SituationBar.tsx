@@ -8,6 +8,7 @@
  * renders down/distance + spot when the game is not final.
  */
 
+import { useEffect, useState } from 'react';
 import type { Situation } from '@atlas/sdk/gridstream/types';
 import { gridstreamColors as C, gridstreamFonts as F } from '@atlas/sdk/gridstream/theme';
 
@@ -19,6 +20,15 @@ interface SituationBarProps {
 }
 
 export function SituationBar({ situation, isFinal, overrideText }: SituationBarProps) {
+  const [isMobile, setIsMobile] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 639px)');
+    setIsMobile(mq.matches);
+    const handler = (e: MediaQueryListEvent) => setIsMobile(e.matches);
+    mq.addEventListener('change', handler);
+    return () => mq.removeEventListener('change', handler);
+  }, []);
+
   const downText =
     situation.down === 1
       ? '1ST'
@@ -57,24 +67,35 @@ export function SituationBar({ situation, isFinal, overrideText }: SituationBarP
       ) : (
         <>
           {overrideText ? (
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                maxWidth: '100%',
+                overflow: 'hidden',
+              }}
+            >
               <span
                 style={{
                   fontFamily: F.display,
-                  fontSize: 13,
+                  fontSize: isMobile ? 11 : 13,
                   fontWeight: 700,
                   color: C.amber,
                   letterSpacing: '.08em',
-                  minWidth: 220,
-                  maxWidth: 560,
+                  minWidth: isMobile ? 0 : 220,
+                  maxWidth: '100%',
                   height: 30,
                   display: 'inline-flex',
                   alignItems: 'center',
                   justifyContent: 'center',
                   textAlign: 'center',
-                  padding: '4px 18px',
+                  padding: isMobile ? '4px 10px' : '4px 18px',
                   background: 'rgba(255,182,18,.06)',
                   border: `1px solid ${C.amberBorder}`,
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: isMobile ? 'nowrap' : undefined,
                 }}
               >
                 {overrideText}
@@ -82,23 +103,29 @@ export function SituationBar({ situation, isFinal, overrideText }: SituationBarP
             </div>
           ) : (
             <div
-              style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12 }}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: isMobile ? 6 : 12,
+              }}
             >
               <span
                 style={{
                   fontFamily: F.display,
-                  fontSize: 13,
+                  fontSize: isMobile ? 11 : 13,
                   fontWeight: 700,
                   color: C.amber,
                   letterSpacing: '.1em',
-                  minWidth: 132,
+                  minWidth: isMobile ? 0 : 132,
                   height: 30,
                   display: 'inline-flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  padding: '4px 18px',
+                  padding: isMobile ? '4px 10px' : '4px 18px',
                   background: 'rgba(255,182,18,.06)',
                   border: `1px solid ${C.amberBorder}`,
+                  whiteSpace: 'nowrap',
                 }}
               >
                 {situation.down > 0 ? `${downText} & ${situation.distance}` : '\u2014'}
@@ -118,12 +145,13 @@ export function SituationBar({ situation, isFinal, overrideText }: SituationBarP
               <span
                 style={{
                   fontFamily: F.display,
-                  fontSize: 16,
+                  fontSize: isMobile ? 13 : 16,
                   fontWeight: 700,
                   color: C.textBright,
                   letterSpacing: '.08em',
-                  minWidth: 86,
+                  minWidth: isMobile ? 0 : 86,
                   textAlign: 'left',
+                  whiteSpace: 'nowrap',
                 }}
               >
                 {yardlineText}

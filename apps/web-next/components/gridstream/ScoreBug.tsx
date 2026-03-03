@@ -50,6 +50,14 @@ export function ScoreBug({
   const awaySparkColor = getReadableSparkColor(away);
   const homeSparkColor = getReadableSparkColor(home);
   const hasWpSamples = wpTimeline.length > 0;
+  const [isMobile, setIsMobile] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 639px)');
+    setIsMobile(mq.matches);
+    const handler = (e: MediaQueryListEvent) => setIsMobile(e.matches);
+    mq.addEventListener('change', handler);
+    return () => mq.removeEventListener('change', handler);
+  }, []);
   // Keep sparkline UI stable if a frame is missing WP samples.
   const sparkTimeline: WpTimelinePoint[] = hasWpSamples
     ? wpTimeline
@@ -68,17 +76,19 @@ export function ScoreBug({
         justifyContent: 'center',
         position: 'relative',
         zIndex: 3,
+        overflow: 'hidden',
       }}
     >
       {/* AWAY SIDE */}
       <div
         style={{
           flex: 1,
+          minWidth: 0,
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'flex-end',
           justifyContent: 'center',
-          padding: '12px 20px',
+          padding: isMobile ? '8px 8px' : '12px 20px',
           borderRadius: '2px 0 0 2px',
           position: 'relative',
           background: possIsAway ? 'rgba(255,182,18,0.03)' : 'transparent',
@@ -100,35 +110,47 @@ export function ScoreBug({
             }}
           />
         )}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-          <div style={{ textAlign: 'right' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? 6 : 16, minWidth: 0 }}>
+          <div style={{ textAlign: 'right', minWidth: 0 }}>
             <div
               style={{
                 fontFamily: F.body,
                 fontWeight: 700,
-                fontSize: 26,
+                fontSize: isMobile ? 14 : 26,
                 color: C.textBright,
                 letterSpacing: '.04em',
                 lineHeight: 1,
+                whiteSpace: isMobile ? 'nowrap' : undefined,
+                overflow: isMobile ? 'hidden' : undefined,
+                textOverflow: isMobile ? 'ellipsis' : undefined,
               }}
             >
-              {away.name.toUpperCase()}
+              {isMobile ? away.abbr.toUpperCase() : away.name.toUpperCase()}
             </div>
-            <div style={{ fontFamily: F.mono, fontSize: 12, color: C.textDim, marginTop: 3 }}>
-              {away.displayName} · {away.record}
-            </div>
+            {!isMobile && (
+              <div style={{ fontFamily: F.mono, fontSize: 12, color: C.textDim, marginTop: 3 }}>
+                {away.displayName} · {away.record}
+              </div>
+            )}
           </div>
-          <TeamBadge team={away} hasPossession={possIsAway} size={52} variant="scoreboard-dark" />
-        </div>
-        <div style={{ marginTop: 8, width: '100%', maxWidth: 180, alignSelf: 'flex-end' }}>
-          <MiniSparkline
-            timeline={sparkTimeline}
-            timing={timing}
-            isAway={true}
-            color={awaySparkColor}
-            currentPct={awayPctDisplay}
+          <TeamBadge
+            team={away}
+            hasPossession={possIsAway}
+            size={isMobile ? 34 : 52}
+            variant="scoreboard-dark"
           />
         </div>
+        {!isMobile && (
+          <div style={{ marginTop: 8, width: '100%', maxWidth: 180, alignSelf: 'flex-end' }}>
+            <MiniSparkline
+              timeline={sparkTimeline}
+              timing={timing}
+              isAway={true}
+              color={awaySparkColor}
+              currentPct={awayPctDisplay}
+            />
+          </div>
+        )}
       </div>
 
       {/* CENTER SCORE */}
@@ -140,18 +162,24 @@ export function ScoreBug({
           border: `1px solid ${C.panelBorder}`,
           position: 'relative',
           zIndex: 2,
+          flexShrink: 0,
         }}
       >
         <CornerTicks />
-        <ScoreDigit value={awayScore.total} isWinning={awayScore.total > homeScore.total} />
+        <ScoreDigit
+          value={awayScore.total}
+          isWinning={awayScore.total > homeScore.total}
+          fontSize={isMobile ? 40 : 54}
+          width={isMobile ? 56 : 88}
+        />
         <div
           style={{
             display: 'flex',
             flexDirection: 'column',
             alignItems: 'center',
-            padding: '6px 18px',
+            padding: isMobile ? '4px 8px' : '6px 18px',
             gap: 3,
-            minWidth: 90,
+            minWidth: isMobile ? 60 : 90,
             borderLeft: `1px solid ${C.panelBorder}`,
             borderRight: `1px solid ${C.panelBorder}`,
             background: 'rgba(0,229,255,.02)',
@@ -172,7 +200,7 @@ export function ScoreBug({
           <div
             style={{
               position: 'relative',
-              width: 108,
+              width: isMobile ? 72 : 108,
               height: 34,
               display: 'flex',
               alignItems: 'center',
@@ -198,7 +226,7 @@ export function ScoreBug({
             <span
               style={{
                 fontFamily: F.body,
-                fontSize: 30,
+                fontSize: isMobile ? 22 : 30,
                 fontWeight: 700,
                 color: C.textBright,
                 letterSpacing: '.06em',
@@ -224,24 +252,30 @@ export function ScoreBug({
               </span>
             )}
           </div>
-          <div style={{ display: 'flex', gap: 10, marginTop: 1 }}>
-            <TimeoutPips count={awayTimeouts} />
-            <div style={{ width: 1, height: 5, background: C.panelBorder }} />
-            <TimeoutPips count={homeTimeouts} />
+          <div style={{ display: 'flex', gap: isMobile ? 6 : 10, marginTop: 1 }}>
+            <TimeoutPips count={awayTimeouts} size={isMobile ? 5 : 8} height={isMobile ? 3 : 4} />
+            <div style={{ width: 1, height: isMobile ? 3 : 5, background: C.panelBorder }} />
+            <TimeoutPips count={homeTimeouts} size={isMobile ? 5 : 8} height={isMobile ? 3 : 4} />
           </div>
         </div>
-        <ScoreDigit value={homeScore.total} isWinning={homeScore.total > awayScore.total} />
+        <ScoreDigit
+          value={homeScore.total}
+          isWinning={homeScore.total > awayScore.total}
+          fontSize={isMobile ? 40 : 54}
+          width={isMobile ? 56 : 88}
+        />
       </div>
 
       {/* HOME SIDE */}
       <div
         style={{
           flex: 1,
+          minWidth: 0,
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'flex-start',
           justifyContent: 'center',
-          padding: '12px 20px',
+          padding: isMobile ? '8px 8px' : '12px 20px',
           borderRadius: '0 2px 2px 0',
           position: 'relative',
           background: possession === 'home' ? 'rgba(255,182,18,0.03)' : 'transparent',
@@ -263,40 +297,47 @@ export function ScoreBug({
             }}
           />
         )}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? 6 : 16, minWidth: 0 }}>
           <TeamBadge
             team={home}
             hasPossession={possession === 'home'}
-            size={52}
+            size={isMobile ? 34 : 52}
             variant="scoreboard-dark"
           />
-          <div>
+          <div style={{ minWidth: 0 }}>
             <div
               style={{
                 fontFamily: F.body,
                 fontWeight: 700,
-                fontSize: 26,
+                fontSize: isMobile ? 14 : 26,
                 color: C.textBright,
                 letterSpacing: '.04em',
                 lineHeight: 1,
+                whiteSpace: isMobile ? 'nowrap' : undefined,
+                overflow: isMobile ? 'hidden' : undefined,
+                textOverflow: isMobile ? 'ellipsis' : undefined,
               }}
             >
-              {home.name.toUpperCase()}
+              {isMobile ? home.abbr.toUpperCase() : home.name.toUpperCase()}
             </div>
-            <div style={{ fontFamily: F.mono, fontSize: 12, color: C.textDim, marginTop: 3 }}>
-              {home.displayName} · {home.record}
-            </div>
+            {!isMobile && (
+              <div style={{ fontFamily: F.mono, fontSize: 12, color: C.textDim, marginTop: 3 }}>
+                {home.displayName} · {home.record}
+              </div>
+            )}
           </div>
         </div>
-        <div style={{ marginTop: 8, width: '100%', maxWidth: 180 }}>
-          <MiniSparkline
-            timeline={sparkTimeline}
-            timing={timing}
-            isAway={false}
-            color={homeSparkColor}
-            currentPct={homePctDisplay}
-          />
-        </div>
+        {!isMobile && (
+          <div style={{ marginTop: 8, width: '100%', maxWidth: 180 }}>
+            <MiniSparkline
+              timeline={sparkTimeline}
+              timing={timing}
+              isAway={false}
+              color={homeSparkColor}
+              currentPct={homePctDisplay}
+            />
+          </div>
+        )}
       </div>
     </div>
   );
@@ -399,20 +440,31 @@ function toScoreboardDarkLogoUrl(team: HudTeam): string {
   return fallback;
 }
 
-function ScoreDigit({ value, isWinning }: { value: number; isWinning: boolean }) {
+function ScoreDigit({
+  value,
+  isWinning,
+  fontSize = 54,
+  width = 88,
+}: {
+  value: number;
+  isWinning: boolean;
+  fontSize?: number;
+  width?: number;
+}) {
   return (
     <div
       style={{
         fontFamily: F.body,
         fontWeight: 700,
-        fontSize: 54,
+        fontSize,
         color: isWinning ? C.textBright : C.textDim,
-        width: 88,
+        width,
         textAlign: 'center',
         padding: '4px 0',
         letterSpacing: '-.02em',
         lineHeight: 1,
         textShadow: isWinning ? `0 0 14px ${C.cyanGlow}` : 'none',
+        flexShrink: 0,
       }}
     >
       {value}
@@ -420,7 +472,15 @@ function ScoreDigit({ value, isWinning }: { value: number; isWinning: boolean })
   );
 }
 
-function TimeoutPips({ count }: { count: number }) {
+function TimeoutPips({
+  count,
+  size = 8,
+  height = 4,
+}: {
+  count: number;
+  size?: number;
+  height?: number;
+}) {
   const safeCount = Number.isFinite(count) ? Math.max(0, Math.min(3, Math.round(count))) : 3;
   return (
     <div style={{ display: 'flex', gap: 3 }}>
@@ -428,8 +488,8 @@ function TimeoutPips({ count }: { count: number }) {
         <div
           key={i}
           style={{
-            width: 8,
-            height: 4,
+            width: size,
+            height,
             borderRadius: 1,
             background: i <= safeCount ? C.amber : 'rgba(255,255,255,.06)',
             boxShadow: i <= safeCount ? `0 0 4px ${C.amber}50` : 'none',

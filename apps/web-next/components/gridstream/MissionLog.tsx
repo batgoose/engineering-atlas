@@ -3,8 +3,8 @@
 /**
  * Mission log table (play-by-play feed) for the active replay frame.
  *
- * Color coding intentionally uses lightweight text heuristics so the feed stays
- * readable even when upstream play_type values are inconsistent.
+ * Each entry uses two rows: the first shows Q / time / down / EPA metadata,
+ * the second shows the full event description.
  */
 
 import type { MissionLogEntry } from '@atlas/sdk/gridstream/types';
@@ -16,13 +16,13 @@ interface MissionLogProps {
 
 export function MissionLog({ plays }: MissionLogProps) {
   return (
-    <div style={{ maxHeight: 300, overflowY: 'auto' }}>
+    <div style={{ maxHeight: 360, overflowY: 'auto' }}>
       {/* Header row */}
       <div
         style={{
           display: 'flex',
           gap: 8,
-          padding: '8px 20px',
+          padding: '8px 16px',
           borderBottom: `1px solid ${C.panelBorder}`,
           position: 'sticky',
           top: 0,
@@ -30,20 +30,19 @@ export function MissionLog({ plays }: MissionLogProps) {
           zIndex: 1,
         }}
       >
-        <span style={{ ...headerStyle, width: 32 }}>Q</span>
-        <span style={{ ...headerStyle, width: 55 }}>TIME</span>
-        <span style={{ ...headerStyle, width: 80 }}>DOWN</span>
-        <span style={{ ...headerStyle, flex: 1 }}>EVENT</span>
-        <span style={{ ...headerStyle, width: 55, textAlign: 'right' }}>EPA</span>
+        <span style={{ ...headerStyle, width: 28 }}>Q</span>
+        <span style={{ ...headerStyle, width: 50 }}>TIME</span>
+        <span style={{ ...headerStyle, flex: 1 }}>DOWN</span>
+        <span style={{ ...headerStyle, width: 50, textAlign: 'right' }}>EPA</span>
       </div>
 
       {/* Play rows (newest first) */}
       {[...plays].reverse().map((p, i) => {
-        const textLower = p.text.toLowerCase();
         const attributionTags = (p.attribution ?? '')
           .split(' · ')
           .map((tag) => tag.trim())
           .filter((tag) => tag.length > 0);
+        const textLower = p.text.toLowerCase();
         const eventColor =
           p.type === 'turnover' || textLower.includes('intercept') || textLower.includes('sack')
             ? C.red
@@ -54,57 +53,76 @@ export function MissionLog({ plays }: MissionLogProps) {
               : textLower.includes('punt')
                 ? C.cyan
                 : C.text;
+
         return (
-          <div key={p.id} className="play-row" style={{ animationDelay: `${i * 50}ms` }}>
-            {/* Quarter badge */}
-            <span
-              style={{
-                width: 32,
-                fontFamily: F.display,
-                fontSize: 9,
-                fontWeight: 600,
-                letterSpacing: '.08em',
-                color: C.cyanDim,
-                opacity: p.type === 'info' ? 0 : 1,
-              }}
-            >
-              Q{p.quarter}
-            </span>
+          <div
+            key={p.id}
+            className="play-row"
+            style={{
+              animationDelay: `${i * 50}ms`,
+              flexDirection: 'column',
+              gap: 4,
+              padding: '8px 16px',
+            }}
+          >
+            {/* Row 1: metadata */}
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              <span
+                style={{
+                  width: 28,
+                  fontFamily: F.display,
+                  fontSize: 9,
+                  fontWeight: 600,
+                  letterSpacing: '.08em',
+                  color: C.cyanDim,
+                  opacity: p.type === 'info' ? 0 : 1,
+                  flexShrink: 0,
+                }}
+              >
+                Q{p.quarter}
+              </span>
+              <span style={{ width: 50, fontSize: 11, color: C.textDim, flexShrink: 0 }}>
+                {p.clock}
+              </span>
+              <span style={{ flex: 1, fontSize: 11, color: C.textDim }}>{p.down}</span>
+              <span
+                style={{
+                  width: 50,
+                  textAlign: 'right',
+                  fontSize: 11,
+                  fontFamily: F.display,
+                  fontWeight: 600,
+                  color: p.epa > 0.5 ? C.green : p.epa < -0.5 ? C.red : C.textDim,
+                  flexShrink: 0,
+                }}
+              >
+                {p.epa > 0 ? '+' : ''}
+                {p.epa !== 0 ? p.epa.toFixed(1) : '—'}
+              </span>
+            </div>
 
-            {/* Clock */}
-            <span style={{ width: 55, fontSize: 12, color: C.textDim }}>{p.clock}</span>
-
-            {/* Down */}
-            <span style={{ width: 80, fontSize: 12, color: C.textDim }}>{p.down}</span>
-
-            {/* Event description */}
-            <span
-              style={{
-                flex: 1,
-                fontSize: 13,
-                lineHeight: 1.5,
-                color: eventColor,
-              }}
-            >
-              {p.team && (
-                <span
-                  style={{
-                    fontFamily: F.body,
-                    fontWeight: 700,
-                    fontSize: 11,
-                    letterSpacing: '.06em',
-                    color: C.textDim,
-                    marginRight: 8,
-                  }}
-                >
-                  {p.team}
-                </span>
-              )}
-              <span>{p.text}</span>
+            {/* Row 2: event description */}
+            <div style={{ paddingLeft: 36 }}>
+              <span style={{ fontSize: 13, lineHeight: 1.5, color: eventColor }}>
+                {p.team && (
+                  <span
+                    style={{
+                      fontFamily: F.body,
+                      fontWeight: 700,
+                      fontSize: 11,
+                      letterSpacing: '.06em',
+                      color: C.textDim,
+                      marginRight: 6,
+                    }}
+                  >
+                    {p.team}
+                  </span>
+                )}
+                {p.text}
+              </span>
               {p.attribution && (
-                <span
+                <div
                   style={{
-                    display: 'block',
                     marginTop: 2,
                     fontFamily: F.display,
                     fontSize: 9,
@@ -116,32 +134,15 @@ export function MissionLog({ plays }: MissionLogProps) {
                   {attributionTags.map((tag, idx) => (
                     <span
                       key={`${p.id}-attr-${idx}`}
-                      style={{
-                        color: tag.startsWith('PEN:') ? C.amber : C.textMuted,
-                      }}
+                      style={{ color: tag.startsWith('PEN:') ? C.amber : C.textMuted }}
                     >
                       {tag}
                       {idx < attributionTags.length - 1 ? ' · ' : ''}
                     </span>
                   ))}
-                </span>
+                </div>
               )}
-            </span>
-
-            {/* EPA */}
-            <span
-              style={{
-                width: 55,
-                textAlign: 'right',
-                fontSize: 12,
-                fontFamily: F.display,
-                fontWeight: 600,
-                color: p.epa > 0.5 ? C.green : p.epa < -0.5 ? C.red : C.textDim,
-              }}
-            >
-              {p.epa > 0 ? '+' : ''}
-              {p.epa !== 0 ? p.epa.toFixed(1) : '—'}
-            </span>
+            </div>
           </div>
         );
       })}

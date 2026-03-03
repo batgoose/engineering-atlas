@@ -33,6 +33,7 @@ export function FantasyPanel({
   fantasyHome,
   playerSeasonStats,
 }: FantasyPanelProps) {
+  const [selectedTeam, setSelectedTeam] = useState<'away' | 'home'>('away');
   const [selectedPlayer, setSelectedPlayer] = useState<string | null>(null);
   const [scoringView, setScoringView] = useState<FantasyScoringView>('PPR');
 
@@ -40,8 +41,12 @@ export function FantasyPanel({
     setSelectedPlayer((prev) => (prev === name ? null : name));
   };
 
+  const activeTeam = selectedTeam === 'away' ? away : home;
+  const activeRoster = selectedTeam === 'away' ? fantasyAway : fantasyHome;
+
   return (
     <div>
+      {/* Header: label + scoring format toggles */}
       <div
         style={{
           display: 'flex',
@@ -84,26 +89,65 @@ export function FantasyPanel({
         </div>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))' }}>
-        <TeamColumn
-          side="left"
-          team={away}
-          roster={fantasyAway}
-          seasonStats={playerSeasonStats}
-          scoringView={scoringView}
-          selectedPlayer={selectedPlayer}
-          onToggle={togglePlayer}
-        />
-        <TeamColumn
-          side="right"
-          team={home}
-          roster={fantasyHome}
-          seasonStats={playerSeasonStats}
-          scoringView={scoringView}
-          selectedPlayer={selectedPlayer}
-          onToggle={togglePlayer}
-        />
+      {/* Team selector tabs */}
+      <div
+        style={{
+          display: 'flex',
+          borderBottom: `1px solid ${C.panelBorder}`,
+        }}
+      >
+        {(['away', 'home'] as const).map((side) => {
+          const team = side === 'away' ? away : home;
+          const isActive = selectedTeam === side;
+          return (
+            <button
+              key={side}
+              onClick={() => {
+                setSelectedTeam(side);
+                setSelectedPlayer(null);
+              }}
+              style={{
+                flex: 1,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 8,
+                padding: '10px 16px',
+                background: isActive ? 'rgba(0,229,255,.04)' : 'transparent',
+                border: 'none',
+                borderBottom: isActive ? `2px solid ${C.cyan}` : '2px solid transparent',
+                cursor: 'pointer',
+                transition: 'all 0.15s',
+              }}
+            >
+              <TeamBadge team={team} size={22} hasPossession={false} />
+              <span
+                style={{
+                  fontFamily: F.body,
+                  fontWeight: 700,
+                  fontSize: 14,
+                  color: isActive ? C.textBright : C.textDim,
+                  transition: 'color 0.15s',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {team.displayName}
+              </span>
+            </button>
+          );
+        })}
       </div>
+
+      {/* Selected team roster */}
+      <TeamColumn
+        side="left"
+        team={activeTeam}
+        roster={activeRoster}
+        seasonStats={playerSeasonStats}
+        scoringView={scoringView}
+        selectedPlayer={selectedPlayer}
+        onToggle={togglePlayer}
+      />
     </div>
   );
 }
@@ -147,7 +191,6 @@ function TeamColumn({
     <div
       style={{
         padding: '14px 18px 18px',
-        borderRight: side === 'left' ? `1px solid ${C.panelBorder}` : 'none',
       }}
     >
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>

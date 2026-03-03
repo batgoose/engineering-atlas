@@ -7,6 +7,7 @@
  * play N" rather than final totals unless the user is at the end frame.
  */
 
+import { useEffect, useState } from 'react';
 import type { HudTeam, ScoreByQuarter } from '@atlas/sdk/gridstream/types';
 import { gridstreamColors as C, gridstreamFonts as F } from '@atlas/sdk/gridstream/theme';
 import { TeamBadge } from './ScoreBug';
@@ -30,6 +31,15 @@ export function ScoreboardTable({
   currentQuarter,
   isFinal,
 }: ScoreboardTableProps) {
+  const [isMobile, setIsMobile] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 639px)');
+    setIsMobile(mq.matches);
+    const handler = (e: MediaQueryListEvent) => setIsMobile(e.matches);
+    mq.addEventListener('change', handler);
+    return () => mq.removeEventListener('change', handler);
+  }, []);
+
   const teams = [
     { team: away, scores: awayScore, isP: possession === 'away', oppScore: homeScore.total },
     { team: home, scores: homeScore, isP: possession === 'home', oppScore: awayScore.total },
@@ -37,20 +47,35 @@ export function ScoreboardTable({
   const qScores = (s: ScoreByQuarter) => [s.q1, s.q2, s.q3, s.q4];
 
   return (
-    <div className="hud-panel" style={{ padding: '10px 20px' }}>
+    <div className="hud-panel" style={{ padding: isMobile ? '6px 8px' : '10px 20px' }}>
       <table style={{ width: '100%', borderCollapse: 'collapse' }}>
         <thead>
           <tr>
-            <th style={{ textAlign: 'left', padding: '4px 8px', width: '35%' }}>
+            <th
+              style={{
+                textAlign: 'left',
+                padding: isMobile ? '3px 4px' : '4px 8px',
+                width: isMobile ? '30%' : '35%',
+              }}
+            >
               <span className="hud-label">TEAM</span>
             </th>
             {['Q1', 'Q2', 'Q3', 'Q4'].map((q) => (
-              <th key={q} style={{ textAlign: 'center', padding: '4px 8px' }}>
+              <th
+                key={q}
+                style={{ textAlign: 'center', padding: isMobile ? '3px 4px' : '4px 8px' }}
+              >
                 <span className="hud-label">{q}</span>
               </th>
             ))}
-            <th style={{ textAlign: 'center', padding: '4px 8px', width: '12%' }}>
-              <span className="hud-label">TOTAL</span>
+            <th
+              style={{
+                textAlign: 'center',
+                padding: isMobile ? '3px 4px' : '4px 8px',
+                width: '12%',
+              }}
+            >
+              <span className="hud-label">TOT</span>
             </th>
           </tr>
         </thead>
@@ -63,21 +88,27 @@ export function ScoreboardTable({
                 background: isP ? 'rgba(255,182,18,0.02)' : 'transparent',
               }}
             >
-              <td style={{ padding: '6px 8px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <TeamBadge team={team} size={24} hasPossession={isP} variant="scoreboard-dark" />
+              <td style={{ padding: isMobile ? '5px 4px' : '6px 8px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? 5 : 10 }}>
+                  <TeamBadge
+                    team={team}
+                    size={isMobile ? 18 : 24}
+                    hasPossession={isP}
+                    variant="scoreboard-dark"
+                  />
                   <span
                     style={{
                       fontFamily: F.body,
                       fontWeight: 700,
-                      fontSize: 15,
+                      fontSize: isMobile ? 12 : 15,
                       color: C.textBright,
                       letterSpacing: '.03em',
+                      whiteSpace: 'nowrap',
                     }}
                   >
-                    {team.displayName}
+                    {isMobile ? team.abbr.toUpperCase() : team.displayName}
                   </span>
-                  {isP && (
+                  {isP && !isMobile && (
                     <span
                       style={{
                         fontFamily: F.display,
@@ -93,6 +124,17 @@ export function ScoreboardTable({
                       POSS
                     </span>
                   )}
+                  {isP && isMobile && (
+                    <div
+                      style={{
+                        width: 4,
+                        height: 4,
+                        borderRadius: '50%',
+                        background: C.amber,
+                        flexShrink: 0,
+                      }}
+                    />
+                  )}
                 </div>
               </td>
               {qScores(scores).map((s, i) => {
@@ -102,9 +144,9 @@ export function ScoreboardTable({
                     key={i}
                     style={{
                       textAlign: 'center',
-                      padding: '6px 8px',
+                      padding: isMobile ? '5px 4px' : '6px 8px',
                       fontFamily: F.display,
-                      fontSize: 14,
+                      fontSize: isMobile ? 12 : 14,
                       fontWeight: 600,
                       color: isFuture ? C.textDim : C.text,
                     }}
@@ -116,9 +158,9 @@ export function ScoreboardTable({
               <td
                 style={{
                   textAlign: 'center',
-                  padding: '6px 8px',
+                  padding: isMobile ? '5px 4px' : '6px 8px',
                   fontFamily: F.display,
-                  fontSize: 20,
+                  fontSize: isMobile ? 16 : 20,
                   fontWeight: 800,
                   color: scores.total > oppScore ? C.cyan : C.textDim,
                   textShadow: scores.total > oppScore ? `0 0 8px ${C.cyanGlow}` : 'none',

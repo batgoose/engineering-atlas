@@ -937,15 +937,46 @@ function OverlayFgArc({
   play,
   awayAbbr,
   delay = 0,
+  perspPx: perspPxProp,
+  portalXOverride,
+  portalCenterYOverride,
 }: {
   play: PlayAnimationData;
   awayAbbr: string;
   /** Animation start delay in seconds (used for postScoreTry sequencing). */
   delay?: number;
+  /** Effective perspective in SVG units (CSS px × 1000/svgWidthPx). Defaults to FIELD_PERSPECTIVE_PX. */
+  perspPx?: number;
+  /** Override upright X positions to match adjusted portal positions on mobile. */
+  portalXOverride?: { away: number; home: number };
+  /** Override portal Y center to match adjusted portal positions on mobile. */
+  portalCenterYOverride?: number;
 }) {
+  const effectivePerspPx = perspPxProp ?? FIELD_PERSPECTIVE_PX;
+  const effectivePortalCenterY = portalCenterYOverride ?? FG_PORTAL_CENTER_Y;
+
+  // Local projection that uses the effective perspective so arc and portal stay in sync at any SVG width.
+  function project(x: number, y: number) {
+    const PERSP_ORIGIN_Y = 210; // H/2 = 420/2
+    const relX = x - FIELD_PERSPECTIVE_ORIGIN_X;
+    const relY = y - FIELD_PERSPECTIVE_ORIGIN_Y;
+    const z = relY * Math.sin(FIELD_TILT_RAD);
+    const scale = effectivePerspPx / (effectivePerspPx - z);
+    const rotatedY = FIELD_PERSPECTIVE_ORIGIN_Y + relY * Math.cos(FIELD_TILT_RAD);
+    return {
+      x: FIELD_PERSPECTIVE_ORIGIN_X + relX * scale,
+      y: PERSP_ORIGIN_Y + (rotatedY - PERSP_ORIGIN_Y) * scale,
+    };
+  }
+
   const possIsAway = (play.offenseTeam ?? play.fromSide) === awayAbbr;
   const fromSvgX = fieldPctToSvgX(yardToFieldPct(play.fromYardline, play.fromSide, awayAbbr));
-  const { goalLineX, uprightX } = getFgEndpoints(possIsAway);
+  const { goalLineX, uprightX: sdkUprightX } = getFgEndpoints(possIsAway);
+  const uprightX = portalXOverride
+    ? possIsAway
+      ? portalXOverride.home
+      : portalXOverride.away
+    : sdkUprightX;
   const isMade = play.fgResult === 'made';
   const isShort = play.fgResult === 'short';
   const endSvgX = isShort ? goalLineX : uprightX;
@@ -954,10 +985,10 @@ function OverlayFgArc({
   // Home kicker faces the away goal (left), so left=higher Y, right=lower Y.
   const wideMissSign = possIsAway ? -1 : 1;
 
-  const start = projectFieldPointToScreen(fromSvgX, FIELD_CENTER_Y);
+  const start = project(fromSvgX, FIELD_CENTER_Y);
 
   // For a made FG, target the near-face centre of the portal in overlay screen-space.
-  // The portal near-face base is at field Y = FG_PORTAL_CENTER_Y + FG_UPRIGHT_Y_HALF = 215,
+  // The portal near-face base is at field Y = effectivePortalCenterY + FG_UPRIGHT_Y_HALF,
   // then lifted by PORTAL_LIFT, with top at bNear_y − PORTAL_3D_H × scaleAt(nearFieldY).
   let end: { x: number; y: number };
   // Portal face geometry in overlay SVG space (used for entrance animation rings).
@@ -966,20 +997,20 @@ function OverlayFgArc({
   let portalFaceAngleDeg = 0;
   let portalCornerPts = '';
   if (isMade) {
-    const nearFieldY = FG_PORTAL_CENTER_Y + FG_UPRIGHT_Y_HALF; // 215
-    const farFieldY = FG_PORTAL_CENTER_Y - FG_UPRIGHT_Y_HALF; // 105
-    const bNearBase = projectFieldPointToScreen(uprightX, nearFieldY);
-    const bFarBase = projectFieldPointToScreen(uprightX, farFieldY);
+    const nearFieldY = effectivePortalCenterY + FG_UPRIGHT_Y_HALF;
+    const farFieldY = effectivePortalCenterY - FG_UPRIGHT_Y_HALF;
+    const bNearBase = project(uprightX, nearFieldY);
+    const bFarBase = project(uprightX, farFieldY);
     const bNear_y = bNearBase.y - PORTAL_LIFT;
     const bFar_y = bFarBase.y - PORTAL_LIFT;
     const relY = nearFieldY - FIELD_PERSPECTIVE_ORIGIN_Y;
     const z = relY * Math.sin(FIELD_TILT_RAD);
-    const sc = FIELD_PERSPECTIVE_PX / (FIELD_PERSPECTIVE_PX - z);
+    const sc = effectivePerspPx / (effectivePerspPx - z);
     const tNear_y = bNear_y - PORTAL_3D_H * sc;
     // Far top (same calc as portals.map in main render)
     const relYFar = farFieldY - FIELD_PERSPECTIVE_ORIGIN_Y;
     const zFar = relYFar * Math.sin(FIELD_TILT_RAD);
-    const scFar = FIELD_PERSPECTIVE_PX / (FIELD_PERSPECTIVE_PX - zFar);
+    const scFar = effectivePerspPx / (effectivePerspPx - zFar);
     const tFar_y = bFar_y - PORTAL_3D_H * scFar;
     // Aim for the centroid of the portal quad so the arc appears to enter
     // the middle of the portal, not stop at the near edge
@@ -1006,7 +1037,7 @@ function OverlayFgArc({
     if (play.fgResult === 'wide_left') endSvgY = FIELD_CENTER_Y + wideMissSign * wideMissOffset;
     else if (play.fgResult === 'wide_right')
       endSvgY = FIELD_CENTER_Y - wideMissSign * wideMissOffset;
-    end = projectFieldPointToScreen(endSvgX, endSvgY);
+    end = project(endSvgX, endSvgY);
   }
   // Control point: mid-X, just barely above the straight-line midpoint.
   // FG/XP should look like a tight laser-straight kick — not a looping punt arc.
@@ -1219,37 +1250,81 @@ export function FieldVisualization({
   onHeadshotClick,
 }: FieldVisualizationProps) {
   const svgRef = useRef<SVGSVGElement | null>(null);
+  const portalSvgRef = useRef<SVGSVGElement | null>(null);
   // Hidden during the transmission sweep; revealed after 650ms so headshots/ball
   // don't appear until the scan completes.
   const [showOverlays, setShowOverlays] = useState(false);
+  // Tracks the SVG's actual rendered pixel width so portal projection can
+  // convert FIELD_PERSPECTIVE_PX (CSS px) → SVG viewBox units correctly.
+  const [svgWidthPx, setSvgWidthPx] = useState(1000);
+  useEffect(() => {
+    const svg = svgRef.current;
+    if (!svg) return;
+    const ro = new ResizeObserver((entries) => {
+      const w = entries[0]?.contentRect.width;
+      if (w && w > 0) setSvgWidthPx(w);
+    });
+    ro.observe(svg);
+    const w = svg.getBoundingClientRect().width;
+    if (w > 0) setSvgWidthPx(w);
+    return () => ro.disconnect();
+  }, []);
+
+  const unpauseSvgEl = (el: SVGSVGElement) => {
+    try {
+      if (
+        typeof (el as SVGSVGElement & { unpauseAnimations?: () => void }).unpauseAnimations ===
+        'function'
+      ) {
+        (el as SVGSVGElement & { unpauseAnimations: () => void }).unpauseAnimations();
+      }
+      if (
+        typeof (el as SVGSVGElement & { setCurrentTime?: (seconds: number) => void })
+          .setCurrentTime === 'function'
+      ) {
+        (el as SVGSVGElement & { setCurrentTime: (seconds: number) => void }).setCurrentTime(0);
+      }
+    } catch {
+      // Ignore unsupported SVG animation APIs in non-browser/test environments.
+    }
+  };
 
   useEffect(() => {
     const svg = svgRef.current;
     setShowOverlays(false);
     const id = setTimeout(() => {
       setShowOverlays(true);
-      // Reset SMIL timelines (field guides like firstDownPulse) so they restart
-      // in sync with the play animations.
+      // Reset SMIL timelines so they restart in sync with the play animations.
       if (!svg) return;
-      try {
-        if (
-          typeof (svg as SVGSVGElement & { unpauseAnimations?: () => void }).unpauseAnimations ===
-          'function'
-        ) {
-          (svg as SVGSVGElement & { unpauseAnimations: () => void }).unpauseAnimations();
-        }
-        if (
-          typeof (svg as SVGSVGElement & { setCurrentTime?: (seconds: number) => void })
-            .setCurrentTime === 'function'
-        ) {
-          (svg as SVGSVGElement & { setCurrentTime: (seconds: number) => void }).setCurrentTime(0);
-        }
-      } catch {
-        // Ignore unsupported SVG animation APIs in non-browser/test environments.
-      }
+      unpauseSvgEl(svg);
+      // Also unpause the portal SVG so float animations run on mobile browsers
+      // that pause SVG animations by default (e.g. iOS Safari).
+      if (portalSvgRef.current) unpauseSvgEl(portalSvgRef.current);
     }, 650);
     return () => clearTimeout(id);
   }, [animationKey]);
+
+  // Pause all SVG SMIL animations when the page/tab is hidden (reduces GPU load).
+  useEffect(() => {
+    const handleVisibility = () => {
+      const svgs = [svgRef.current, portalSvgRef.current];
+      if (document.hidden) {
+        svgs.forEach((el) => {
+          try {
+            (el as (SVGSVGElement & { pauseAnimations?: () => void }) | null)?.pauseAnimations?.();
+          } catch {
+            /* ignore */
+          }
+        });
+      } else {
+        svgs.forEach((el) => {
+          if (el) unpauseSvgEl(el);
+        });
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+    return () => document.removeEventListener('visibilitychange', handleVisibility);
+  }, []);
 
   const hasReplaySpot = showPlayStartSpot && Boolean(lastPlay);
   const isOfficialTimeoutNotice = /^official timeout$/i.test((fieldNotice ?? '').trim());
@@ -1316,9 +1391,22 @@ export function FieldVisualization({
     [away.abbr]: { color: away.color, altColor: away.altColor },
     [home.abbr]: { color: home.color, altColor: home.altColor },
   };
-  const overlayHeadshotMarkers = lastPlay
-    ? buildFieldHeadshotMarkers(lastPlay, away.abbr, home.abbr, teamColorsByAbbr)
-    : [];
+  const isMobileView = svgWidthPx > 0 && svgWidthPx < 640;
+  const headshotSizeMul = isMobileView ? 2 : 1;
+  // On mobile push headshots ~55 SVG units further "away" (toward far end of field)
+  // so the 2× circles don't sit on top of the play arc/line.
+  const headshotDepthNudge = isMobileView ? -55 : 0;
+  const overlayHeadshotMarkers = (
+    lastPlay ? buildFieldHeadshotMarkers(lastPlay, away.abbr, home.abbr, teamColorsByAbbr) : []
+  ).map((m) =>
+    headshotSizeMul !== 1
+      ? {
+          ...m,
+          sizeMultiplier: headshotSizeMul * (m.sizeMultiplier ?? 1),
+          depthOffsetY: m.depthOffsetY + headshotDepthNudge,
+        }
+      : m
+  );
   // Penalty info is now rendered in the SituationBar area (LiveGameView),
   // not as an SVG overlay popup.
 
@@ -2039,27 +2127,51 @@ export function FieldVisualization({
           interior clipped to the portal shape. */}
       {(() => {
         // PORTAL_3D_H and PORTAL_LIFT are module-level constants (defined above OverlayFgArc)
-        // Portals near back wall of each endzone (away=55, home=945)
-        const PORTAL_VISUAL_X = [55, 945] as const;
+        const isMobileView = svgWidthPx < 640;
+        // On mobile: push portals further toward the back walls (outward in X) and
+        // lower toward the near sideline (higher Y) so they appear centred in the
+        // endzone box rather than hugging the far-sideline corner.
+        const PORTAL_VISUAL_X = isMobileView ? ([38, 962] as const) : ([55, 945] as const);
         // Shift portal Y-centre toward far sideline (further from viewer / field center).
         // Must stay in sync with FG_PORTAL_CENTER_Y in packages/sdk/src/gridstream/field.ts.
-        const PORTAL_CENTER_Y = FIELD_CENTER_Y - 50; // = 160
+        const PORTAL_CENTER_Y = isMobileView ? FIELD_CENTER_Y - 25 : FIELD_CENTER_Y - 50; // mobile=185, desktop=160
         const PORTAL_Y_HALF = FG_UPRIGHT_Y_HALF; // keep gate-width consistent
         const GLOW =
           'drop-shadow(0 0 10px rgba(0,229,255,1)) drop-shadow(0 0 28px rgba(0,229,255,0.75)) drop-shadow(0 0 60px rgba(0,229,255,0.4))';
 
+        // FIELD_PERSPECTIVE_PX is in CSS pixels. The SVG viewBox is 0–1000 units wide,
+        // so on desktop (SVG ≈1000 px wide) the ratio is ~1:1. On mobile (SVG ≈380 px)
+        // we must scale up proportionally so the projection math stays in sync with
+        // the actual CSS perspective applied to the underlying 3D field.
+        const perspPx =
+          svgWidthPx > 0 ? FIELD_PERSPECTIVE_PX * (1000 / svgWidthPx) : FIELD_PERSPECTIVE_PX;
+
         function scaleAt(fieldY: number) {
           const relY = fieldY - FIELD_PERSPECTIVE_ORIGIN_Y;
           const z = relY * Math.sin(FIELD_TILT_RAD);
-          return FIELD_PERSPECTIVE_PX / (FIELD_PERSPECTIVE_PX - z);
+          return perspPx / (perspPx - z);
+        }
+
+        function projectPortal(x: number, y: number) {
+          const PERSPECTIVE_ORIGIN_Y_LOCAL = 210; // H/2 = 420/2
+          const relX = x - FIELD_PERSPECTIVE_ORIGIN_X;
+          const relY_fromTransformOrigin = y - FIELD_PERSPECTIVE_ORIGIN_Y;
+          const z = relY_fromTransformOrigin * Math.sin(FIELD_TILT_RAD);
+          const scale = perspPx / (perspPx - z);
+          const rotatedY =
+            FIELD_PERSPECTIVE_ORIGIN_Y + relY_fromTransformOrigin * Math.cos(FIELD_TILT_RAD);
+          return {
+            x: FIELD_PERSPECTIVE_ORIGIN_X + relX * scale,
+            y: PERSPECTIVE_ORIGIN_Y_LOCAL + (rotatedY - PERSPECTIVE_ORIGIN_Y_LOCAL) * scale,
+          };
         }
 
         const portals = PORTAL_VISUAL_X.map((visualX, i) => {
           const farY = PORTAL_CENTER_Y - PORTAL_Y_HALF;
           const nearY = PORTAL_CENTER_Y + PORTAL_Y_HALF;
           // Project base points to screen, then lift off the field surface
-          const bFarBase = projectFieldPointToScreen(visualX, farY);
-          const bNearBase = projectFieldPointToScreen(visualX, nearY);
+          const bFarBase = projectPortal(visualX, farY);
+          const bNearBase = projectPortal(visualX, nearY);
           const bFar = { x: bFarBase.x, y: bFarBase.y - PORTAL_LIFT };
           const bNear = { x: bNearBase.x, y: bNearBase.y - PORTAL_LIFT };
           const tFar = { x: bFar.x, y: bFar.y - PORTAL_3D_H * scaleAt(farY) };
@@ -2077,6 +2189,7 @@ export function FieldVisualization({
 
         return (
           <svg
+            ref={portalSvgRef}
             viewBox="0 0 1000 420"
             style={{
               position: 'absolute',
@@ -2324,18 +2437,27 @@ export function FieldVisualization({
           }}
           aria-hidden="true"
         >
+          {lastPlay && showOverlays && (
+            <FieldHeadshotOverlay markers={overlayHeadshotMarkers} onClickActor={onHeadshotClick} />
+          )}
           {lastPlay && showOverlays && lastPlay.type === 'fieldgoal' && (
-            <OverlayFgArc play={lastPlay} awayAbbr={away.abbr} />
+            <OverlayFgArc
+              play={lastPlay}
+              awayAbbr={away.abbr}
+              perspPx={svgWidthPx > 0 ? FIELD_PERSPECTIVE_PX * (1000 / svgWidthPx) : undefined}
+              portalXOverride={svgWidthPx < 640 ? { away: 38, home: 962 } : undefined}
+              portalCenterYOverride={svgWidthPx < 640 ? FIELD_CENTER_Y - 25 : undefined}
+            />
           )}
           {postTryKickArcPlay && showOverlays && (
             <OverlayFgArc
               play={postTryKickArcPlay}
               awayAbbr={away.abbr}
               delay={postTryKickArcDelay}
+              perspPx={svgWidthPx > 0 ? FIELD_PERSPECTIVE_PX * (1000 / svgWidthPx) : undefined}
+              portalXOverride={svgWidthPx < 640 ? { away: 38, home: 962 } : undefined}
+              portalCenterYOverride={svgWidthPx < 640 ? FIELD_CENTER_Y - 25 : undefined}
             />
-          )}
-          {lastPlay && showOverlays && (
-            <FieldHeadshotOverlay markers={overlayHeadshotMarkers} onClickActor={onHeadshotClick} />
           )}
           {fieldNotice && <OverlayFieldNotice notice={fieldNotice} />}
         </svg>

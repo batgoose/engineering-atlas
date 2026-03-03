@@ -1,18 +1,17 @@
 'use client';
 
-import type { CSSProperties } from 'react';
+import { useState, useEffect, type CSSProperties } from 'react';
 import { weekLabel, isPostseasonWeek } from '@atlas/sdk/gridstream/api-transforms';
 import { gridstreamColors as C, gridstreamFonts as F } from '@atlas/sdk/gridstream/theme';
 
 const FIRST_SEASON = 1999;
 const LAST_SEASON = 2025;
-const REG_WEEKS = 18;
 
 const POSTSEASON_WEEKS = [
-  { week: 19, label: 'Wild Card' },
-  { week: 20, label: 'Divisional' },
-  { week: 21, label: 'Conf Champs' },
-  { week: 22, label: 'Super Bowl' },
+  { week: 19, label: 'Wild Card', shortLabel: 'WC' },
+  { week: 20, label: 'Divisional', shortLabel: 'DIV' },
+  { week: 21, label: 'Conf Champs', shortLabel: 'CONF' },
+  { week: 22, label: 'Super Bowl', shortLabel: 'SB' },
 ];
 
 interface WeekBrowserProps {
@@ -29,16 +28,36 @@ export function WeekBrowser({
   neutralSelection = false,
 }: WeekBrowserProps) {
   const isPost = isPostseasonWeek(week);
-  const currentRegWeek = isPost ? REG_WEEKS : week;
+  const maxRegWeek = season >= 2021 ? 18 : 17;
+  const currentRegWeek = isPost ? maxRegWeek : week;
+
+  const [isMobile, setIsMobile] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 639px)');
+    setIsMobile(mq.matches);
+    const handler = (e: MediaQueryListEvent) => setIsMobile(e.matches);
+    mq.addEventListener('change', handler);
+    return () => mq.removeEventListener('change', handler);
+  }, []);
 
   function prevWeek() {
-    if (week > 1) onChange(season, week - 1);
-    else if (season > FIRST_SEASON) onChange(season - 1, 22);
+    if (week > 1) {
+      const prev = week - 1;
+      // Skip week 18 for pre-2021 seasons (only 17-game regular seasons)
+      onChange(season, prev === 18 && season < 2021 ? 17 : prev);
+    } else if (season > FIRST_SEASON) {
+      onChange(season - 1, 22);
+    }
   }
 
   function nextWeek() {
-    if (week < 22) onChange(season, week + 1);
-    else if (season < LAST_SEASON) onChange(season + 1, 1);
+    if (week < 22) {
+      const next = week + 1;
+      // Skip week 18 for pre-2021 seasons
+      onChange(season, next === 18 && season < 2021 ? 19 : next);
+    } else if (season < LAST_SEASON) {
+      onChange(season + 1, 1);
+    }
   }
 
   const seasons = [];
@@ -110,127 +129,252 @@ export function WeekBrowser({
           </div>
         </div>
 
-        {/* Unified controls row: regular + postseason */}
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 10,
-            flexWrap: 'wrap',
-          }}
-        >
-          <button onClick={prevWeek} style={navBtnStyle} aria-label="Previous week">
-            ◀
-          </button>
-          <div
-            style={{
-              display: 'flex',
-              gap: 6,
-              overflowX: 'auto',
-              maxWidth: 'clamp(220px, 40vw, 460px)',
-              border: `1px solid rgba(0,229,255,0.18)`,
-              background: 'rgba(0,229,255,0.03)',
-              padding: '4px 6px',
-              borderRadius: 4,
-            }}
-          >
-            {weekWindow(currentRegWeek, REG_WEEKS).map((w) => {
-              const active = !neutralSelection && !isPost && week === w;
-              return (
-                <button
-                  key={w}
-                  onClick={() => onChange(season, w)}
-                  style={{
-                    fontFamily: F.mono,
-                    fontSize: 12,
-                    fontWeight: 700,
-                    padding: '7px 12px',
-                    background: active ? 'rgba(0,229,255,0.16)' : 'rgba(0,229,255,0.03)',
-                    border: `1px solid ${active ? C.cyan : C.panelBorder}`,
-                    color: active ? C.cyan : C.textDim,
-                    cursor: 'pointer',
-                    transition: 'all 0.15s',
-                    flexShrink: 0,
-                    minWidth: 40,
-                    textAlign: 'center',
-                    letterSpacing: '0.06em',
-                    borderRadius: 4,
-                    ...(active && { textShadow: `0 0 8px ${C.cyan}66` }),
-                  }}
-                >
-                  {w}
-                </button>
-              );
-            })}
+        {/* Controls */}
+        {isMobile ? (
+          /* ── Mobile: single scrollable row with reg + postseason ── */
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'nowrap' }}>
+            <button onClick={prevWeek} style={navBtnStyle} aria-label="Previous week">
+              ◀
+            </button>
+            <div
+              style={{
+                display: 'flex',
+                gap: 6,
+                overflowX: 'auto',
+                flex: '1 1 0',
+                minWidth: 0,
+                border: `1px solid rgba(0,229,255,0.18)`,
+                background: 'rgba(0,229,255,0.03)',
+                padding: '4px 6px',
+                borderRadius: 4,
+              }}
+            >
+              {weekWindow(currentRegWeek, maxRegWeek).map((w) => {
+                const active = !neutralSelection && !isPost && week === w;
+                return (
+                  <button
+                    key={w}
+                    onClick={() => onChange(season, w)}
+                    style={{
+                      fontFamily: F.mono,
+                      fontSize: 12,
+                      fontWeight: 700,
+                      padding: '7px 10px',
+                      background: active ? 'rgba(0,229,255,0.16)' : 'rgba(0,229,255,0.03)',
+                      border: `1px solid ${active ? C.cyan : C.panelBorder}`,
+                      color: active ? C.cyan : C.textDim,
+                      cursor: 'pointer',
+                      transition: 'all 0.15s',
+                      flexShrink: 0,
+                      minWidth: 36,
+                      textAlign: 'center',
+                      letterSpacing: '0.06em',
+                      borderRadius: 4,
+                      ...(active && { textShadow: `0 0 8px ${C.cyan}66` }),
+                    }}
+                  >
+                    {w}
+                  </button>
+                );
+              })}
+              {/* Separator */}
+              <div
+                style={{
+                  width: 1,
+                  alignSelf: 'stretch',
+                  background: 'rgba(0,229,255,0.15)',
+                  flexShrink: 0,
+                  margin: '2px 2px',
+                }}
+              />
+              {POSTSEASON_WEEKS.map(({ week: w, shortLabel }) => {
+                const active = !neutralSelection && week === w;
+                return (
+                  <button
+                    key={w}
+                    onClick={() => onChange(season, w)}
+                    style={{
+                      fontFamily: F.display,
+                      fontSize: 10,
+                      fontWeight: 600,
+                      letterSpacing: '0.06em',
+                      padding: '7px 8px',
+                      background: active ? 'rgba(0,229,255,0.14)' : 'rgba(0,229,255,0.03)',
+                      border: `1px solid ${active ? C.cyan : C.panelBorder}`,
+                      color: active ? C.cyan : C.textDim,
+                      cursor: 'pointer',
+                      transition: 'all 0.15s',
+                      flexShrink: 0,
+                      borderRadius: 4,
+                      whiteSpace: 'nowrap',
+                      ...(active && { textShadow: `0 0 8px ${C.cyan}66` }),
+                    }}
+                  >
+                    {shortLabel}
+                  </button>
+                );
+              })}
+            </div>
+            <button onClick={nextWeek} style={navBtnStyle} aria-label="Next week">
+              ▶
+            </button>
+            <select
+              value={season}
+              onChange={(e) => {
+                const newSeason = Number(e.target.value);
+                const clipped = Math.min(Math.max(week, 1), 22);
+                const adjusted = clipped === 18 && newSeason < 2021 ? 17 : clipped;
+                onChange(newSeason, adjusted);
+              }}
+              style={{
+                fontFamily: F.display,
+                fontSize: 10,
+                fontWeight: 700,
+                color: C.textBright,
+                background: 'rgba(0,229,255,0.08)',
+                border: `1px solid ${C.panelBorder}`,
+                borderRadius: 5,
+                minHeight: 34,
+                padding: '7px 8px',
+                outline: 'none',
+                cursor: 'pointer',
+                letterSpacing: '0.06em',
+                flexShrink: 0,
+              }}
+            >
+              {seasons.map((y) => (
+                <option key={y} value={y} style={{ background: C.panel }}>
+                  {y}
+                </option>
+              ))}
+            </select>
           </div>
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 6,
-              flexWrap: 'wrap',
-              border: `1px solid rgba(0,229,255,0.18)`,
-              background: 'rgba(0,229,255,0.03)',
-              padding: '4px 6px',
-              borderRadius: 4,
-            }}
-          >
-            {POSTSEASON_WEEKS.map(({ week: w, label }) => {
-              const active = !neutralSelection && week === w;
-              return (
-                <button
-                  key={w}
-                  onClick={() => onChange(season, w)}
-                  style={{
-                    fontFamily: F.display,
-                    fontSize: 11,
-                    fontWeight: 600,
-                    letterSpacing: '0.1em',
-                    padding: '8px 12px',
-                    background: active ? 'rgba(0,229,255,0.14)' : 'rgba(0,229,255,0.03)',
-                    border: `1px solid ${active ? C.cyan : C.panelBorder}`,
-                    color: active ? C.cyan : C.textDim,
-                    cursor: 'pointer',
-                    transition: 'all 0.15s',
-                    borderRadius: 4,
-                    ...(active && { textShadow: `0 0 8px ${C.cyan}66` }),
-                  }}
-                >
-                  {label.toUpperCase()}
-                </button>
-              );
-            })}
+        ) : (
+          /* ── Desktop: two rows ── */
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {/* Row 1: regular-season navigation */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'nowrap' }}>
+              <button onClick={prevWeek} style={navBtnStyle} aria-label="Previous week">
+                ◀
+              </button>
+              <div
+                style={{
+                  display: 'flex',
+                  gap: 6,
+                  overflowX: 'auto',
+                  flex: '0 1 auto',
+                  border: `1px solid rgba(0,229,255,0.18)`,
+                  background: 'rgba(0,229,255,0.03)',
+                  padding: '4px 6px',
+                  borderRadius: 4,
+                }}
+              >
+                {weekWindow(currentRegWeek, maxRegWeek).map((w) => {
+                  const active = !neutralSelection && !isPost && week === w;
+                  return (
+                    <button
+                      key={w}
+                      onClick={() => onChange(season, w)}
+                      style={{
+                        fontFamily: F.mono,
+                        fontSize: 12,
+                        fontWeight: 700,
+                        padding: '7px 12px',
+                        background: active ? 'rgba(0,229,255,0.16)' : 'rgba(0,229,255,0.03)',
+                        border: `1px solid ${active ? C.cyan : C.panelBorder}`,
+                        color: active ? C.cyan : C.textDim,
+                        cursor: 'pointer',
+                        transition: 'all 0.15s',
+                        flexShrink: 0,
+                        minWidth: 40,
+                        textAlign: 'center',
+                        letterSpacing: '0.06em',
+                        borderRadius: 4,
+                        ...(active && { textShadow: `0 0 8px ${C.cyan}66` }),
+                      }}
+                    >
+                      {w}
+                    </button>
+                  );
+                })}
+              </div>
+              <button onClick={nextWeek} style={navBtnStyle} aria-label="Next week">
+                ▶
+              </button>
+              <select
+                value={season}
+                onChange={(e) => {
+                  const newSeason = Number(e.target.value);
+                  const clipped = Math.min(Math.max(week, 1), 22);
+                  const adjusted = clipped === 18 && newSeason < 2021 ? 17 : clipped;
+                  onChange(newSeason, adjusted);
+                }}
+                style={{
+                  fontFamily: F.display,
+                  fontSize: 11,
+                  fontWeight: 700,
+                  color: C.textBright,
+                  background: 'rgba(0,229,255,0.08)',
+                  border: `1px solid ${C.panelBorder}`,
+                  borderRadius: 5,
+                  minHeight: 34,
+                  padding: '7px 12px',
+                  outline: 'none',
+                  cursor: 'pointer',
+                  letterSpacing: '0.08em',
+                  marginLeft: 'auto',
+                  flexShrink: 0,
+                }}
+              >
+                {seasons.map((y) => (
+                  <option key={y} value={y} style={{ background: C.panel }}>
+                    {y} SEASON
+                  </option>
+                ))}
+              </select>
+            </div>
+            {/* Row 2: postseason buttons */}
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+                flexWrap: 'wrap',
+                border: `1px solid rgba(0,229,255,0.18)`,
+                background: 'rgba(0,229,255,0.03)',
+                padding: '4px 6px',
+                borderRadius: 4,
+                alignSelf: 'flex-start',
+              }}
+            >
+              {POSTSEASON_WEEKS.map(({ week: w, label }) => {
+                const active = !neutralSelection && week === w;
+                return (
+                  <button
+                    key={w}
+                    onClick={() => onChange(season, w)}
+                    style={{
+                      fontFamily: F.display,
+                      fontSize: 11,
+                      fontWeight: 600,
+                      letterSpacing: '0.1em',
+                      padding: '8px 12px',
+                      background: active ? 'rgba(0,229,255,0.14)' : 'rgba(0,229,255,0.03)',
+                      border: `1px solid ${active ? C.cyan : C.panelBorder}`,
+                      color: active ? C.cyan : C.textDim,
+                      cursor: 'pointer',
+                      transition: 'all 0.15s',
+                      borderRadius: 4,
+                      ...(active && { textShadow: `0 0 8px ${C.cyan}66` }),
+                    }}
+                  >
+                    {label.toUpperCase()}
+                  </button>
+                );
+              })}
+            </div>
           </div>
-          <button onClick={nextWeek} style={navBtnStyle} aria-label="Next week">
-            ▶
-          </button>
-
-          <select
-            value={season}
-            onChange={(e) => onChange(Number(e.target.value), Math.min(Math.max(week, 1), 22))}
-            style={{
-              fontFamily: F.display,
-              fontSize: 11,
-              fontWeight: 700,
-              color: C.textBright,
-              background: 'rgba(0,229,255,0.08)',
-              border: `1px solid ${C.panelBorder}`,
-              borderRadius: 5,
-              minHeight: 34,
-              padding: '7px 12px',
-              outline: 'none',
-              cursor: 'pointer',
-              letterSpacing: '0.08em',
-              marginLeft: 'auto',
-            }}
-          >
-            {seasons.map((y) => (
-              <option key={y} value={y} style={{ background: C.panel }}>
-                {y} SEASON
-              </option>
-            ))}
-          </select>
-        </div>
+        )}
       </div>
     </div>
   );

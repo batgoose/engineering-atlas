@@ -12,7 +12,7 @@
  * - runtime architecture: docs/gridstream-live-runtime.md
  */
 
-import { useState, useEffect, useCallback, type CSSProperties } from 'react';
+import { useState, useEffect, useCallback, useRef, type CSSProperties } from 'react';
 import { createPortal } from 'react-dom';
 import Link from 'next/link';
 import type { LiveGameState, PlayActorInfo, FantasyRosterEntry } from '@atlas/sdk/gridstream/types';
@@ -366,6 +366,36 @@ export function LiveGameView({
   const [activeTab, setActiveTab] = useState<TabKey>('plays');
   const [elapsed, setElapsed] = useState(0);
   const [statsPanelActor, setStatsPanelActor] = useState<PlayActorInfo | null>(null);
+  const [isMobile, setIsMobile] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 639px)');
+    setIsMobile(mq.matches);
+    const handler = (e: MediaQueryListEvent) => setIsMobile(e.matches);
+    mq.addEventListener('change', handler);
+    return () => mq.removeEventListener('change', handler);
+  }, []);
+
+  const rootRef = useRef<HTMLDivElement | null>(null);
+  // Pause all CSS animations when the page/tab is not visible (reduces GPU load).
+  useEffect(() => {
+    const toggle = () => rootRef.current?.classList.toggle('gs-animations-paused', document.hidden);
+    toggle();
+    document.addEventListener('visibilitychange', toggle);
+    return () => document.removeEventListener('visibilitychange', toggle);
+  }, []);
+
+  const tabScrollRef = useRef<HTMLDivElement | null>(null);
+  const [tabHasMore, setTabHasMore] = useState(false);
+  const checkTabOverflow = useCallback(() => {
+    const el = tabScrollRef.current;
+    if (!el) return;
+    setTabHasMore(el.scrollLeft + el.clientWidth < el.scrollWidth - 4);
+  }, []);
+  useEffect(() => {
+    checkTabOverflow();
+    window.addEventListener('resize', checkTabOverflow);
+    return () => window.removeEventListener('resize', checkTabOverflow);
+  }, [checkTabOverflow]);
 
   // Dismiss stats panel when the play changes.
   useEffect(() => {
@@ -419,33 +449,6 @@ export function LiveGameView({
     };
   })();
 
-  const playProbabilityStrip: { td: number; fg: number } | null = (() => {
-    const play = state.lastPlay;
-    if (!play) return null;
-    const td = normalizePercentLike(play.tdProb);
-    const fg = normalizePercentLike(play.fgProb);
-    if (td == null && fg == null) return null;
-    const tdPct = td ?? 0;
-    const fgPct = fg ?? 0;
-    const isNotable =
-      tdPct >= 15 ||
-      fgPct >= 15 ||
-      Boolean(play.isTouchdown) ||
-      play.type === 'fieldgoal' ||
-      (play.startDown ?? 0) === 4;
-    if (!isNotable) return null;
-    return { td: Math.max(0, tdPct), fg: Math.max(0, fgPct) };
-  })();
-
-  const passModelStrip: { cp: number; cpoe: number } | null = (() => {
-    const play = state.lastPlay;
-    if (!play || play.type !== 'pass') return null;
-    const cp = normalizePercentLike(play.cp);
-    const cpoe = normalizePercentLike(play.cpoe);
-    if (cp == null && cpoe == null) return null;
-    return { cp: cp ?? 0, cpoe: cpoe ?? 0 };
-  })();
-
   useEffect(() => {
     if (!document.querySelector('link[href*="Orbitron"]')) {
       const link = document.createElement('link');
@@ -462,19 +465,37 @@ export function LiveGameView({
     }
   }, []);
 
+  // Pause the uptime ticker when the page is hidden to avoid waking the GPU/CPU.
   useEffect(() => {
-    const t = setInterval(() => setElapsed((e) => e + 1), 1000);
-    return () => clearInterval(t);
+    let t: ReturnType<typeof setInterval> | undefined;
+    const start = () => {
+      t = setInterval(() => setElapsed((e) => e + 1), 1000);
+    };
+    const stop = () => {
+      clearInterval(t);
+      t = undefined;
+    };
+    const onVis = () => {
+      document.hidden ? stop() : start();
+    };
+    if (!document.hidden) start();
+    document.addEventListener('visibilitychange', onVis);
+    return () => {
+      stop();
+      document.removeEventListener('visibilitychange', onVis);
+    };
   }, []);
   const uptime = `${String(Math.floor(elapsed / 60)).padStart(2, '0')}:${String(elapsed % 60).padStart(2, '0')}`;
 
   return (
     <div
+      ref={rootRef}
       style={{
         minHeight: '100vh',
         background: C.bg,
         color: C.text,
         fontFamily: "'Share Tech Mono', monospace",
+        overflowX: 'hidden',
       }}
     >
       {/* TOP NAV */}
@@ -489,12 +510,12 @@ export function LiveGameView({
           borderBottom: `1px solid ${C.panelBorder}`,
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: 20 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? 10 : 20 }}>
           <span
             style={{
               fontFamily: F.display,
               fontWeight: 800,
-              fontSize: 15,
+              fontSize: isMobile ? 13 : 15,
               color: C.cyan,
               letterSpacing: '.14em',
               textShadow: `0 0 10px ${C.cyanGlow}`,
@@ -502,7 +523,7 @@ export function LiveGameView({
           >
             GRIDSTREAM
           </span>
-          <div style={{ width: 1, height: 20, background: C.panelBorder }} />
+          {!isMobile && <div style={{ width: 1, height: 20, background: C.panelBorder }} />}
           <Link
             href="/gridstream/games"
             style={{
@@ -517,24 +538,28 @@ export function LiveGameView({
           >
             ◂ GAMES
           </Link>
-          <span
-            style={{
-              fontFamily: F.display,
-              fontSize: 10,
-              fontWeight: 500,
-              letterSpacing: '.12em',
-              color: C.textDim,
-            }}
-          >
-            {week ? `WEEK ${week}` : ''} · {season || new Date().getFullYear()}
-          </span>
+          {!isMobile && (
+            <span
+              style={{
+                fontFamily: F.display,
+                fontSize: 10,
+                fontWeight: 500,
+                letterSpacing: '.12em',
+                color: C.textDim,
+              }}
+            >
+              {week ? `WEEK ${week}` : ''} · {season || new Date().getFullYear()}
+            </span>
+          )}
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 20 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? 10 : 20 }}>
           <StatusDot label="FEED" color={feedConnected ? C.green : C.red} />
           <StatusDot label="WS" color={wsConnected ? C.green : C.red} />
-          <span style={{ fontSize: 10, color: C.textMuted, letterSpacing: '.08em' }}>
-            SESSION {uptime}
-          </span>
+          {!isMobile && (
+            <span style={{ fontSize: 10, color: C.textMuted, letterSpacing: '.08em' }}>
+              SESSION {uptime}
+            </span>
+          )}
         </div>
       </div>
 
@@ -542,7 +567,7 @@ export function LiveGameView({
         style={{
           maxWidth: 1280,
           margin: '0 auto',
-          padding: '16px 24px 60px',
+          padding: isMobile ? '10px 10px 60px' : '16px 24px 60px',
           display: 'flex',
           flexDirection: 'column',
           gap: 14,
@@ -557,7 +582,13 @@ export function LiveGameView({
           <div className="scan-sweep" />
 
           {/* Score Bug */}
-          <div style={{ padding: '16px 32px 0', position: 'relative', zIndex: 3 }}>
+          <div
+            style={{
+              padding: isMobile ? '10px 10px 0' : '16px 32px 0',
+              position: 'relative',
+              zIndex: 3,
+            }}
+          >
             <ScoreBug
               away={state.away}
               home={state.home}
@@ -635,6 +666,8 @@ export function LiveGameView({
                   border: `1px solid ${C.amberBorder}`,
                   opacity: 0,
                   animation: 'fadeIn 0.2s ease 0.15s forwards',
+                  maxWidth: '100%',
+                  overflow: 'hidden',
                 }}
               >
                 <span
@@ -688,6 +721,10 @@ export function LiveGameView({
                     fontWeight: 700,
                     letterSpacing: '.06em',
                     color: C.textBright,
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                    minWidth: 0,
                   }}
                 >
                   {penaltyStrip.type}
@@ -740,124 +777,12 @@ export function LiveGameView({
                 )}
               </div>
             )}
-
-            {playProbabilityStrip && (
-              <div
-                style={{
-                  marginTop: 4,
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 7,
-                  padding: '3px 12px',
-                  background: 'rgba(2, 14, 22, 0.86)',
-                  border: `1px solid ${C.panelBorder}`,
-                  opacity: 0,
-                  animation: 'fadeIn 0.2s ease 0.18s forwards',
-                }}
-              >
-                <span
-                  style={{
-                    fontFamily: F.display,
-                    fontSize: 9,
-                    fontWeight: 700,
-                    letterSpacing: '.14em',
-                    color: C.cyan,
-                  }}
-                >
-                  PRE-SNAP MODEL
-                </span>
-                <span
-                  style={{
-                    width: 1,
-                    height: 10,
-                    background: C.panelBorder,
-                    opacity: 0.7,
-                    flexShrink: 0,
-                  }}
-                />
-                <span
-                  style={{
-                    fontFamily: F.mono,
-                    fontSize: 10,
-                    color: C.textDim,
-                    letterSpacing: '.05em',
-                  }}
-                >
-                  TD {playProbabilityStrip.td.toFixed(1)}%
-                </span>
-                <span
-                  style={{
-                    fontFamily: F.mono,
-                    fontSize: 10,
-                    color: C.textDim,
-                    letterSpacing: '.05em',
-                  }}
-                >
-                  FG {playProbabilityStrip.fg.toFixed(1)}%
-                </span>
-              </div>
-            )}
-
-            {passModelStrip && (
-              <div
-                style={{
-                  marginTop: 4,
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 7,
-                  padding: '3px 12px',
-                  background: 'rgba(1, 18, 10, 0.8)',
-                  border: `1px solid rgba(0,255,170,.25)`,
-                  opacity: 0,
-                  animation: 'fadeIn 0.2s ease 0.2s forwards',
-                }}
-              >
-                <span
-                  style={{
-                    fontFamily: F.display,
-                    fontSize: 9,
-                    fontWeight: 700,
-                    letterSpacing: '.14em',
-                    color: C.green,
-                  }}
-                >
-                  PASS MODEL
-                </span>
-                <span
-                  style={{
-                    width: 1,
-                    height: 10,
-                    background: 'rgba(0,255,170,.25)',
-                    opacity: 0.8,
-                    flexShrink: 0,
-                  }}
-                />
-                <span
-                  style={{
-                    fontFamily: F.mono,
-                    fontSize: 10,
-                    color: C.textDim,
-                    letterSpacing: '.05em',
-                  }}
-                >
-                  CP {passModelStrip.cp.toFixed(1)}%
-                </span>
-                <span
-                  style={{
-                    fontFamily: F.mono,
-                    fontSize: 10,
-                    color: passModelStrip.cpoe >= 0 ? C.green : C.red,
-                    letterSpacing: '.05em',
-                  }}
-                >
-                  CPOE {formatSignedPercent(passModelStrip.cpoe)}
-                </span>
-              </div>
-            )}
           </div>
 
           {/* THE FIELD — marginTop extended by 28px (event strip height) to keep field position stable */}
-          <div style={{ position: 'relative', padding: '0 8px 6px', marginTop: -60 }}>
+          <div
+            style={{ position: 'relative', padding: '0 8px 6px', marginTop: isMobile ? -20 : -60 }}
+          >
             {/* Weather on field wrapper so it clips */}
             <WeatherOverlay weather={state.weather} venue={state.venue} />
 
@@ -925,25 +850,7 @@ export function LiveGameView({
           </div>
 
           {/* Controls row: Drive (left) | Playback (center) | Environment (right) */}
-          <div
-            style={{
-              position: 'relative',
-              display: 'grid',
-              gridTemplateColumns: '1fr auto 1fr',
-              alignItems: 'start',
-              padding: '0 20px',
-            }}
-          >
-            <div style={{ paddingTop: 4, paddingLeft: 4 }}>
-              {state.currentDrive && (
-                <div style={{ display: 'inline-block' }}>
-                  <DriveTracker
-                    drive={state.currentDrive}
-                    possessionTeam={state.situation.possessionTeam}
-                  />
-                </div>
-              )}
-            </div>
+          {isMobile ? (
             <PlaybackControls
               gameId={state.gameId}
               currentPlayIndex={state.playIndex}
@@ -957,18 +864,54 @@ export function LiveGameView({
               isFinalGame={isGameFinal}
               currentPlaySequence={currentPlaySequence}
             />
-            <div style={{ display: 'flex', justifyContent: 'flex-end', paddingTop: 4 }}>
-              <EnvironmentPanel
-                weather={state.weather}
-                attendance={state.attendance}
-                referee={state.referee}
-                officials={state.officials}
+          ) : (
+            <div
+              style={{
+                position: 'relative',
+                display: 'grid',
+                gridTemplateColumns: '1fr auto 1fr',
+                alignItems: 'start',
+                padding: '0 20px',
+              }}
+            >
+              <div style={{ paddingTop: 4, paddingLeft: 4 }}>
+                {state.currentDrive && (
+                  <div style={{ display: 'inline-block' }}>
+                    <DriveTracker
+                      drive={state.currentDrive}
+                      possessionTeam={state.situation.possessionTeam}
+                    />
+                  </div>
+                )}
+              </div>
+              <PlaybackControls
+                gameId={state.gameId}
+                currentPlayIndex={state.playIndex}
+                totalPlays={state.playHistoryLength}
+                quarterJumps={quarterJumps}
+                onPrev={onPrev}
+                onReplay={onReplay}
+                onNext={onNext}
+                onEnd={onEnd}
+                onJumpToPlayIndex={onJumpToPlayIndex}
+                isFinalGame={isGameFinal}
+                currentPlaySequence={currentPlaySequence}
               />
+              <div style={{ display: 'flex', justifyContent: 'flex-end', paddingTop: 4 }}>
+                <EnvironmentPanel
+                  weather={state.weather}
+                  attendance={state.attendance}
+                  referee={state.referee}
+                  officials={state.officials}
+                />
+              </div>
             </div>
-          </div>
+          )}
 
           {/* Score Table inside viewport */}
-          <div style={{ position: 'relative', padding: '10px 20px 16px' }}>
+          <div
+            style={{ position: 'relative', padding: isMobile ? '8px 8px 12px' : '10px 20px 16px' }}
+          >
             <ScoreboardTable
               away={state.away}
               home={state.home}
@@ -983,32 +926,52 @@ export function LiveGameView({
 
         {/* TABS */}
         <div>
-          <div style={{ display: 'flex', alignItems: 'stretch', gap: 0 }}>
-            <div
-              style={{
-                fontFamily: 'var(--gs-font-mono)',
-                fontSize: 8,
-                color: 'var(--gs-text-muted)',
-                letterSpacing: '0.12em',
-                padding: '0 10px',
-                display: 'flex',
-                alignItems: 'center',
-                borderBottom: '1px solid var(--gs-panel-border)',
-                opacity: 0.6,
-                whiteSpace: 'nowrap',
-              }}
-            >
-              SYS /
-            </div>
-            {TABS.map(({ key, label }) => (
-              <button
-                key={key}
-                className={`tab-btn ${activeTab === key ? 'active' : ''}`}
-                onClick={() => setActiveTab(key)}
+          <div style={{ position: 'relative' }}>
+            <div ref={tabScrollRef} onScroll={checkTabOverflow} style={{ overflowX: 'auto' }}>
+              <div
+                style={{ display: 'flex', alignItems: 'stretch', gap: 0, minWidth: 'max-content' }}
               >
-                {label}
-              </button>
-            ))}
+                <div
+                  style={{
+                    fontFamily: 'var(--gs-font-mono)',
+                    fontSize: 8,
+                    color: 'var(--gs-text-muted)',
+                    letterSpacing: '0.12em',
+                    padding: '0 10px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    borderBottom: '1px solid var(--gs-panel-border)',
+                    opacity: 0.6,
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  SYS /
+                </div>
+                {TABS.map(({ key, label }) => (
+                  <button
+                    key={key}
+                    className={`tab-btn ${activeTab === key ? 'active' : ''}`}
+                    onClick={() => setActiveTab(key)}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
+            {tabHasMore && (
+              <div
+                style={{
+                  position: 'absolute',
+                  right: 0,
+                  top: 0,
+                  bottom: 0,
+                  width: 48,
+                  background: 'linear-gradient(to right, transparent, rgba(4,16,29,0.95))',
+                  pointerEvents: 'none',
+                  zIndex: 2,
+                }}
+              />
+            )}
           </div>
           <div className="hud-panel" style={{ borderTopLeftRadius: 0, minHeight: 320 }}>
             {activeTab === 'plays' && <MissionLog plays={state.plays} />}
@@ -1142,13 +1105,13 @@ function PlaybackControls({
 
   const navButtonStyle = (active = false, disabled = false): CSSProperties => ({
     fontFamily: F.display,
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: 700,
-    letterSpacing: '.1em',
+    letterSpacing: '.08em',
     textTransform: 'uppercase',
-    minWidth: 98,
+    minWidth: 74,
     height: 34,
-    padding: '0 14px',
+    padding: '0 10px',
     background: active ? 'rgba(255,182,18,.16)' : 'rgba(255,182,18,.06)',
     border: `1px solid ${active ? C.amber : C.amberBorder}`,
     color: active ? C.amber : C.textBright,
@@ -1174,10 +1137,10 @@ function PlaybackControls({
 
   const shareButtonStyle = (active = false, disabled = false): CSSProperties => ({
     ...navButtonStyle(active, disabled),
-    minWidth: 52,
-    width: 52,
+    minWidth: 40,
+    width: 40,
     padding: 0,
-    fontSize: 20,
+    fontSize: 18,
     letterSpacing: 0,
     textTransform: 'none',
     fontFamily: 'system-ui, sans-serif',

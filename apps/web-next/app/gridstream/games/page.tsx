@@ -15,7 +15,11 @@ import { gameStatusDisplay, resolveGridstreamApiBase } from '@atlas/sdk/gridstre
 import { gridstreamColors as C } from '@atlas/sdk/gridstream/theme';
 import { StarField } from '@/components/gridstream/StarField';
 import { WeekBrowser } from '@/components/gridstream/WeekBrowser';
-import { GameCard, type GameCardInjurySummary } from '@/components/gridstream/GameCard';
+import {
+  GameCard,
+  type GameCardInjurySummary,
+  type InjuryFlag,
+} from '@/components/gridstream/GameCard';
 
 const API_BASE = resolveGridstreamApiBase(
   process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000/api/gridstream'
@@ -26,8 +30,28 @@ const DEFAULT_WEEK = 22;
 const MAX_LEADER_BACKFILL_REQUESTS = 20;
 const MAX_INJURY_BACKFILL_REQUESTS = 24;
 const REQUIRED_LEADER_CATEGORIES = ['passing', 'rushing', 'receiving'] as const;
-const UI_POSTSEASON_WEEK_TO_API_WEEK: Record<number, number> = { 19: 1, 20: 2, 21: 3, 22: 5 };
-const API_POSTSEASON_WEEK_TO_UI_WEEK: Record<number, number> = { 1: 19, 2: 20, 3: 21, 5: 22 };
+// 1999: postseason stored as wk18-21 (WC/Div/Conf/SB) — nflverse offset convention.
+// 2001-2008: Super Bowl stored at wk4 (not wk5).
+// All other seasons: WC=1, Div=2, Conf=3, SB=5.
+function uiWeekToApiWeek(uiWeek: number, season: number): number {
+  if (season === 1999) {
+    const map: Record<number, number> = { 19: 18, 20: 19, 21: 20, 22: 21 };
+    return map[uiWeek] ?? uiWeek;
+  }
+  const sbApiWeek = season >= 2001 && season <= 2008 ? 4 : 5;
+  const map: Record<number, number> = { 19: 1, 20: 2, 21: 3, 22: sbApiWeek };
+  return map[uiWeek] ?? uiWeek;
+}
+
+function apiWeekToUiWeek(apiWeek: number, season: number): number {
+  if (season === 1999) {
+    const map: Record<number, number> = { 18: 19, 19: 20, 20: 21, 21: 22 };
+    return map[apiWeek] ?? apiWeek;
+  }
+  if (season >= 2001 && season <= 2008 && apiWeek === 4) return 22;
+  const map: Record<number, number> = { 1: 19, 2: 20, 3: 21, 5: 22 };
+  return map[apiWeek] ?? apiWeek;
+}
 
 interface ApiStandingRow {
   team?: {
@@ -41,6 +65,7 @@ interface ApiGameInjuryRow {
   player_name?: string | null;
   status?: string | null;
   game_day_availability?: string | null;
+  description?: string | null;
 }
 
 interface ApiGameDetailForInjuries {
@@ -291,10 +316,16 @@ function injurySeverity(status: string): number {
   return 2;
 }
 
+const NAME_SUFFIXES = new Set(['jr', 'sr', 'ii', 'iii', 'iv', 'v']);
 function injuryDisplayName(name: string | null | undefined): string {
   const trimmed = (name ?? '').trim();
   if (!trimmed) return 'Unknown';
   const parts = trimmed.split(/\s+/);
+  // Walk back from the end to skip trailing suffixes like Jr., Sr., II, III
+  for (let i = parts.length - 1; i >= 0; i--) {
+    const token = (parts[i] ?? '').replace(/\.$/, '').toLowerCase();
+    if (!NAME_SUFFIXES.has(token)) return parts[i] ?? trimmed;
+  }
   return parts[parts.length - 1] ?? trimmed;
 }
 
@@ -302,7 +333,7 @@ function buildTeamInjurySummary(
   rows: ApiGameInjuryRow[],
   teamAbbr: string,
   qbName: string | null | undefined
-): { flags: string[]; count: number } {
+): { flags: InjuryFlag[]; count: number } {
   const teamRows = rows
     .filter((row) => (row.team_abbr ?? '').toUpperCase().trim() === teamAbbr)
     .map((row) => ({ row, status: injuryStatusLabel(row) }))
@@ -316,23 +347,30 @@ function buildTeamInjurySummary(
     ? teamRows.find((entry) => normalizeNameKey(entry.row.player_name) === qbKey)
     : undefined;
 
-  const flags: string[] = [];
+  const flags: InjuryFlag[] = [];
   if (qbMatch) {
-    flags.push(`QB ${injuryStatusCode(qbMatch.status)}`);
+    flags.push({
+      name: 'QB',
+      description: (qbMatch.row.description ?? '').trim(),
+      code: injuryStatusCode(qbMatch.status),
+    });
   }
 
   const sortedRows = [...teamRows].sort(
     (a, b) => injurySeverity(b.status) - injurySeverity(a.status)
   );
   for (const entry of sortedRows) {
-    if (flags.length >= 2) break;
     if (
       qbMatch &&
       normalizeNameKey(entry.row.player_name) === normalizeNameKey(qbMatch.row.player_name)
     ) {
       continue;
     }
-    flags.push(`${injuryDisplayName(entry.row.player_name)} ${injuryStatusCode(entry.status)}`);
+    flags.push({
+      name: injuryDisplayName(entry.row.player_name),
+      description: (entry.row.description ?? '').trim(),
+      code: injuryStatusCode(entry.status),
+    });
   }
 
   return { flags, count: teamRows.length };
@@ -632,7 +670,7 @@ export default function GamesPage() {
     if (teamFilter === 'all') {
       if (week >= 19) {
         params.set('season_type', 'POST');
-        params.set('week', String(UI_POSTSEASON_WEEK_TO_API_WEEK[week] ?? week));
+        params.set('week', String(uiWeekToApiWeek(week, season)));
       } else {
         params.set('season_type', 'REG');
         params.set('week', String(week));
@@ -651,9 +689,7 @@ export default function GamesPage() {
         // DRF pagination wrapper or bare array
         const results: ApiGameListItem[] = Array.isArray(data) ? data : (data.results ?? []);
         const normalized = results.map((game) =>
-          game.season_type === 'POST'
-            ? { ...game, week: API_POSTSEASON_WEEK_TO_UI_WEEK[game.week] ?? game.week }
-            : game
+          game.season_type === 'POST' ? { ...game, week: apiWeekToUiWeek(game.week, season) } : game
         );
         setGames(normalized);
       })
@@ -964,7 +1000,15 @@ export default function GamesPage() {
                   flexWrap: 'wrap',
                 }}
               >
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 8,
+                    flexWrap: 'nowrap',
+                    minWidth: 0,
+                  }}
+                >
                   <select
                     value={statusFilter}
                     onChange={(e) =>
@@ -1225,7 +1269,8 @@ const filterSelectStyle: CSSProperties = {
 
 const teamMenuWrapStyle: CSSProperties = {
   position: 'relative',
-  minWidth: 250,
+  flex: '1 1 auto',
+  minWidth: 0,
 };
 
 const teamMenuToggleStyle: CSSProperties = {

@@ -289,3 +289,127 @@
   background: rgba(255, 182, 18, 0.12);
   border-color: var(--gs-amber);
 }
+
+/* ── Injury flag popup ────────────────────────────────────────────
+ *
+ * .game-card-injury — trigger element (inline label + ↗ symbol).
+ * .game-card-injury--home — right-aligns the popup.
+ * .game-card-injury-popup — absolutely positioned hover card.
+ */
+
+.game-card-injury {
+  position: relative;
+  display: inline-block;
+  cursor: default;
+}
+
+.game-card-injury-popup {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  top: auto;
+  left: 0;
+  z-index: 200;
+  width: 200px;
+  background: #091624;
+  border: 1px solid rgba(0, 229, 255, 0.22);
+  border-radius: 6px;
+  padding: 10px 12px 12px;
+  box-shadow:
+    0 8px 32px rgba(0, 0, 0, 0.65),
+    0 0 0 1px rgba(0, 229, 255, 0.06);
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition:
+    opacity 0.15s ease,
+    visibility 0.15s ease;
+}
+
+.game-card-injury--home .game-card-injury-popup {
+  left: auto;
+  right: 0;
+}
+
+.game-card-injury:hover .game-card-injury-popup,
+.game-card-injury-popup--open {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+}
+
+.game-card-injury-popup-title {
+  font-family: var(--gs-font-display);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  color: var(--gs-amber);
+  text-transform: uppercase;
+  padding-bottom: 7px;
+  margin-bottom: 4px;
+  border-bottom: 1px solid rgba(0, 229, 255, 0.12);
+}
+
+.game-card-injury-popup-flag {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  padding: 4px 0;
+  border-bottom: 1px solid rgba(0, 229, 255, 0.05);
+}
+
+.game-card-injury-popup-flag:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.game-card-injury-popup-flag-name {
+  font-family: var(--gs-font-mono);
+  font-size: 12px;
+  color: var(--gs-text);
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.game-card-injury-popup-flag-detail {
+  font-family: var(--gs-font-mono);
+  font-size: 10px;
+  color: var(--gs-text-dim);
+  flex: 0 1 auto;
+  white-space: nowrap;
+}
+
+.game-card-injury-popup-flag-code {
+  font-family: var(--gs-font-display);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  flex-shrink: 0;
+  margin-left: auto;
+}
+
+/* ── Visibility-based animation pause ─────────────────────────────
+ *
+ * .gs-animations-paused — applied to the root container when the page/tab
+ * is hidden. Stops all CSS keyframe animations (including pseudo-elements)
+ * to prevent continuous GPU compositing in the background.
+ */
+
+.gs-animations-paused *,
+.gs-animations-paused *::before,
+.gs-animations-paused *::after {
+  animation-play-state: paused !important;
+}
+
+/* ── Mobile responsive overrides (≤ 639px) ──────────────────────── */
+
+@media (max-width: 639px) {
+  .tab-btn {
+    padding: 10px 11px;
+    font-size: 9px;
+    letter-spacing: 0.08em;
+  }
+
+  .tab-btn::before {
+    display: none;
+  }
+}

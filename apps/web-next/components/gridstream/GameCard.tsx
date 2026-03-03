@@ -10,9 +10,15 @@ import {
 } from '@atlas/sdk/gridstream/api-transforms';
 import { gridstreamColors as C, gridstreamFonts as F } from '@atlas/sdk/gridstream/theme';
 
+export interface InjuryFlag {
+  name: string;
+  description: string;
+  code: string;
+}
+
 export interface GameCardInjurySummary {
-  awayFlags: string[];
-  homeFlags: string[];
+  awayFlags: InjuryFlag[];
+  homeFlags: InjuryFlag[];
   awayCount: number;
   homeCount: number;
 }
@@ -26,6 +32,14 @@ interface GameCardProps {
   homeSeed?: number | null;
   injurySummary?: GameCardInjurySummary;
   onClick: () => void;
+}
+
+function injuryCodeColor(code: string): string {
+  if (code === 'OUT' || code === 'IR') return '#ff5f6b';
+  if (code === 'D') return '#ff9944';
+  if (code === 'Q') return '#ffb612';
+  if (code === 'P') return '#8cd867';
+  return '#5a7a90';
 }
 
 const LEADER_ROWS = [
@@ -72,7 +86,7 @@ function TeamLogo({
   return (
     <div
       style={{
-        width: compact ? 'clamp(48px, 13vw, 68px)' : 'clamp(56px, 16vw, 84px)',
+        width: compact ? 'clamp(36px, 9vw, 68px)' : 'clamp(40px, 10vw, 84px)',
         display: 'flex',
         justifyContent: align === 'left' ? 'flex-start' : 'flex-end',
       }}
@@ -95,8 +109,8 @@ function TeamLogo({
             setImgSrc('');
           }}
           style={{
-            width: compact ? 'clamp(44px, 12vw, 64px)' : 'clamp(52px, 14vw, 76px)',
-            height: compact ? 'clamp(44px, 12vw, 64px)' : 'clamp(52px, 14vw, 76px)',
+            width: compact ? 'clamp(32px, 8vw, 64px)' : 'clamp(36px, 9vw, 76px)',
+            height: compact ? 'clamp(32px, 8vw, 64px)' : 'clamp(36px, 9vw, 76px)',
             objectFit: 'contain',
             display: 'block',
             filter: isWinner
@@ -111,8 +125,8 @@ function TeamLogo({
       ) : (
         <div
           style={{
-            width: compact ? 'clamp(44px, 12vw, 64px)' : 'clamp(52px, 14vw, 76px)',
-            height: compact ? 'clamp(44px, 12vw, 64px)' : 'clamp(52px, 14vw, 76px)',
+            width: compact ? 'clamp(32px, 8vw, 64px)' : 'clamp(36px, 9vw, 76px)',
+            height: compact ? 'clamp(32px, 8vw, 64px)' : 'clamp(36px, 9vw, 76px)',
             borderRadius: '50%',
             background: teamColor,
             opacity: isLoser ? 0.22 : 0.35,
@@ -275,26 +289,34 @@ function restBadgesByTeam(game: ApiGameListItem): { away: CardBadge[]; home: Car
   const home: CardBadge[] = [];
   const awayRest = game.away_rest;
   const homeRest = game.home_rest;
-  if (awayRest != null && awayRest <= 6) {
-    away.push({
-      label: `SHORT WK ${game.away_team_detail.abbreviation} ${awayRest}D`,
-      tone: 'amber',
-    });
+  const awayAbbr = game.away_team_detail.abbreviation;
+  const homeAbbr = game.home_team_detail.abbreviation;
+
+  const awayShort = awayRest != null && awayRest <= 6;
+  const homeShort = homeRest != null && homeRest <= 6;
+
+  if (awayShort && homeShort) {
+    // Both on short week — combine into one badge, skip REST ADV (days shown in badge)
+    const label =
+      awayRest === homeRest
+        ? `BOTH ON SHORT WEEK (${awayRest}d)`
+        : `BOTH ON SHORT WEEK (${awayAbbr} ${awayRest}d, ${homeAbbr} ${homeRest}d)`;
+    away.push({ label, tone: 'amber' });
+  } else {
+    if (awayShort) {
+      away.push({ label: `SHORT WEEK ${awayAbbr} ${awayRest}d`, tone: 'amber' });
+    }
+    if (homeShort) {
+      home.push({ label: `SHORT WEEK ${homeAbbr} ${homeRest}d`, tone: 'amber' });
+    }
+    if (awayRest != null && homeRest != null && awayRest !== homeRest) {
+      const awayHasAdv = awayRest > homeRest;
+      const advTeam = awayHasAdv ? awayAbbr : homeAbbr;
+      const diff = Math.abs(awayRest - homeRest);
+      (awayHasAdv ? away : home).push({ label: `REST ADV ${advTeam} +${diff}d`, tone: 'green' });
+    }
   }
-  if (homeRest != null && homeRest <= 6) {
-    home.push({
-      label: `SHORT WK ${game.home_team_detail.abbreviation} ${homeRest}D`,
-      tone: 'amber',
-    });
-  }
-  if (awayRest != null && homeRest != null && awayRest !== homeRest) {
-    const awayHasAdv = awayRest > homeRest;
-    const advTeam = awayHasAdv
-      ? game.away_team_detail.abbreviation
-      : game.home_team_detail.abbreviation;
-    const diff = Math.abs(awayRest - homeRest);
-    (awayHasAdv ? away : home).push({ label: `REST ADV ${advTeam} +${diff}D`, tone: 'green' });
-  }
+
   return { away: away.slice(0, 2), home: home.slice(0, 2) };
 }
 
@@ -340,6 +362,14 @@ function leaderForTeamCategory(
   category: string
 ): ApiGameLeader | undefined {
   return leaders.find((leader) => leader.team_abbr === teamAbbr && leader.category === category);
+}
+
+function abbreviatePlayerName(name: string | null | undefined): string {
+  if (!name) return '—';
+  if (name.length <= 14) return name;
+  const parts = name.trim().split(/\s+/);
+  if (parts.length < 2) return name;
+  return `${parts[0]![0]}. ${parts.slice(1).join(' ')}`;
 }
 
 function leaderValueLines(value?: string): string[] {
@@ -423,6 +453,17 @@ export function GameCard({
   onClick,
 }: GameCardProps) {
   const compact = density === 'compact';
+  const [injuryOpen, setInjuryOpen] = useState<'away' | 'home' | null>(null);
+
+  useEffect(() => {
+    if (!injuryOpen) return;
+    function closePopup() {
+      setInjuryOpen(null);
+    }
+    document.addEventListener('click', closePopup);
+    return () => document.removeEventListener('click', closePopup);
+  }, [injuryOpen]);
+
   const statusInfo = gameStatusDisplay(game.status, game.quarter, game.clock);
   const winner = gameWinner(game.home_score, game.away_score, game.status);
   const isScheduled = statusInfo.variant === 'scheduled';
@@ -553,42 +594,7 @@ export function GameCard({
                 {weekTagText}
               </span>
             )}
-            {game.is_division_game && (
-              <span
-                style={{
-                  fontFamily: F.display,
-                  fontSize: 9,
-                  fontWeight: 700,
-                  letterSpacing: '0.1em',
-                  padding: '4px 7px',
-                  borderRadius: 4,
-                  ...badgeToneStyle('cyan'),
-                }}
-              >
-                DIVISION
-              </span>
-            )}
           </div>
-          {restBadges.away.length > 0 && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-              {restBadges.away.map((badge, idx) => (
-                <span
-                  key={`away-${badge.label}-${idx}`}
-                  style={{
-                    fontFamily: F.display,
-                    fontSize: 9,
-                    fontWeight: 700,
-                    letterSpacing: '0.1em',
-                    padding: '4px 7px',
-                    borderRadius: 4,
-                    ...badgeToneStyle(badge.tone),
-                  }}
-                >
-                  {badge.label}
-                </span>
-              ))}
-            </div>
-          )}
         </div>
 
         <div
@@ -673,40 +679,44 @@ export function GameCard({
                     color: C.textMuted,
                   }}
                 >
-                  {game.broadcast_network}
+                  {game.broadcast_network === 'NFL Net' ? 'NFL Network' : game.broadcast_network}
                 </span>
               )}
             </div>
           )}
-          {restBadges.home.length > 0 && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-              {restBadges.home.map((badge, idx) => (
-                <span
-                  key={`home-${badge.label}-${idx}`}
-                  style={{
-                    fontFamily: F.display,
-                    fontSize: 9,
-                    fontWeight: 700,
-                    letterSpacing: '0.1em',
-                    padding: '4px 7px',
-                    borderRadius: 4,
-                    ...badgeToneStyle(badge.tone),
-                  }}
-                >
-                  {badge.label}
-                </span>
-              ))}
-            </div>
-          )}
         </div>
       </div>
+
+      {/* Divisional game marker (regular season only) */}
+      {game.is_division_game && game.season_type === 'REG' && (
+        <div
+          style={{
+            padding: compact ? '3px 12px 4px' : '3px 16px 4px',
+            borderTop: `1px solid rgba(0,229,255,0.06)`,
+            textAlign: 'center',
+          }}
+        >
+          <span
+            style={{
+              fontFamily: F.display,
+              fontSize: 8,
+              fontWeight: 700,
+              letterSpacing: '0.16em',
+              color: C.cyanDim,
+              opacity: 0.65,
+            }}
+          >
+            DIVISIONAL GAME
+          </span>
+        </div>
+      )}
 
       {/* Matchup line: two-row identity layout for long team names */}
       <div style={{ padding: compact ? '10px 12px 10px' : '14px 16px 12px' }}>
         <div
           style={{
             display: 'grid',
-            gridTemplateColumns: `${compact ? 'clamp(48px,13vw,68px)' : 'clamp(56px,16vw,84px)'} minmax(0,1fr) auto auto minmax(0,1fr) ${compact ? 'clamp(48px,13vw,68px)' : 'clamp(56px,16vw,84px)'}`,
+            gridTemplateColumns: `${compact ? 'clamp(36px,9vw,68px)' : 'clamp(40px,10vw,84px)'} minmax(0,1fr) auto auto minmax(0,1fr) ${compact ? 'clamp(36px,9vw,68px)' : 'clamp(40px,10vw,84px)'}`,
             alignItems: 'center',
             columnGap: compact ? 8 : 12,
             rowGap: compact ? 3 : 6,
@@ -854,24 +864,143 @@ export function GameCard({
             borderTop: `1px solid rgba(0,229,255,0.06)`,
           }}
         >
-          {game.venue_name && (
-            <div style={{ display: 'flex', justifyContent: 'center' }}>
-              <span
-                style={{
-                  fontFamily: F.mono,
-                  fontSize: 10,
-                  color: C.green,
-                  letterSpacing: '0.05em',
-                  textShadow: '0 0 6px rgba(0,230,118,0.2)',
-                  whiteSpace: 'nowrap',
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                  maxWidth: '100%',
-                }}
-                title={game.venue_name}
-              >
-                {game.venue_name}
-              </span>
+          {/* Venue + injury triggers: away left · venue center · home right */}
+          {(game.venue_name ||
+            (injurySummary &&
+              (injurySummary.awayFlags.length > 0 || injurySummary.homeFlags.length > 0))) && (
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: '1fr auto 1fr',
+                alignItems: 'center',
+                gap: 6,
+                minHeight: 18,
+              }}
+            >
+              {/* Away injuries */}
+              <div>
+                {injurySummary && injurySummary.awayFlags.length > 0 && (
+                  <div
+                    className="game-card-injury"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setInjuryOpen(injuryOpen === 'away' ? null : 'away');
+                    }}
+                    style={{ cursor: 'pointer' }}
+                  >
+                    <div
+                      style={{
+                        fontFamily: F.display,
+                        fontSize: 9,
+                        fontWeight: 700,
+                        letterSpacing: '0.08em',
+                        color: C.amber,
+                        whiteSpace: 'nowrap',
+                      }}
+                    >
+                      {game.away_team_detail.abbreviation} Injuries{' '}
+                      <span style={{ opacity: 0.6, fontSize: 8 }}>↗</span>
+                    </div>
+                    <div
+                      className={`game-card-injury-popup${injuryOpen === 'away' ? ' game-card-injury-popup--open' : ''}`}
+                    >
+                      <div className="game-card-injury-popup-title">
+                        {game.away_team_detail.abbreviation} &mdash;{' '}
+                        {injurySummary.awayFlags.length} Flag
+                        {injurySummary.awayFlags.length !== 1 ? 's' : ''}
+                      </div>
+                      {injurySummary.awayFlags.map((flag, i) => (
+                        <div key={i} className="game-card-injury-popup-flag">
+                          <span className="game-card-injury-popup-flag-name">{flag.name}</span>
+                          {flag.description && (
+                            <span className="game-card-injury-popup-flag-detail">
+                              {flag.description}
+                            </span>
+                          )}
+                          <span
+                            className="game-card-injury-popup-flag-code"
+                            style={{ color: injuryCodeColor(flag.code) }}
+                          >
+                            {flag.code}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+              {/* Venue name */}
+              {game.venue_name ? (
+                <span
+                  style={{
+                    fontFamily: F.mono,
+                    fontSize: 10,
+                    color: C.green,
+                    letterSpacing: '0.05em',
+                    textShadow: '0 0 6px rgba(0,230,118,0.2)',
+                    whiteSpace: 'nowrap',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                  }}
+                  title={game.venue_name}
+                >
+                  {game.venue_name}
+                </span>
+              ) : (
+                <span />
+              )}
+              {/* Home injuries */}
+              <div style={{ textAlign: 'right' }}>
+                {injurySummary && injurySummary.homeFlags.length > 0 && (
+                  <div
+                    className="game-card-injury game-card-injury--home"
+                    style={{ display: 'inline-block', cursor: 'pointer' }}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setInjuryOpen(injuryOpen === 'home' ? null : 'home');
+                    }}
+                  >
+                    <div
+                      style={{
+                        fontFamily: F.display,
+                        fontSize: 9,
+                        fontWeight: 700,
+                        letterSpacing: '0.08em',
+                        color: C.amber,
+                        whiteSpace: 'nowrap',
+                      }}
+                    >
+                      <span style={{ opacity: 0.6, fontSize: 8 }}>↗</span>{' '}
+                      {game.home_team_detail.abbreviation} Injuries
+                    </div>
+                    <div
+                      className={`game-card-injury-popup${injuryOpen === 'home' ? ' game-card-injury-popup--open' : ''}`}
+                    >
+                      <div className="game-card-injury-popup-title">
+                        {game.home_team_detail.abbreviation} &mdash;{' '}
+                        {injurySummary.homeFlags.length} Flag
+                        {injurySummary.homeFlags.length !== 1 ? 's' : ''}
+                      </div>
+                      {injurySummary.homeFlags.map((flag, i) => (
+                        <div key={i} className="game-card-injury-popup-flag">
+                          <span className="game-card-injury-popup-flag-name">{flag.name}</span>
+                          {flag.description && (
+                            <span className="game-card-injury-popup-flag-detail">
+                              {flag.description}
+                            </span>
+                          )}
+                          <span
+                            className="game-card-injury-popup-flag-code"
+                            style={{ color: injuryCodeColor(flag.code) }}
+                          >
+                            {flag.code}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
           )}
           {hasOdds && (
@@ -902,82 +1031,32 @@ export function GameCard({
               )}
             </div>
           )}
-          {injurySummary && (injurySummary.awayCount > 0 || injurySummary.homeCount > 0) && (
+          {(restBadges.away.length > 0 || restBadges.home.length > 0) && (
             <div
               style={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
-                gap: compact ? 8 : 12,
+                display: 'flex',
+                flexWrap: 'wrap',
+                gap: 6,
+                alignItems: 'center',
+                justifyContent: 'center',
               }}
             >
-              <div style={{ minWidth: 0 }}>
-                <div
+              {[...restBadges.away, ...restBadges.home].map((badge, idx) => (
+                <span
+                  key={idx}
                   style={{
                     fontFamily: F.display,
                     fontSize: 9,
                     fontWeight: 700,
                     letterSpacing: '0.1em',
-                    color: C.amber,
+                    padding: '3px 8px',
+                    borderRadius: 3,
+                    ...badgeToneStyle(badge.tone),
                   }}
                 >
-                  {game.away_team_detail.abbreviation} INJURY FLAGS
-                </div>
-                <div
-                  style={{
-                    marginTop: 2,
-                    fontFamily: F.mono,
-                    fontSize: 10,
-                    color: C.textDim,
-                    whiteSpace: 'nowrap',
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                  }}
-                  title={
-                    injurySummary.awayFlags.length > 0
-                      ? injurySummary.awayFlags.join(' · ')
-                      : `${injurySummary.awayCount} flagged`
-                  }
-                >
-                  {injurySummary.awayFlags.length > 0
-                    ? injurySummary.awayFlags.join(' · ')
-                    : `${injurySummary.awayCount} flagged`}
-                </div>
-              </div>
-              <div style={{ minWidth: 0 }}>
-                <div
-                  style={{
-                    fontFamily: F.display,
-                    fontSize: 9,
-                    fontWeight: 700,
-                    letterSpacing: '0.1em',
-                    color: C.amber,
-                    textAlign: 'right',
-                  }}
-                >
-                  {game.home_team_detail.abbreviation} INJURY FLAGS
-                </div>
-                <div
-                  style={{
-                    marginTop: 2,
-                    fontFamily: F.mono,
-                    fontSize: 10,
-                    color: C.textDim,
-                    textAlign: 'right',
-                    whiteSpace: 'nowrap',
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                  }}
-                  title={
-                    injurySummary.homeFlags.length > 0
-                      ? injurySummary.homeFlags.join(' · ')
-                      : `${injurySummary.homeCount} flagged`
-                  }
-                >
-                  {injurySummary.homeFlags.length > 0
-                    ? injurySummary.homeFlags.join(' · ')
-                    : `${injurySummary.homeCount} flagged`}
-                </div>
-              </div>
+                  {badge.label}
+                </span>
+              ))}
             </div>
           )}
         </div>
@@ -1008,7 +1087,7 @@ export function GameCard({
                     textOverflow: 'ellipsis',
                   }}
                 >
-                  {row.awayLeader?.athlete_name ?? '—'}
+                  {abbreviatePlayerName(row.awayLeader?.athlete_name)}
                 </div>
                 {leaderValueLines(row.awayLeader?.display_value).map((line, idx) => (
                   <div
@@ -1054,7 +1133,7 @@ export function GameCard({
                     textAlign: 'right',
                   }}
                 >
-                  {row.homeLeader?.athlete_name ?? '—'}
+                  {abbreviatePlayerName(row.homeLeader?.athlete_name)}
                 </div>
                 {leaderValueLines(row.homeLeader?.display_value).map((line, idx) => (
                   <div
