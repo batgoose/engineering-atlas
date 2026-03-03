@@ -85,6 +85,7 @@ jobs:
             "django-cors-headers>=4.9.0,<5.0.0" \
             "requests>=2.32.5,<3.0.0" \
             "redis>=7.1.1,<8.0.0" \
+            "openpyxl>=3.1.0,<4.0.0" \
             "black>=26.1.0,<27.0.0" \
             "pytest>=9.0.2,<10.0.0" \
             "pytest-django>=4.11.1,<5.0.0"
@@ -231,7 +232,7 @@ jobs:
           cache: 'pnpm'
 
       - name: Install Black
-        run: pip install "black>=26.1.0,<27.0.0"
+        run: pip install "black==26.1.0"
 
       - name: Check Python Formatting
         run: black --check apps/api-django
