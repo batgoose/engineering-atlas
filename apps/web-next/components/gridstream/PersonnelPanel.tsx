@@ -302,7 +302,6 @@ export function PersonnelPanel({ away, home, personnel }: PersonnelPanelProps) {
 
       {/* Selected team roster */}
       <TeamColumn
-        side="left"
         team={selectedTeam === 'away' ? away : home}
         data={selectedTeam === 'away' ? personnel.away : personnel.home}
       />
@@ -310,15 +309,7 @@ export function PersonnelPanel({ away, home, personnel }: PersonnelPanelProps) {
   );
 }
 
-function TeamColumn({
-  side,
-  team,
-  data,
-}: {
-  side: 'left' | 'right';
-  team: HudTeam;
-  data: PersonnelState['away'];
-}) {
+function TeamColumn({ team, data }: { team: HudTeam; data: PersonnelState['away'] }) {
   const grouped = useMemo(() => groupPlayers(data.players), [data.players]);
   return (
     <div

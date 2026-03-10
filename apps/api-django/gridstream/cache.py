@@ -140,8 +140,16 @@ def cached_view(resource: str, ttl: int = TTL_LONG, key_func=None):
                 ck = key_func(request, *args, **kwargs)
             else:
                 identifier = kwargs.get("pk", "") or kwargs.get("abbreviation", "")
+                # Include resolved route name to prevent collisions between
+                # endpoints sharing the same resource + identifier, e.g.
+                # /teams/{abbr}/ vs /teams/{abbr}/dvoa/
+                route_name = (
+                    getattr(getattr(request, "resolver_match", None), "url_name", None)
+                    or view_method.__name__
+                )
+                key_id = f"{route_name}:{identifier}" if identifier else route_name
                 params = dict(request.query_params)
-                ck = cache_key(resource, str(identifier), params)
+                ck = cache_key(resource, key_id, params)
 
             # Try cache
             cached = cache_get(ck)

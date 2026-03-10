@@ -46,6 +46,10 @@ def _current_nfl_season() -> int:
     return today.year if today.month >= 9 else today.year - 1
 
 
+def _current_free_agency_year() -> int:
+    return date.today().year
+
+
 class Command(BaseCommand):
     help = "Nightly orchestration of all NFL data sync commands"
 
@@ -130,8 +134,16 @@ class Command(BaseCommand):
             )
             # Roster changes, transactions, jersey numbers, team assignments
             run("sync_rosters", "sync_rosters", season=season)
+            # Official team transaction pages (cuts, signings, waivers)
+            run(
+                "sync_spotrac_transactions",
+                "sync_spotrac_transactions",
+                season=_current_free_agency_year(),
+            )
             # Backfill depth chart position from raw nflverse data
             run("sync_player_positions", "sync_player_positions")
+            # Current offseason tracker from Ourlads uses calendar year, not NFL season year
+            run("sync_ourlads_free_agent_tracker", "sync_ourlads_free_agent_tracker")
             # Raw depth chart data for current season
             run(
                 "import_nflverse_depth_charts",
@@ -197,6 +209,8 @@ class Command(BaseCommand):
             )
             # Current-week fantasy expert consensus rankings
             run("sync_ff_rankings", "sync_ff_rankings", current=True)
+            # Team DVOA snapshots (regular + postseason)
+            run("sync_dvoa_ratings", "sync_dvoa_ratings")
             # Standings
             run("import_nflverse_standings", "import_nflverse_standings", season=season)
 

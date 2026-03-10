@@ -2,9 +2,12 @@ from django.contrib import admin
 from .models import (
     Team,
     TeamLogo,
+    TeamDvoaRating,
+    TeamRbsdmMetric,
     Venue,
     Player,
     PlayerContract,
+    PlayerRbsdmQbMetric,
     PlayerCombine,
     PlayerCollegeHistory,
     PlayerTransaction,
@@ -76,6 +79,30 @@ class TeamAdmin(NflDbAdmin):
     inlines = [TeamLogoInline]
 
 
+@admin.register(TeamDvoaRating)
+class TeamDvoaRatingAdmin(NflDbAdmin):
+    list_display = (
+        "season",
+        "season_type",
+        "week",
+        "team",
+        "total_dvoa_rank",
+        "total_dvoa",
+        "weighted_total_dvoa",
+    )
+    list_filter = ("season", "season_type", "week")
+    search_fields = ("team__abbreviation", "team__display_name")
+    raw_id_fields = ("team",)
+
+
+@admin.register(TeamRbsdmMetric)
+class TeamRbsdmMetricAdmin(NflDbAdmin):
+    list_display = ("season", "week", "dataset", "team")
+    list_filter = ("dataset", "season")
+    search_fields = ("team__abbreviation",)
+    raw_id_fields = ("team",)
+
+
 @admin.register(Venue)
 class VenueAdmin(NflDbAdmin):
     list_display = ("name", "city", "state", "roof_type", "surface")
@@ -123,6 +150,14 @@ class PlayerContractAdmin(NflDbAdmin):
     list_filter = ("is_active", "year_signed")
     raw_id_fields = ("player", "team")
     search_fields = ("player__display_name",)
+
+
+@admin.register(PlayerRbsdmQbMetric)
+class PlayerRbsdmQbMetricAdmin(NflDbAdmin):
+    list_display = ("season", "week", "player_name", "team", "adj_epa_play", "cpoe")
+    list_filter = ("season", "week")
+    search_fields = ("player_name", "team__abbreviation")
+    raw_id_fields = ("player", "team")
 
 
 @admin.register(PlayerCombine)

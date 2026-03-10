@@ -23,7 +23,7 @@ Usage:
 import csv
 import io
 import logging
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 
 import requests
 from django.core.management.base import BaseCommand
@@ -47,6 +47,12 @@ WEEKLY_STATUS_MAP = {
     "IR": "RES",
     "FA": "UFA",
 }
+
+
+def _current_roster_sync_season() -> int:
+    """NFL roster season year (March 2026 should still use 2025 roster data)."""
+    today = date.today()
+    return today.year if today.month >= 9 else today.year - 1
 
 
 def _safe_str(val, max_len=None):
@@ -94,7 +100,7 @@ class Command(BaseCommand):
         )
 
     def handle(self, *args, **options):
-        season = options["season"] or date.today().year
+        season = options["season"] or _current_roster_sync_season()
         dry_run = options["dry_run"]
 
         teams = {t.abbreviation: t for t in Team.objects.using("nfl").all()}
@@ -260,6 +266,7 @@ class Command(BaseCommand):
                 if normalized_status in OUT_OF_LEAGUE_STATUS_CODES
                 else ("UFA" if should_stay_active else "CUT")
             )
+            old_team = player.current_team
             needs_reconcile = (
                 player.current_team_id is not None
                 or player.is_active != should_stay_active
@@ -292,6 +299,34 @@ class Command(BaseCommand):
                 changed = True
 
             if changed:
+                if old_team is not None:
+                    transaction_type = (
+                        "retired" if target_status == "RET" else "released"
+                    )
+                    recent_exists = (
+                        PlayerTransaction.objects.using("nfl")
+                        .filter(
+                            player=player,
+                            transaction_type=transaction_type,
+                            from_team=old_team,
+                            to_team__isnull=True,
+                            date__gte=date.today() - timedelta(days=30),
+                        )
+                        .exists()
+                    )
+                    if not recent_exists:
+                        PlayerTransaction.objects.using("nfl").create(
+                            player=player,
+                            transaction_type=transaction_type,
+                            date=date.today(),
+                            from_team=old_team,
+                            to_team=None,
+                            description=(
+                                f"Roster sync: {player.display_name} missing from "
+                                f"{season} roster snapshot for {old_team.abbreviation}"
+                            ),
+                            season=season,
+                        )
                 player.last_roster_check = now
                 player.save(using="nfl")
 

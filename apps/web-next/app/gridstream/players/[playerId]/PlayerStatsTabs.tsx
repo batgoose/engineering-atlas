@@ -1,9 +1,10 @@
 'use client';
 
-import { Fragment, useState } from 'react';
+import { Fragment, useMemo, useState } from 'react';
 import Link from 'next/link';
 import type {
   GridstreamPlayerGamelogPage,
+  GridstreamPlayerRbsdmResponse,
   GridstreamPlayerSplits,
   GridstreamPlayerSplitAggregate,
 } from '@atlas/sdk/gridstream';
@@ -68,6 +69,23 @@ function buildSelfHref(playerId: string, season: number | null, gamelogPage: num
   return query
     ? `/gridstream/players/${encodeURIComponent(playerId)}?${query}`
     : `/gridstream/players/${encodeURIComponent(playerId)}`;
+}
+
+function formatSigned(value: number | null | undefined, digits = 2): string {
+  if (value == null || Number.isNaN(value)) return '—';
+  if (value > 0) return `+${value.toFixed(digits)}`;
+  return value.toFixed(digits);
+}
+
+function formatPct(value: number | null | undefined, digits = 1): string {
+  if (value == null || Number.isNaN(value)) return '—';
+  return `${(value * 100).toFixed(digits)}%`;
+}
+
+function metricColor(value: number | null | undefined): string {
+  if (value == null || Number.isNaN(value)) return 'rgba(159, 195, 219, 0.88)';
+  if (value >= 0) return '#8fff45';
+  return '#ff627e';
 }
 
 // ─── Offense splits table ───────────────────────────────────────────────────
@@ -255,6 +273,7 @@ function SplitsTable({
 
 export interface PlayerStatsTabsProps {
   gamelog: GridstreamPlayerGamelogPage;
+  rbsdm: GridstreamPlayerRbsdmResponse;
   splits: GridstreamPlayerSplits;
   selectedSeason: number | null;
   seasonOptions: number[];
@@ -264,6 +283,7 @@ export interface PlayerStatsTabsProps {
 
 export default function PlayerStatsTabs({
   gamelog,
+  rbsdm,
   splits,
   selectedSeason,
   seasonOptions,
@@ -275,6 +295,16 @@ export default function PlayerStatsTabs({
 
   const group = positionGroup(position);
   const isDefense = group === 'defense';
+  const isQb = position.toUpperCase() === 'QB';
+  const latestQbRbsdm = isQb ? rbsdm.latest : null;
+  const qbRbsdmByWeek = useMemo(() => {
+    const byWeek = new Map<number, GridstreamPlayerRbsdmResponse['rows'][number]>();
+    if (!isQb) return byWeek;
+    for (const row of rbsdm.rows) {
+      byWeek.set(row.week, row);
+    }
+    return byWeek;
+  }, [isQb, rbsdm.rows]);
 
   return (
     <section className="hud-panel gs-player-detail-stats-section">
@@ -332,6 +362,97 @@ export default function PlayerStatsTabs({
       </div>
 
       <div className="gs-player-detail-stats-content">
+        {latestQbRbsdm && (
+          <div style={{ padding: '14px 16px 6px' }}>
+            <div className="gs-players-kicker">
+              RBSDM QB Snapshot{selectedSeason != null ? ` · ${selectedSeason}` : ''}
+            </div>
+            <div
+              style={{
+                marginTop: 8,
+                display: 'grid',
+                gap: 8,
+                gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))',
+              }}
+            >
+              {[
+                {
+                  label: 'Adj EPA/Play',
+                  value: formatSigned(latestQbRbsdm.adjEpaPlay, 3),
+                  color: metricColor(latestQbRbsdm.adjEpaPlay),
+                },
+                {
+                  label: 'EPA/Play',
+                  value: formatSigned(latestQbRbsdm.epaPlay, 3),
+                  color: metricColor(latestQbRbsdm.epaPlay),
+                },
+                {
+                  label: 'EPA+CPOE',
+                  value: formatSigned(latestQbRbsdm.epaCpoeComposite, 3),
+                  color: metricColor(latestQbRbsdm.epaCpoeComposite),
+                },
+                {
+                  label: 'CPOE',
+                  value: formatSigned(latestQbRbsdm.cpoe, 2),
+                  color: metricColor(latestQbRbsdm.cpoe),
+                },
+                {
+                  label: 'Success Rate',
+                  value: formatPct(latestQbRbsdm.successRate, 1),
+                  color: metricColor(
+                    latestQbRbsdm.successRate == null ? null : latestQbRbsdm.successRate - 0.5
+                  ),
+                },
+                {
+                  label: 'Cmp% vs Exp',
+                  value:
+                    latestQbRbsdm.cmpPct != null && latestQbRbsdm.expectedCmpPct != null
+                      ? `${latestQbRbsdm.cmpPct.toFixed(1)}% / ${latestQbRbsdm.expectedCmpPct.toFixed(1)}%`
+                      : '—',
+                  color:
+                    latestQbRbsdm.cmpPct != null && latestQbRbsdm.expectedCmpPct != null
+                      ? metricColor(latestQbRbsdm.cmpPct - latestQbRbsdm.expectedCmpPct)
+                      : 'rgba(159, 195, 219, 0.88)',
+                },
+                {
+                  label: 'Air Yards',
+                  value: latestQbRbsdm.airYards != null ? latestQbRbsdm.airYards.toFixed(1) : '—',
+                  color: 'rgba(99, 223, 255, 0.9)',
+                },
+                {
+                  label: 'Plays',
+                  value: latestQbRbsdm.plays != null ? String(latestQbRbsdm.plays) : '—',
+                  color: 'rgba(159, 195, 219, 0.92)',
+                },
+              ].map((metric) => (
+                <article
+                  key={metric.label}
+                  style={{
+                    border: '1px solid rgba(0, 229, 255, 0.16)',
+                    background: 'rgba(0, 18, 38, 0.45)',
+                    padding: '10px 11px',
+                    minHeight: 68,
+                  }}
+                >
+                  <div className="gs-players-kicker" style={{ marginBottom: 6, fontSize: 9 }}>
+                    {metric.label}
+                  </div>
+                  <div
+                    style={{
+                      color: metric.color,
+                      fontFamily: 'var(--gs-font-mono)',
+                      fontSize: 18,
+                      fontWeight: 700,
+                    }}
+                  >
+                    {metric.value}
+                  </div>
+                </article>
+              ))}
+            </div>
+          </div>
+        )}
+
         {primaryTab === 'gamelog' && (
           <>
             <div className="gs-players-table-wrap">
@@ -460,7 +581,7 @@ export default function PlayerStatsTabs({
               ) : (
                 <table
                   className="gs-players-table gs-player-detail-table"
-                  style={{ minWidth: 860 }}
+                  style={{ minWidth: 1220 }}
                 >
                   <thead>
                     <tr>
@@ -473,14 +594,17 @@ export default function PlayerStatsTabs({
                       <th className="gs-players-table-head-cell" rowSpan={2}>
                         Opp
                       </th>
-                      <th className="gs-player-detail-group-th is-pass" colSpan={5}>
+                      <th className="gs-player-detail-group-th is-pass" colSpan={6}>
                         Passing
                       </th>
-                      <th className="gs-player-detail-group-th is-rush" colSpan={3}>
+                      <th className="gs-player-detail-group-th is-rush" colSpan={4}>
                         Rushing
                       </th>
-                      <th className="gs-player-detail-group-th is-rec" colSpan={3}>
+                      <th className="gs-player-detail-group-th is-rec" colSpan={4}>
                         Receiving
+                      </th>
+                      <th className="gs-players-table-head-cell" colSpan={3}>
+                        {isQb ? 'QB Advanced' : 'Advanced'}
                       </th>
                       <th className="gs-players-table-head-cell is-numeric" rowSpan={2}>
                         PPR
@@ -492,86 +616,216 @@ export default function PlayerStatsTabs({
                       <th className="gs-players-table-head-cell is-numeric">Yds</th>
                       <th className="gs-players-table-head-cell is-numeric">TD</th>
                       <th className="gs-players-table-head-cell is-numeric">INT</th>
+                      <th className="gs-players-table-head-cell is-numeric">EPA</th>
                       <th className="gs-players-table-head-cell is-numeric">Car</th>
                       <th className="gs-players-table-head-cell is-numeric">Yds</th>
                       <th className="gs-players-table-head-cell is-numeric">TD</th>
+                      <th className="gs-players-table-head-cell is-numeric">EPA</th>
                       <th className="gs-players-table-head-cell is-numeric">Rec</th>
                       <th className="gs-players-table-head-cell is-numeric">Yds</th>
                       <th className="gs-players-table-head-cell is-numeric">TD</th>
+                      <th className="gs-players-table-head-cell is-numeric">EPA</th>
+                      {isQb ? (
+                        <>
+                          <th className="gs-players-table-head-cell is-numeric">EPA+CPOE</th>
+                          <th className="gs-players-table-head-cell is-numeric">CPOE</th>
+                          <th className="gs-players-table-head-cell is-numeric">SR%</th>
+                        </>
+                      ) : (
+                        <>
+                          <th className="gs-players-table-head-cell is-numeric">Tgt%</th>
+                          <th className="gs-players-table-head-cell is-numeric">Air%</th>
+                          <th className="gs-players-table-head-cell is-numeric">WOPR</th>
+                        </>
+                      )}
                     </tr>
                   </thead>
                   <tbody>
-                    {gamelog.items.map((entry) => (
-                      <tr key={entry.id}>
-                        <td className="gs-players-table-cell is-sticky">
-                          W{entry.week} · {entry.seasonType}
-                        </td>
-                        <td className="gs-players-table-cell">{entry.teamAbbr}</td>
-                        <td className="gs-players-table-cell">{entry.opponentAbbr}</td>
-                        <td className="gs-players-table-cell is-numeric">
-                          {entry.passComp || '—'}
-                        </td>
-                        <td className="gs-players-table-cell is-numeric">{entry.passAtt || '—'}</td>
-                        <td className="gs-players-table-cell is-numeric">
-                          {entry.passYards || '—'}
-                        </td>
-                        <td className="gs-players-table-cell is-numeric">{entry.passTd || '—'}</td>
-                        <td className="gs-players-table-cell is-numeric">
-                          {entry.interceptionsThrown || '—'}
-                        </td>
-                        <td className="gs-players-table-cell is-numeric">{entry.carries || '—'}</td>
-                        <td className="gs-players-table-cell is-numeric">
-                          {entry.rushYards || '—'}
-                        </td>
-                        <td className="gs-players-table-cell is-numeric">{entry.rushTd || '—'}</td>
-                        <td className="gs-players-table-cell is-numeric">
-                          {entry.receptions || '—'}
-                        </td>
-                        <td className="gs-players-table-cell is-numeric">
-                          {entry.receivingYards || '—'}
-                        </td>
-                        <td className="gs-players-table-cell is-numeric">
-                          {entry.receivingTd || '—'}
-                        </td>
-                        <td className="gs-players-table-cell is-numeric">
-                          {entry.fantasyPointsPpr.toFixed(1)}
-                        </td>
-                      </tr>
-                    ))}
+                    {gamelog.items.map((entry) => {
+                      const qbWeek = isQb ? (qbRbsdmByWeek.get(entry.week) ?? null) : null;
+                      return (
+                        <tr key={entry.id}>
+                          <td className="gs-players-table-cell is-sticky">
+                            W{entry.week} · {entry.seasonType}
+                          </td>
+                          <td className="gs-players-table-cell">{entry.teamAbbr}</td>
+                          <td className="gs-players-table-cell">{entry.opponentAbbr}</td>
+                          <td className="gs-players-table-cell is-numeric">
+                            {entry.passComp || '—'}
+                          </td>
+                          <td className="gs-players-table-cell is-numeric">
+                            {entry.passAtt || '—'}
+                          </td>
+                          <td className="gs-players-table-cell is-numeric">
+                            {entry.passYards || '—'}
+                          </td>
+                          <td className="gs-players-table-cell is-numeric">
+                            {entry.passTd || '—'}
+                          </td>
+                          <td className="gs-players-table-cell is-numeric">
+                            {entry.interceptionsThrown || '—'}
+                          </td>
+                          <td
+                            className="gs-players-table-cell is-numeric"
+                            style={{ color: metricColor(entry.passingEpa) }}
+                          >
+                            {formatSigned(entry.passingEpa, 2)}
+                          </td>
+                          <td className="gs-players-table-cell is-numeric">
+                            {entry.carries || '—'}
+                          </td>
+                          <td className="gs-players-table-cell is-numeric">
+                            {entry.rushYards || '—'}
+                          </td>
+                          <td className="gs-players-table-cell is-numeric">
+                            {entry.rushTd || '—'}
+                          </td>
+                          <td
+                            className="gs-players-table-cell is-numeric"
+                            style={{ color: metricColor(entry.rushingEpa) }}
+                          >
+                            {formatSigned(entry.rushingEpa, 2)}
+                          </td>
+                          <td className="gs-players-table-cell is-numeric">
+                            {entry.receptions || '—'}
+                          </td>
+                          <td className="gs-players-table-cell is-numeric">
+                            {entry.receivingYards || '—'}
+                          </td>
+                          <td className="gs-players-table-cell is-numeric">
+                            {entry.receivingTd || '—'}
+                          </td>
+                          <td
+                            className="gs-players-table-cell is-numeric"
+                            style={{ color: metricColor(entry.receivingEpa) }}
+                          >
+                            {formatSigned(entry.receivingEpa, 2)}
+                          </td>
+                          {isQb ? (
+                            <>
+                              <td
+                                className="gs-players-table-cell is-numeric"
+                                style={{ color: metricColor(qbWeek?.epaCpoeComposite) }}
+                              >
+                                {formatSigned(qbWeek?.epaCpoeComposite, 3)}
+                              </td>
+                              <td
+                                className="gs-players-table-cell is-numeric"
+                                style={{ color: metricColor(qbWeek?.cpoe) }}
+                              >
+                                {formatSigned(qbWeek?.cpoe, 2)}
+                              </td>
+                              <td
+                                className="gs-players-table-cell is-numeric"
+                                style={{
+                                  color: metricColor(
+                                    qbWeek?.successRate == null ? null : qbWeek.successRate - 0.5
+                                  ),
+                                }}
+                              >
+                                {formatPct(qbWeek?.successRate, 1)}
+                              </td>
+                            </>
+                          ) : (
+                            <>
+                              <td className="gs-players-table-cell is-numeric">
+                                {formatPct(entry.targetShare, 1)}
+                              </td>
+                              <td className="gs-players-table-cell is-numeric">
+                                {formatPct(entry.airYardsShare, 1)}
+                              </td>
+                              <td className="gs-players-table-cell is-numeric">
+                                {entry.wopr != null ? entry.wopr.toFixed(2) : '—'}
+                              </td>
+                            </>
+                          )}
+                          <td className="gs-players-table-cell is-numeric">
+                            {entry.fantasyPointsPpr.toFixed(1)}
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                   {gamelog.items.length > 1 &&
                     (() => {
                       const tot = gamelog.items.reduce(
-                        (acc, e) => ({
-                          passComp: acc.passComp + (e.passComp ?? 0),
-                          passAtt: acc.passAtt + (e.passAtt ?? 0),
-                          passYards: acc.passYards + (e.passYards ?? 0),
-                          passTd: acc.passTd + (e.passTd ?? 0),
-                          int: acc.int + (e.interceptionsThrown ?? 0),
-                          carries: acc.carries + (e.carries ?? 0),
-                          rushYards: acc.rushYards + (e.rushYards ?? 0),
-                          rushTd: acc.rushTd + (e.rushTd ?? 0),
-                          receptions: acc.receptions + (e.receptions ?? 0),
-                          recYards: acc.recYards + (e.receivingYards ?? 0),
-                          recTd: acc.recTd + (e.receivingTd ?? 0),
-                          ppr: acc.ppr + e.fantasyPointsPpr,
-                        }),
+                        (acc, e) => {
+                          const qbWeek = isQb ? (qbRbsdmByWeek.get(e.week) ?? null) : null;
+                          return {
+                            passComp: acc.passComp + (e.passComp ?? 0),
+                            passAtt: acc.passAtt + (e.passAtt ?? 0),
+                            passYards: acc.passYards + (e.passYards ?? 0),
+                            passTd: acc.passTd + (e.passTd ?? 0),
+                            int: acc.int + (e.interceptionsThrown ?? 0),
+                            passEpa: acc.passEpa + (e.passingEpa ?? 0),
+                            passEpaCount: acc.passEpaCount + (e.passingEpa != null ? 1 : 0),
+                            carries: acc.carries + (e.carries ?? 0),
+                            rushYards: acc.rushYards + (e.rushYards ?? 0),
+                            rushTd: acc.rushTd + (e.rushTd ?? 0),
+                            rushEpa: acc.rushEpa + (e.rushingEpa ?? 0),
+                            rushEpaCount: acc.rushEpaCount + (e.rushingEpa != null ? 1 : 0),
+                            receptions: acc.receptions + (e.receptions ?? 0),
+                            recYards: acc.recYards + (e.receivingYards ?? 0),
+                            recTd: acc.recTd + (e.receivingTd ?? 0),
+                            recEpa: acc.recEpa + (e.receivingEpa ?? 0),
+                            recEpaCount: acc.recEpaCount + (e.receivingEpa != null ? 1 : 0),
+                            targetShareSum: acc.targetShareSum + (e.targetShare ?? 0),
+                            targetShareCount:
+                              acc.targetShareCount + (e.targetShare != null ? 1 : 0),
+                            airYardsShareSum: acc.airYardsShareSum + (e.airYardsShare ?? 0),
+                            airYardsShareCount:
+                              acc.airYardsShareCount + (e.airYardsShare != null ? 1 : 0),
+                            woprSum: acc.woprSum + (e.wopr ?? 0),
+                            woprCount: acc.woprCount + (e.wopr != null ? 1 : 0),
+                            qbEpaCpoeSum: acc.qbEpaCpoeSum + (qbWeek?.epaCpoeComposite ?? 0),
+                            qbEpaCpoeCount:
+                              acc.qbEpaCpoeCount + (qbWeek?.epaCpoeComposite != null ? 1 : 0),
+                            qbCpoeSum: acc.qbCpoeSum + (qbWeek?.cpoe ?? 0),
+                            qbCpoeCount: acc.qbCpoeCount + (qbWeek?.cpoe != null ? 1 : 0),
+                            qbSuccessRateSum: acc.qbSuccessRateSum + (qbWeek?.successRate ?? 0),
+                            qbSuccessRateCount:
+                              acc.qbSuccessRateCount + (qbWeek?.successRate != null ? 1 : 0),
+                            ppr: acc.ppr + e.fantasyPointsPpr,
+                          };
+                        },
                         {
                           passComp: 0,
                           passAtt: 0,
                           passYards: 0,
                           passTd: 0,
                           int: 0,
+                          passEpa: 0,
+                          passEpaCount: 0,
                           carries: 0,
                           rushYards: 0,
                           rushTd: 0,
+                          rushEpa: 0,
+                          rushEpaCount: 0,
                           receptions: 0,
                           recYards: 0,
                           recTd: 0,
+                          recEpa: 0,
+                          recEpaCount: 0,
+                          targetShareSum: 0,
+                          targetShareCount: 0,
+                          airYardsShareSum: 0,
+                          airYardsShareCount: 0,
+                          woprSum: 0,
+                          woprCount: 0,
+                          qbEpaCpoeSum: 0,
+                          qbEpaCpoeCount: 0,
+                          qbCpoeSum: 0,
+                          qbCpoeCount: 0,
+                          qbSuccessRateSum: 0,
+                          qbSuccessRateCount: 0,
                           ppr: 0,
                         }
                       );
                       const dv = (n: number) => n || '—';
+                      const avgNullable = (sum: number, count: number): number | null =>
+                        count > 0 ? sum / count : null;
+                      const fmtTotal = (sum: number, count: number) =>
+                        count > 0 ? formatSigned(sum, 2) : '—';
                       return (
                         <tfoot>
                           <tr className="gs-player-detail-totals-row">
@@ -585,16 +839,105 @@ export default function PlayerStatsTabs({
                             </td>
                             <td className="gs-players-table-cell is-numeric">{dv(tot.passTd)}</td>
                             <td className="gs-players-table-cell is-numeric">{dv(tot.int)}</td>
+                            <td
+                              className="gs-players-table-cell is-numeric"
+                              style={{
+                                color: metricColor(tot.passEpaCount > 0 ? tot.passEpa : null),
+                              }}
+                            >
+                              {fmtTotal(tot.passEpa, tot.passEpaCount)}
+                            </td>
                             <td className="gs-players-table-cell is-numeric">{dv(tot.carries)}</td>
                             <td className="gs-players-table-cell is-numeric">
                               {dv(tot.rushYards)}
                             </td>
                             <td className="gs-players-table-cell is-numeric">{dv(tot.rushTd)}</td>
+                            <td
+                              className="gs-players-table-cell is-numeric"
+                              style={{
+                                color: metricColor(tot.rushEpaCount > 0 ? tot.rushEpa : null),
+                              }}
+                            >
+                              {fmtTotal(tot.rushEpa, tot.rushEpaCount)}
+                            </td>
                             <td className="gs-players-table-cell is-numeric">
                               {dv(tot.receptions)}
                             </td>
                             <td className="gs-players-table-cell is-numeric">{dv(tot.recYards)}</td>
                             <td className="gs-players-table-cell is-numeric">{dv(tot.recTd)}</td>
+                            <td
+                              className="gs-players-table-cell is-numeric"
+                              style={{
+                                color: metricColor(tot.recEpaCount > 0 ? tot.recEpa : null),
+                              }}
+                            >
+                              {fmtTotal(tot.recEpa, tot.recEpaCount)}
+                            </td>
+                            {isQb ? (
+                              <>
+                                <td
+                                  className="gs-players-table-cell is-numeric"
+                                  style={{
+                                    color: metricColor(
+                                      avgNullable(tot.qbEpaCpoeSum, tot.qbEpaCpoeCount)
+                                    ),
+                                  }}
+                                >
+                                  {formatSigned(
+                                    avgNullable(tot.qbEpaCpoeSum, tot.qbEpaCpoeCount),
+                                    3
+                                  )}
+                                </td>
+                                <td
+                                  className="gs-players-table-cell is-numeric"
+                                  style={{
+                                    color: metricColor(avgNullable(tot.qbCpoeSum, tot.qbCpoeCount)),
+                                  }}
+                                >
+                                  {formatSigned(avgNullable(tot.qbCpoeSum, tot.qbCpoeCount), 2)}
+                                </td>
+                                <td
+                                  className="gs-players-table-cell is-numeric"
+                                  style={{
+                                    color: metricColor(
+                                      (() => {
+                                        const v = avgNullable(
+                                          tot.qbSuccessRateSum,
+                                          tot.qbSuccessRateCount
+                                        );
+                                        return v == null ? null : v - 0.5;
+                                      })()
+                                    ),
+                                  }}
+                                >
+                                  {formatPct(
+                                    avgNullable(tot.qbSuccessRateSum, tot.qbSuccessRateCount),
+                                    1
+                                  )}
+                                </td>
+                              </>
+                            ) : (
+                              <>
+                                <td className="gs-players-table-cell is-numeric">
+                                  {formatPct(
+                                    avgNullable(tot.targetShareSum, tot.targetShareCount),
+                                    1
+                                  )}
+                                </td>
+                                <td className="gs-players-table-cell is-numeric">
+                                  {formatPct(
+                                    avgNullable(tot.airYardsShareSum, tot.airYardsShareCount),
+                                    1
+                                  )}
+                                </td>
+                                <td className="gs-players-table-cell is-numeric">
+                                  {(() => {
+                                    const avgWopr = avgNullable(tot.woprSum, tot.woprCount);
+                                    return avgWopr != null ? avgWopr.toFixed(2) : '—';
+                                  })()}
+                                </td>
+                              </>
+                            )}
                             <td className="gs-players-table-cell is-numeric">
                               {tot.ppr.toFixed(1)}
                             </td>

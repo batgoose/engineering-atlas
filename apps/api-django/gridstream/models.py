@@ -227,6 +227,8 @@ class Player(models.Model):
         help_text="Current roster status from nflverse",
     )
     depth_chart_position = models.CharField(max_length=10, blank=True)
+    depth_chart_rank = models.PositiveSmallIntegerField(null=True, blank=True)
+    depth_chart_status = models.CharField(max_length=50, blank=True)
 
     # ── Media ────────────────────────────────────────────
     headshot_url = models.URLField(max_length=500, blank=True)
@@ -571,6 +573,10 @@ class PlayerTransaction(models.Model):
         related_name="incoming_transactions",
     )
     description = models.TextField(blank=True)
+    contract_years = models.IntegerField(null=True, blank=True)
+    contract_total_value = models.BigIntegerField(null=True, blank=True)
+    contract_apy = models.BigIntegerField(null=True, blank=True)
+    contract_guaranteed = models.BigIntegerField(null=True, blank=True)
 
     # For trades — link related transactions
     related_transaction = models.ForeignKey(
@@ -600,6 +606,181 @@ class PlayerTransaction(models.Model):
         return (
             f"{self.player.display_name} {self.transaction_type} "
             f"{from_str}→{to_str} ({self.date})"
+        )
+
+
+class TeamFreeAgentTrackerEntry(models.Model):
+    """
+    Team-scoped free-agent tracker rows sourced from Ourlads.
+
+    Each record represents one player listed on a team's offseason tracker page
+    for a given calendar year. `team` is the original team page being viewed;
+    `signed_with_team` is the team the player ultimately signed with, when known.
+    """
+
+    TRACKER_STATUS_CHOICES = [
+        ("unsigned", "Unsigned"),
+        ("re_signed", "Re-signed With Team"),
+        ("signed_elsewhere", "Signed Elsewhere"),
+    ]
+
+    team = models.ForeignKey(
+        Team, on_delete=models.CASCADE, related_name="free_agent_tracker_entries"
+    )
+    season = models.IntegerField(
+        help_text="Calendar year of the free-agent tracker page (e.g. 2026)"
+    )
+    player = models.ForeignKey(
+        Player,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="free_agent_tracker_entries",
+    )
+    player_name = models.CharField(max_length=100)
+    ourlads_player_id = models.CharField(max_length=20, blank=True)
+    position = models.CharField(max_length=10, blank=True)
+    fa_type = models.CharField(
+        max_length=10, blank=True, help_text="UFA, RFA, ERFA, CC, etc."
+    )
+    signed_with_team = models.ForeignKey(
+        Team,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="signed_free_agent_tracker_entries",
+    )
+    tracker_status = models.CharField(
+        max_length=20, choices=TRACKER_STATUS_CHOICES, default="unsigned"
+    )
+    source_url = models.URLField(max_length=500, blank=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["team__abbreviation", "season", "player_name"]
+        indexes = [
+            models.Index(fields=["team", "season"]),
+            models.Index(fields=["signed_with_team", "season"]),
+            models.Index(fields=["player", "season"]),
+            models.Index(fields=["season", "fa_type"]),
+        ]
+        app_label = "gridstream"
+
+    def __str__(self):
+        signed_with = (
+            self.signed_with_team.abbreviation if self.signed_with_team else "—"
+        )
+        return (
+            f"{self.season} {self.team.abbreviation} {self.player_name} "
+            f"{self.fa_type or '?'} → {signed_with}"
+        )
+
+
+# =============================================================================
+# DRAFT PROSPECTS
+# =============================================================================
+
+
+class DraftProspect(models.Model):
+    """
+    Draft prospect scouting snapshots scraped from third-party draft boards.
+
+    Stored separately from `Player` because most prospects are not yet in the
+    NFL player master data. The record is keyed by source slug + draft season so
+    we can refresh scouting context without needing a player join.
+    """
+
+    SOURCE_CHOICES = [
+        ("nfldraftbuzz", "NFLDraftBuzz"),
+    ]
+
+    season = models.IntegerField(help_text="Draft year / class year, e.g. 2026")
+    source = models.CharField(
+        max_length=30, choices=SOURCE_CHOICES, default="nfldraftbuzz"
+    )
+    source_slug = models.SlugField(max_length=160)
+    source_url = models.URLField(max_length=500)
+
+    name = models.CharField(max_length=120)
+    position = models.CharField(max_length=20, blank=True)
+    school = models.CharField(max_length=120, blank=True)
+    class_year = models.CharField(max_length=40, blank=True)
+    hometown = models.CharField(max_length=120, blank=True)
+    role = models.CharField(max_length=120, blank=True)
+    jersey_number = models.CharField(max_length=10, blank=True)
+
+    image_url = models.URLField(max_length=500, blank=True)
+    college_logo_url = models.URLField(max_length=500, blank=True)
+
+    overall_rating = models.FloatField(null=True, blank=True)
+    overall_rank = models.IntegerField(null=True, blank=True)
+    position_rank = models.IntegerField(null=True, blank=True)
+    position_rank_group = models.CharField(max_length=20, blank=True)
+    draft_projection = models.CharField(max_length=80, blank=True)
+    all_scouts_overall_rank = models.FloatField(null=True, blank=True)
+    all_scouts_position_rank = models.FloatField(null=True, blank=True)
+
+    height = models.CharField(max_length=16, blank=True)
+    weight = models.IntegerField(null=True, blank=True)
+    forty_yard = models.FloatField(null=True, blank=True)
+    hand_size = models.CharField(max_length=20, blank=True)
+    arm_length = models.CharField(max_length=20, blank=True)
+    age = models.FloatField(null=True, blank=True)
+    birth_date = models.DateField(null=True, blank=True)
+    college_games = models.IntegerField(null=True, blank=True)
+    college_snaps = models.IntegerField(null=True, blank=True)
+
+    bio = models.TextField(blank=True)
+    summary = models.TextField(blank=True)
+    strengths = ArrayField(models.TextField(), default=list, blank=True)
+    weaknesses = ArrayField(models.TextField(), default=list, blank=True)
+    honors = ArrayField(models.TextField(), default=list, blank=True)
+
+    production_stats = models.JSONField(
+        default=list,
+        blank=True,
+        help_text="Top on-page production stats, e.g. tackles / sacks / INT",
+    )
+    scouting_grades = models.JSONField(
+        default=list,
+        blank=True,
+        help_text="NFLDraftBuzz grading/rating rows, e.g. tackling / coverage / ESPN",
+    )
+    measurable_percentiles = models.JSONField(
+        default=list,
+        blank=True,
+        help_text="Percentile values for height/weight/forty/hand/arm on the page",
+    )
+    recruiting_ratings = models.JSONField(
+        default=list,
+        blank=True,
+        help_text="Third-party recruiting/grade badges like ESPN / 247 / Rivals",
+    )
+    comparison_players = models.JSONField(
+        default=list,
+        blank=True,
+        help_text="Comparable players and similarity percentages",
+    )
+
+    source_last_updated = models.DateField(null=True, blank=True)
+    scraped_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["season", "overall_rank", "name"]
+        unique_together = ["season", "source", "source_slug"]
+        indexes = [
+            models.Index(fields=["season", "source"]),
+            models.Index(fields=["season", "overall_rank"]),
+            models.Index(fields=["season", "position"]),
+            models.Index(fields=["season", "school"]),
+        ]
+        app_label = "gridstream"
+
+    def __str__(self):
+        return (
+            f"{self.season} {self.name} ({self.position or '?'}, {self.school or '?'})"
         )
 
 
@@ -1785,6 +1966,188 @@ class PlaybookEntry(models.Model):
 # =============================================================================
 # ADVANCED ANALYTICS
 # =============================================================================
+
+
+class TeamDvoaRating(models.Model):
+    """
+    Team DVOA ratings sourced from FTN's DVOA endpoints.
+
+    One row per (team, season, season_type, week).
+    The full source payload is retained in `metrics_raw` for forward-compatible
+    access to every field returned by FTN.
+
+    Populated by: sync_dvoa_ratings management command.
+    """
+
+    SEASON_TYPE_CHOICES = [
+        ("REG", "Regular Season"),
+        ("POST", "Postseason"),
+    ]
+
+    team = models.ForeignKey(
+        Team, on_delete=models.CASCADE, related_name="dvoa_ratings"
+    )
+    season = models.IntegerField()
+    season_type = models.CharField(
+        max_length=4, choices=SEASON_TYPE_CHOICES, default="REG"
+    )
+    week = models.IntegerField(
+        default=0, help_text="Source week number tied to this DVOA snapshot"
+    )
+
+    record_snapshot = models.CharField(
+        max_length=20, blank=True, help_text="Source win-loss string (e.g. 14-3)"
+    )
+
+    total_dvoa = models.FloatField(null=True, blank=True)
+    offense_dvoa = models.FloatField(null=True, blank=True)
+    defense_dvoa = models.FloatField(null=True, blank=True)
+    special_teams_dvoa = models.FloatField(null=True, blank=True)
+    weighted_total_dvoa = models.FloatField(null=True, blank=True)
+
+    total_dvoa_rank = models.SmallIntegerField(null=True, blank=True)
+    offense_dvoa_rank = models.SmallIntegerField(null=True, blank=True)
+    defense_dvoa_rank = models.SmallIntegerField(null=True, blank=True)
+    special_teams_dvoa_rank = models.SmallIntegerField(null=True, blank=True)
+    weighted_total_dvoa_rank = models.SmallIntegerField(null=True, blank=True)
+    last_week_rank = models.SmallIntegerField(null=True, blank=True)
+    last_week_weighted_rank = models.SmallIntegerField(null=True, blank=True)
+
+    non_adjusted_total_voi = models.FloatField(null=True, blank=True)
+    offense_voa_unadjusted = models.FloatField(null=True, blank=True)
+    defense_voa_unadjusted = models.FloatField(null=True, blank=True)
+    special_teams_voa_unadjusted = models.FloatField(null=True, blank=True)
+    estimated_wins = models.FloatField(null=True, blank=True)
+    past_schedule_dvoa = models.FloatField(null=True, blank=True)
+    future_schedule_dvoa = models.FloatField(null=True, blank=True)
+    variance = models.FloatField(null=True, blank=True)
+    weighted_offense_dvoa = models.FloatField(null=True, blank=True)
+    weighted_defense_dvoa = models.FloatField(null=True, blank=True)
+    weighted_special_teams_dvoa = models.FloatField(null=True, blank=True)
+
+    metrics_raw = models.JSONField(
+        default=dict, help_text="Full source payload row from FTN DVOA API"
+    )
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = ["team", "season", "season_type", "week"]
+        indexes = [
+            models.Index(
+                fields=["season", "season_type", "total_dvoa_rank"],
+                name="gridstream_tdvoa_ssr_idx",
+            ),
+            models.Index(
+                fields=["team", "season", "season_type"],
+                name="gridstream_tdvoa_tss_idx",
+            ),
+        ]
+        ordering = ["-season", "season_type", "total_dvoa_rank"]
+        app_label = "gridstream"
+
+    def __str__(self):
+        return (
+            f"{self.season} {self.season_type} Wk{self.week} "
+            f"{self.team.abbreviation} DVOA {self.total_dvoa}"
+        )
+
+
+class TeamRbsdmMetric(models.Model):
+    """
+    Team-level RBSDM metrics ingested from exported CSV datasets.
+
+    Supported datasets:
+      - stats_offense_weekly
+      - stats_defense_weekly
+      - luck_offense_weekly
+      - luck_defense_weekly
+      - passfreq_neutral_yearly (stored with week=0)
+    """
+
+    DATASET_CHOICES = [
+        ("stats_offense_weekly", "RBSDM Stats Offense (Weekly)"),
+        ("stats_defense_weekly", "RBSDM Stats Defense (Weekly)"),
+        ("luck_offense_weekly", "RBSDM Luck Offense (Weekly)"),
+        ("luck_defense_weekly", "RBSDM Luck Defense (Weekly)"),
+        ("passfreq_neutral_yearly", "RBSDM Neutral Pass Frequency (Season)"),
+    ]
+
+    team = models.ForeignKey(
+        Team, on_delete=models.CASCADE, related_name="rbsdm_metrics"
+    )
+    season = models.IntegerField()
+    week = models.IntegerField(
+        default=0, help_text="Week number, or 0 for season-level datasets"
+    )
+    dataset = models.CharField(max_length=40, choices=DATASET_CHOICES)
+    table_context = models.CharField(max_length=255, blank=True)
+    metrics = models.JSONField(default=dict, help_text="RBSDM row metrics payload")
+    captured_at = models.DateTimeField(null=True, blank=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = ["team", "season", "week", "dataset"]
+        indexes = [
+            models.Index(fields=["season", "dataset", "week"]),
+            models.Index(fields=["team", "season", "dataset"]),
+        ]
+        ordering = ["-season", "dataset", "week", "team__abbreviation"]
+        app_label = "gridstream"
+
+    def __str__(self):
+        return f"{self.team.abbreviation} {self.dataset} {self.season} Wk{self.week}"
+
+
+class PlayerRbsdmQbMetric(models.Model):
+    """
+    QB-level RBSDM weekly metrics from stats_qb_weekly CSV exports.
+
+    A player link is optional because RBSDM names are short-form strings
+    (e.g. "M.Stafford") and may not always map 1:1.
+    """
+
+    player = models.ForeignKey(
+        Player,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="rbsdm_qb_metrics",
+    )
+    team = models.ForeignKey(
+        Team, on_delete=models.SET_NULL, null=True, blank=True, related_name="+"
+    )
+    season = models.IntegerField()
+    week = models.IntegerField()
+    player_name = models.CharField(max_length=80)
+    player_key = models.CharField(max_length=80, db_index=True)
+
+    adj_epa_play = models.FloatField(null=True, blank=True)
+    epa_play = models.FloatField(null=True, blank=True)
+    epa_cpoe_composite = models.FloatField(null=True, blank=True)
+    cpoe = models.FloatField(null=True, blank=True)
+    success_rate = models.FloatField(null=True, blank=True)
+    air_yards = models.FloatField(null=True, blank=True)
+    expected_cmppct = models.FloatField(null=True, blank=True)
+    cmppct = models.FloatField(null=True, blank=True)
+    plays = models.IntegerField(null=True, blank=True)
+
+    table_context = models.CharField(max_length=255, blank=True)
+    metrics = models.JSONField(default=dict, help_text="RBSDM QB row metrics payload")
+    captured_at = models.DateTimeField(null=True, blank=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = ["team", "season", "week", "player_key"]
+        indexes = [
+            models.Index(fields=["season", "week"]),
+            models.Index(fields=["player", "season"]),
+            models.Index(fields=["player_key", "season"]),
+        ]
+        ordering = ["-season", "-week", "player_name"]
+        app_label = "gridstream"
+
+    def __str__(self):
+        return f"{self.player_name} RBSDM {self.season} Wk{self.week}"
 
 
 class PlayerFFRanking(models.Model):

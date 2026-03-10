@@ -11,6 +11,11 @@ Endpoint map:
   GET  /teams/{abbr}/                     — team detail
   GET  /teams/{abbr}/roster/              — team roster
   GET  /teams/{abbr}/schedule/?season=    — team schedule
+  GET  /teams/{abbr}/season-stats/        — per-season aggregate stats
+  GET  /teams/{abbr}/game-log/?season=    — per-game results with box stats
+  GET  /teams/{abbr}/dvoa/?season_type=   — DVOA history + latest snapshots
+  GET  /teams/dvoa/?season=&season_type=  — league-wide team DVOA for a season
+  GET  /teams/rankings/?season=&abbr=     — league/conf/div stat rankings
 
   GET  /players/                          — search/filter players
   GET  /players/{id}/                     — player profile

@@ -87,6 +87,65 @@ class TestTeamMinimalSerializer:
         # Should pick the "default" logo type over "dark"
         assert "500/sea.png" in data["logo_url"]
 
+    def test_logo_url_prefers_color_espn_logo_when_default_missing(self, db):
+        from gridstream.models import Team, TeamLogo
+        from gridstream.serializers import TeamMinimalSerializer
+
+        team = Team.objects.using("nfl").create(
+            espn_id="77",
+            abbreviation="LVR",
+            slug="las-vegas-raiders",
+            location="Las Vegas",
+            name="Raiders",
+            display_name="Las Vegas Raiders",
+            short_display_name="Raiders",
+            color_primary="000000",
+            color_secondary="a5acaf",
+            conference="AFC",
+            division="AFC West",
+            is_active=True,
+        )
+        TeamLogo.objects.using("nfl").create(
+            team=team,
+            logo_type="dark",
+            url="https://example.com/lvr-dark.png",
+        )
+        TeamLogo.objects.using("nfl").create(
+            team=team,
+            logo_type="scoreboard",
+            url="https://example.com/lvr-scoreboard.png",
+        )
+
+        data = TeamMinimalSerializer(team).data
+        assert data["logo_url"] == "https://a.espncdn.com/i/teamlogos/nfl/500/lvr.png"
+
+    def test_logo_url_omits_dark_only_logo(self, db):
+        from gridstream.models import Team, TeamLogo
+        from gridstream.serializers import TeamMinimalSerializer
+
+        team = Team.objects.using("nfl").create(
+            espn_id="88",
+            abbreviation="MONO",
+            slug="mono-team",
+            location="Mono City",
+            name="Mono",
+            display_name="Mono Team",
+            short_display_name="Mono",
+            color_primary="111111",
+            color_secondary="cccccc",
+            conference="AFC",
+            division="AFC East",
+            is_active=True,
+        )
+        TeamLogo.objects.using("nfl").create(
+            team=team,
+            logo_type="dark",
+            url="https://example.com/mono-dark.png",
+        )
+
+        data = TeamMinimalSerializer(team).data
+        assert data["logo_url"] is None
+
 
 class TestGameListSerializer:
     def test_serializes_all_scoreboard_fields(self, game_final):

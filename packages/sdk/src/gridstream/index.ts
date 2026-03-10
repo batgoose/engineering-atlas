@@ -8,3 +8,4 @@ export * from './api-transforms';
 export * from './play-transforms';
 export * from './gridstream-store';
 export * from './players';
+export * from './teams';

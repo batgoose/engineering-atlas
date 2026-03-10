@@ -12,7 +12,13 @@ Endpoints:
   /teams/                       — all teams
   /teams/{abbr}/                — team detail
   /teams/{abbr}/roster/         — current roster
+  /teams/{abbr}/free-agent-tracker/ — Ourlads-style free-agent tracker
   /teams/{abbr}/schedule/       — team schedule for a season
+  /teams/{abbr}/season-stats/   — per-season aggregate stats for a team
+  /teams/{abbr}/game-log/       — per-game results with box stats for a team
+  /teams/{abbr}/dvoa/           — DVOA history + latest snapshots for a team
+  /teams/dvoa/                  — league-wide team DVOA snapshots by season
+  /teams/rankings/              — league/conf/div stat rankings (?season=&abbr=)
   /players/                     — player search/list
   /players/{id}/                — player profile
   /players/{id}/gamelog/         — player game log
@@ -30,10 +36,12 @@ OpenAPI prep note:
 """
 
 import logging
+import re
 from datetime import date
 from collections import defaultdict
 from functools import lru_cache
 
+import requests
 from django.conf import settings
 from django.db import connections
 from django.db.models import (
@@ -53,9 +61,11 @@ from django.db.models import (
     OuterRef,
     Subquery,
     Exists,
+    Prefetch,
 )
 from django.db.models.functions import Coalesce, Greatest, Least
 from django.db.models.expressions import RawSQL
+from django.db.utils import OperationalError, ProgrammingError
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
@@ -89,6 +99,8 @@ from .models import (
     Player,
     PlayerContract,
     PlayerTransaction,
+    DraftProspect,
+    TeamFreeAgentTrackerEntry,
     Season,
     Game,
     GameLeader,
@@ -101,14 +113,21 @@ from .models import (
     PlayerFFRanking,
     PlayerNextGenStats,
     TeamStanding,
+    TeamDvoaRating,
+    TeamRbsdmMetric,
+    PlayerRbsdmQbMetric,
 )
 from .serializers import (
     TeamListSerializer,
+    TeamMinimalSerializer,
     TeamDetailSerializer,
     VenueSerializer,
     PlayerListSerializer,
     PlayerDetailSerializer,
     PlayerTransactionSerializer,
+    TeamFreeAgentTrackerEntrySerializer,
+    TeamFreeAgencyTransactionSerializer,
+    TeamFreeAgencyContractChangeSerializer,
     SeasonSerializer,
     GameListSerializer,
     GameDetailSerializer,
@@ -120,6 +139,9 @@ from .serializers import (
     PlayerGameStatsCompactSerializer,
     TeamGameStatsSerializer,
     TeamStandingSerializer,
+    TeamDvoaRatingSerializer,
+    TeamRbsdmMetricSerializer,
+    PlayerRbsdmQbMetricSerializer,
     PlaybookSerializer,
     PlaybookEntrySerializer,
     PlayerFFRankingSerializer,
@@ -155,7 +177,173 @@ from .cache import (
 
 logger = logging.getLogger(__name__)
 
-TEAM_ABBR_NORMALIZE = {"STL": "LA", "SD": "LAC", "OAK": "LV"}
+TEAM_ABBR_NORMALIZE = {"LAR": "LA", "STL": "LA", "SD": "LAC", "OAK": "LV"}
+TEAM_ABBR_TO_OURLADS_CODE = {"ARI": "ARZ", "LA": "LAR"}
+
+FREE_AGENCY_STATUS_DISPLAY = {
+    "ACQUIRED_FA_OR_TRADE_2026": "ACQUIRED 2026",
+    "RE_SIGNED_2026": "RE-SIGNED 2026",
+    "UFA": "UFA",
+    "RFA": "RFA",
+    "ERFA": "ERFA",
+}
+TANKATHON_FULL_DRAFT_URL = "https://www.tankathon.com/nfl/full_draft"
+NFL_DRAFT_IQ_DRAFT_CONSENSUS_URL = "https://www.nfldraftiq.com/api/draft-consensus"
+NFL_DRAFT_IQ_DRAFT_CONSENSUS_PAGE_URL = "https://www.nfldraftiq.com/draft-consensus"
+NFL_DRAFT_IQ_TRUE_ADP_URL = "https://www.nfldraftiq.com/api/true-adp/players"
+NFL_DRAFT_IQ_TRUE_ADP_PAGE_URL = "https://www.nfldraftiq.com/"
+NFL_DRAFT_IQ_TIMEFRAME_DAYS = 14
+NFL_DRAFT_IQ_LIMIT = 200
+TANKATHON_ROUND_BLOCK_RE = re.compile(
+    r'<div class="round-title">(?P<title>[^<]+)</div><table class="full-draft">(?P<body>.*?)</table>',
+    re.IGNORECASE | re.DOTALL,
+)
+TANKATHON_PICK_ROW_RE = re.compile(
+    r'<tr><td class="pick-number">(?P<overall>\d+)(?P<extra>.*?)</td>\s*<td>(?P<body>.*?)</td></tr>',
+    re.IGNORECASE | re.DOTALL,
+)
+TANKATHON_LOGO_CODE_RE = re.compile(r"/nfl/(?P<code>[a-z0-9_]+)\.svg", re.IGNORECASE)
+TANKATHON_TRADE_FROM_RE = re.compile(
+    r'<div class="trade">.*?<span class="desktop">(?P<abbr>[A-Z]{2,3})</span>',
+    re.IGNORECASE | re.DOTALL,
+)
+NFL_DRAFT_IQ_PICK_RANGE_RE = re.compile(
+    r"Pick\s+(?P<start>\d+)\s*-\s*(?P<end>\d+)", re.IGNORECASE
+)
+TANKATHON_TEAM_CODE_OVERRIDES = {"WSH": "WAS"}
+NFL_COM_2026_DRAFT_NEEDS_URL = (
+    "https://www.nfl.com/news/2026-nfl-draft-order-round-1-needs-for-all-32-teams"
+)
+TEAM_NEED_LABELS = {
+    "QB": "Quarterback",
+    "RB": "Running back",
+    "WR": "Wide receiver",
+    "TE": "Tight end",
+    "OL": "Offensive line",
+    "EDGE": "Edge",
+    "DL": "Defensive line",
+    "LB": "Linebacker",
+    "CB": "Cornerback",
+    "S": "Safety",
+    "K": "Kicker",
+    "P": "Punter",
+    "LS": "Long snapper",
+}
+NFL_COM_2026_TEAM_NEEDS = {
+    "TEN": ["WR", "Edge", "CB", "OL", "DL"],
+    "NYG": ["WR", "OL", "CB", "LB", "DL"],
+    "CLE": ["QB", "OL", "WR", "CB", "LB"],
+    "WAS": ["Edge", "WR", "LB", "CB", "TE"],
+    "NO": ["Edge", "WR", "CB", "OL", "DL"],
+    "KC": ["CB", "RB", "S", "WR", "OL"],
+    "CIN": ["Edge", "OL", "CB", "DL", "S"],
+    "MIA": ["QB", "WR", "CB", "Edge", "OL"],
+    "LA": ["OL", "WR", "CB", "Edge", "QB"],
+    "DET": ["OL", "Edge", "DL", "CB", "S"],
+    "CHI": ["S", "DL", "CB", "Edge", "OL"],
+    "ARI": ["QB", "OL", "S", "RB", "Edge"],
+    "SEA": ["CB", "RB", "OL", "WR", "Edge"],
+    "BAL": ["Edge", "DL", "OL", "S", "WR"],
+    "TB": ["Edge", "LB", "TE", "CB", "OL"],
+    "IND": ["Edge", "OL", "S", "WR", "DL"],
+    "NYJ": ["QB", "Edge", "CB", "WR", "OL"],
+    "PIT": ["QB", "WR", "CB", "S", "OL"],
+    "ATL": ["DL", "WR", "CB", "LB", "Edge"],
+    "DAL": ["Edge", "CB", "LB", "S", "OL"],
+    "MIN": ["S", "CB", "OL", "WR", "LB"],
+    "CAR": ["OL", "Edge", "LB", "S", "WR"],
+    "GB": ["CB", "OL", "DL", "LB", "Edge"],
+    "JAX": ["CB", "LB", "OL", "S", "DL"],
+    "PHI": ["Edge", "CB", "TE", "OL", "S"],
+    "BUF": ["Edge", "WR", "OL", "CB", "S"],
+    "SF": ["WR", "OL", "Edge", "S", "CB"],
+    "HOU": ["OL", "DL", "S", "Edge", "LB"],
+    "DEN": ["LB", "TE", "DL", "RB", "OL"],
+    "NE": ["Edge", "OL", "S", "WR", "DL"],
+    "LV": ["QB", "OL", "WR", "CB", "Edge"],
+    "LAC": ["OL", "Edge", "DL", "S", "CB"],
+}
+TEAM_NEED_TARGETS = {
+    "QB": 2,
+    "RB": 3,
+    "WR": 5,
+    "TE": 3,
+    "OL": 8,
+    "EDGE": 4,
+    "DL": 4,
+    "LB": 4,
+    "CB": 4,
+    "S": 3,
+    "K": 1,
+    "P": 1,
+    "LS": 1,
+}
+
+
+def _current_free_agency_year() -> int:
+    return date.today().year
+
+
+def _normalize_team_abbreviation_for_ourlads(team_abbr: str | None) -> str:
+    abbr = str(team_abbr or "").upper().strip()
+    if not abbr:
+        return ""
+    return TEAM_ABBR_TO_OURLADS_CODE.get(abbr, abbr)
+
+
+def _derive_team_roster_free_agency_status(
+    team: Team, entry: TeamFreeAgentTrackerEntry
+):
+    if entry.signed_with_team_id == team.id:
+        if entry.team_id == team.id:
+            return "RE_SIGNED_2026"
+        return "ACQUIRED_FA_OR_TRADE_2026"
+    if entry.team_id == team.id and entry.signed_with_team_id is None:
+        fa_type = (entry.fa_type or "").upper().strip()
+        if fa_type in {"UFA", "RFA", "ERFA"}:
+            return fa_type
+    return None
+
+
+def _canonical_name_key(value):
+    if not value:
+        return ""
+    return "".join(ch for ch in str(value).lower() if ch.isalnum())
+
+
+PERSON_NAME_SUFFIXES = {"jr", "sr", "ii", "iii", "iv", "v"}
+
+
+def _person_name_match_keys(value) -> set[str]:
+    if not value:
+        return set()
+
+    raw = str(value).strip()
+    keys = {_canonical_name_key(raw)}
+    tokens = [token for token in re.split(r"\s+", raw) if token]
+    if tokens:
+        normalized_tokens = [
+            re.sub(r"[^a-z0-9]", "", token.lower()) for token in tokens
+        ]
+        if normalized_tokens and normalized_tokens[-1] in PERSON_NAME_SUFFIXES:
+            stripped = " ".join(tokens[:-1]).strip()
+            if stripped:
+                keys.add(_canonical_name_key(stripped))
+    return {key for key in keys if key}
+
+
+def _initial_last_name_key(value):
+    if not value:
+        return ""
+    parts = [part for part in str(value).strip().split() if part]
+    if len(parts) < 2:
+        return ""
+    return _canonical_name_key(f"{parts[0][0]}{parts[-1]}")
+
+
+def _is_missing_relation_error(exc: Exception) -> bool:
+    msg = str(exc).lower()
+    return "does not exist" in msg and "relation" in msg
 
 
 @lru_cache(maxsize=16)
@@ -163,6 +351,993 @@ def _raw_table_exists_cached(table_name):
     with connections["nfl"].cursor() as cursor:
         cursor.execute("SELECT to_regclass(%s)", [table_name])
         return cursor.fetchone()[0] is not None
+
+
+def _normalize_tankathon_team_code(value: str | None) -> str:
+    token = str(value or "").upper().strip()
+    if not token:
+        return ""
+    return TANKATHON_TEAM_CODE_OVERRIDES.get(token, token)
+
+
+def _fetch_tankathon_draft_rows() -> list[dict]:
+    cache_key_value = "gridstream:tankathon:nfl:full_draft"
+    cached = cache_get(cache_key_value)
+    if isinstance(cached, list):
+        return cached
+
+    try:
+        response = requests.get(
+            TANKATHON_FULL_DRAFT_URL,
+            timeout=20,
+            headers={"User-Agent": "engineering-atlas/team-draft-outlook"},
+        )
+        response.raise_for_status()
+    except requests.RequestException as exc:
+        logger.warning("Failed to fetch Tankathon full draft page: %s", exc)
+        return []
+
+    rows: list[dict] = []
+    for round_match in TANKATHON_ROUND_BLOCK_RE.finditer(response.text or ""):
+        title = str(round_match.group("title") or "").strip()
+        digits = "".join(ch for ch in title if ch.isdigit())
+        if not digits:
+            continue
+        round_number = int(digits)
+        round_body = round_match.group("body") or ""
+        for row_match in TANKATHON_PICK_ROW_RE.finditer(round_body):
+            overall_pick = int(row_match.group("overall"))
+            row_body = row_match.group("body") or ""
+            logo_match = TANKATHON_LOGO_CODE_RE.search(row_body)
+            if not logo_match:
+                continue
+            current_team = _normalize_tankathon_team_code(logo_match.group("code"))
+            if not current_team:
+                continue
+            trade_match = TANKATHON_TRADE_FROM_RE.search(row_body)
+            original_team = (
+                _normalize_tankathon_team_code(trade_match.group("abbr"))
+                if trade_match
+                else current_team
+            )
+            rows.append(
+                {
+                    "round": round_number,
+                    "overall_pick": overall_pick,
+                    "current_team_abbr": current_team,
+                    "original_team_abbr": original_team,
+                    "compensatory": "plus-circle" in (row_match.group("extra") or ""),
+                }
+            )
+
+    if rows:
+        cache_set(cache_key_value, rows, ttl=TTL_LONG)
+    return rows
+
+
+def _fetch_nfl_draft_iq_consensus() -> dict:
+    cache_key_value = f"gridstream:nfldraftiq:draft-consensus:{NFL_DRAFT_IQ_TIMEFRAME_DAYS}:{NFL_DRAFT_IQ_LIMIT}"
+    cached = cache_get(cache_key_value)
+    if isinstance(cached, dict):
+        return cached
+
+    try:
+        response = requests.get(
+            NFL_DRAFT_IQ_DRAFT_CONSENSUS_URL,
+            params={
+                "timeframeDays": NFL_DRAFT_IQ_TIMEFRAME_DAYS,
+                "limit": NFL_DRAFT_IQ_LIMIT,
+            },
+            timeout=20,
+            headers={"User-Agent": "engineering-atlas/team-draft-outlook"},
+        )
+        response.raise_for_status()
+        payload = response.json()
+    except (requests.RequestException, ValueError) as exc:
+        logger.warning("Failed to fetch NFL Draft IQ consensus data: %s", exc)
+        return {}
+
+    if isinstance(payload, dict):
+        cache_set(cache_key_value, payload, ttl=TTL_MEDIUM)
+        return payload
+    return {}
+
+
+def _fetch_nfl_draft_iq_true_adp_players() -> list[dict]:
+    cache_key_value = f"gridstream:nfldraftiq:true-adp:{NFL_DRAFT_IQ_TIMEFRAME_DAYS}:{NFL_DRAFT_IQ_LIMIT}"
+    cached = cache_get(cache_key_value)
+    if isinstance(cached, list):
+        return cached
+
+    try:
+        response = requests.get(
+            NFL_DRAFT_IQ_TRUE_ADP_URL,
+            params={
+                "timeframeDays": NFL_DRAFT_IQ_TIMEFRAME_DAYS,
+                "limit": NFL_DRAFT_IQ_LIMIT,
+            },
+            timeout=20,
+            headers={"User-Agent": "engineering-atlas/team-draft-outlook"},
+        )
+        response.raise_for_status()
+        payload = response.json()
+    except (requests.RequestException, ValueError) as exc:
+        logger.warning("Failed to fetch NFL Draft IQ true ADP data: %s", exc)
+        return []
+
+    rows = (
+        payload.get("data", {}).get("players", []) if isinstance(payload, dict) else []
+    )
+    if isinstance(rows, list):
+        cache_set(cache_key_value, rows, ttl=TTL_MEDIUM)
+        return rows
+    return []
+
+
+def _parse_draft_iq_pick_range(value: str | None) -> tuple[int | None, int | None]:
+    match = NFL_DRAFT_IQ_PICK_RANGE_RE.search(str(value or ""))
+    if not match:
+        return None, None
+    try:
+        return int(match.group("start")), int(match.group("end"))
+    except (TypeError, ValueError):
+        return None, None
+
+
+def _coerce_int(value) -> int | None:
+    try:
+        if value in (None, ""):
+            return None
+        return int(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _coerce_float(value) -> float | None:
+    try:
+        if value in (None, ""):
+            return None
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _position_to_need_bucket(
+    position: str | None,
+    position_group: str | None = None,
+    depth_position: str | None = None,
+):
+    depth_token = str(depth_position or "").upper().strip()
+    token = depth_token or str(position or "").upper().strip()
+    group = str(position_group or "").upper().strip()
+    if token == "QB" or group == "QB":
+        return "QB"
+    if token in {"RB", "FB"} or group == "RB":
+        return "RB"
+    if token in {"WR", "LWR", "SWR", "RWR"} or group == "WR":
+        return "WR"
+    if token == "TE" or group == "TE":
+        return "TE"
+    if token in {"C", "G", "T", "OG", "OT", "LT", "RT", "LG", "RG", "OL"} or group in {
+        "OL",
+        "C",
+        "G",
+        "T",
+        "OG",
+        "OT",
+    }:
+        return "OL"
+    if token in {"EDGE", "ED", "DE"} or group in {"EDGE", "ED", "DE"}:
+        return "EDGE"
+    if token in {"DT", "NT", "DL", "DI"} or group in {"DT", "NT", "DL"}:
+        return "DL"
+    if token in {"LB", "ILB", "MLB", "OLB", "LOLB", "ROLB", "SLB", "WLB"} or group in {
+        "LB",
+        "ILB",
+        "MLB",
+        "OLB",
+    }:
+        return "LB"
+    if token in {"CB", "LCB", "RCB", "NB"} or group == "CB":
+        return "CB"
+    if token in {"S", "FS", "SS"} or group in {"S", "DB"}:
+        return "S"
+    if token == "K" or group == "K":
+        return "K"
+    if token in {"P", "PT"} or group == "P":
+        return "P"
+    if token == "LS" or group == "LS":
+        return "LS"
+    return None
+
+
+def _build_source_backed_team_needs(
+    team_abbr: str | None, season_year: int
+) -> list[dict]:
+    if season_year != 2026:
+        return []
+
+    raw_needs = NFL_COM_2026_TEAM_NEEDS.get(str(team_abbr or "").upper().strip())
+    if not raw_needs:
+        return []
+
+    needs = []
+    for index, raw_need in enumerate(raw_needs):
+        key = str(raw_need or "").upper().strip()
+        if not key:
+            continue
+        needs.append(
+            {
+                "key": key,
+                "label": TEAM_NEED_LABELS.get(key, str(raw_need).title()),
+                "score": len(raw_needs) - index,
+                "detail": f"Priority #{index + 1} from NFL.com's Round 1 needs board",
+            }
+        )
+    return needs
+
+
+def _build_team_draft_targets(
+    team: Team, draft_picks: list[dict], team_needs: list[dict]
+) -> dict:
+    first_pick = None
+    if draft_picks:
+        first_pick = min(
+            (
+                row.get("overall_pick")
+                for row in draft_picks
+                if isinstance(row.get("overall_pick"), int)
+            ),
+            default=None,
+        )
+
+    if first_pick is None:
+        return {"source_url": NFL_DRAFT_IQ_DRAFT_CONSENSUS_PAGE_URL, "targets": []}
+
+    team_names = {
+        str(team.display_name or "").strip(),
+        str(team.short_display_name or "").strip(),
+        " ".join(part for part in [team.location, team.name] if part).strip(),
+    }
+    team_names = {value for value in team_names if value}
+
+    need_priority = {
+        str(entry.get("key") or "").upper().strip(): index
+        for index, entry in enumerate(team_needs)
+        if entry.get("key")
+    }
+    need_label_by_key = {
+        str(entry.get("key") or "")
+        .upper()
+        .strip(): str(entry.get("label") or "")
+        .strip()
+        for entry in team_needs
+        if entry.get("key")
+    }
+
+    true_adp_rows = _fetch_nfl_draft_iq_true_adp_players()
+    true_adp_by_player_id = {
+        _coerce_int(row.get("player_id")): row
+        for row in true_adp_rows
+        if _coerce_int(row.get("player_id"))
+    }
+    consensus_payload = _fetch_nfl_draft_iq_consensus()
+    candidates: dict[int, dict] = {}
+
+    def _register_candidate(row: dict, team_mock_count: int, consensus_type: str):
+        player_id = _coerce_int(row.get("player_id"))
+        if player_id is None:
+            return
+
+        range_start, range_end = _parse_draft_iq_pick_range(row.get("range"))
+        range_midpoint = None
+        if range_start is not None and range_end is not None:
+            range_midpoint = (range_start + range_end) / 2
+            if first_pick < range_start - 8 or first_pick > range_end + 8:
+                return
+
+        true_adp_row = true_adp_by_player_id.get(player_id, {})
+        true_adp = _coerce_float(true_adp_row.get("true_adp"))
+        overall_rank = _coerce_int(true_adp_row.get("overall_rank"))
+        position_bucket = _position_to_need_bucket(row.get("position"))
+        need_index = need_priority.get(str(position_bucket or "").upper())
+        need_label = need_label_by_key.get(str(position_bucket or "").upper()) or (
+            TEAM_NEED_LABELS.get(position_bucket, position_bucket)
+            if position_bucket
+            else None
+        )
+        need_bonus = max(0, 10 - (need_index * 2)) if need_index is not None else 0
+        talent_bonus = max(0, 20 - overall_rank) if overall_rank is not None else 0
+        distance_anchor = true_adp if true_adp is not None else range_midpoint
+        pick_distance = (
+            abs(distance_anchor - first_pick) if distance_anchor is not None else 0
+        )
+        score = float(team_mock_count + need_bonus + talent_bonus - pick_distance)
+        total_mock_count = _coerce_int(row.get("mockCount"))
+        if total_mock_count is None:
+            total_mock_count = sum(
+                _coerce_int(team_row.get("mockCount")) or 0
+                for team_row in row.get("teamBreakdown", [])
+                if isinstance(team_row, dict)
+            )
+
+        existing = candidates.get(player_id)
+        candidate = {
+            "player_id": player_id,
+            "name": str(row.get("name") or "").strip(),
+            "position": str(row.get("position") or "").strip(),
+            "school": str(row.get("school") or "").strip(),
+            "college_logo_url": row.get("collegeLogoUrl"),
+            "image_url": row.get("imageUrl"),
+            "range": str(row.get("range") or "").strip() or None,
+            "team_mock_count": team_mock_count,
+            "total_mock_count": total_mock_count,
+            "consensus_type": consensus_type,
+            "overall_rank": overall_rank,
+            "true_adp": true_adp,
+            "need_key": position_bucket,
+            "need_label": need_label,
+            "fit_reason": (
+                f"Matches {team.display_name}'s #{need_index + 1} need at {need_label}"
+                if need_index is not None and need_label
+                else None
+            ),
+            "score": score,
+        }
+        if existing is None or candidate["score"] > existing["score"]:
+            candidates[player_id] = candidate
+
+    for row in consensus_payload.get("decisive", []):
+        if not isinstance(row, dict):
+            continue
+        if str(row.get("team") or "").strip() not in team_names:
+            continue
+        _register_candidate(row, _coerce_int(row.get("mockCount")) or 0, "decisive")
+
+    for row in consensus_payload.get("indecisive", []):
+        if not isinstance(row, dict):
+            continue
+        team_match = None
+        for team_row in row.get("teamBreakdown", []):
+            if not isinstance(team_row, dict):
+                continue
+            if str(team_row.get("teamName") or "").strip() in team_names:
+                team_match = team_row
+                break
+        if not team_match:
+            continue
+        _register_candidate(
+            row, _coerce_int(team_match.get("mockCount")) or 0, "indecisive"
+        )
+
+    targets = sorted(
+        candidates.values(),
+        key=lambda row: (
+            -float(row.get("score") or 0),
+            -int(row.get("team_mock_count") or 0),
+            float(row.get("true_adp") or 999),
+            str(row.get("name") or ""),
+        ),
+    )[:5]
+
+    if len(targets) < 5:
+        seen_ids = {
+            entry["player_id"]
+            for entry in targets
+            if entry.get("player_id") is not None
+        }
+        for row in true_adp_rows:
+            player_id = _coerce_int(row.get("player_id"))
+            if player_id is None or player_id in seen_ids:
+                continue
+            position_bucket = _position_to_need_bucket(row.get("position"))
+            if position_bucket == "QB" and "QB" not in need_priority:
+                continue
+            need_index = need_priority.get(str(position_bucket or "").upper())
+            if need_priority and need_index is None:
+                continue
+            need_label = need_label_by_key.get(str(position_bucket or "").upper()) or (
+                TEAM_NEED_LABELS.get(position_bucket, position_bucket)
+                if position_bucket
+                else None
+            )
+            overall_rank = _coerce_int(row.get("overall_rank"))
+            true_adp = _coerce_float(row.get("true_adp"))
+            pick_distance = abs((true_adp or first_pick) - first_pick)
+            if pick_distance > 12:
+                continue
+            targets.append(
+                {
+                    "player_id": player_id,
+                    "name": str(row.get("name") or "").strip(),
+                    "position": str(row.get("position") or "").strip(),
+                    "school": str(row.get("school") or "").strip(),
+                    "college_logo_url": row.get("college_logo_url"),
+                    "image_url": row.get("imageUrl"),
+                    "range": None,
+                    "team_mock_count": 0,
+                    "total_mock_count": _coerce_int(row.get("total_sources")),
+                    "consensus_type": "board",
+                    "overall_rank": overall_rank,
+                    "true_adp": true_adp,
+                    "need_key": position_bucket,
+                    "need_label": need_label,
+                    "fit_reason": (
+                        f"Matches {team.display_name}'s #{need_index + 1} need at {need_label}"
+                        if need_index is not None and need_label
+                        else None
+                    ),
+                    "score": float(40 - pick_distance),
+                }
+            )
+            seen_ids.add(player_id)
+            if len(targets) >= 5:
+                break
+
+    return {
+        "source_url": NFL_DRAFT_IQ_DRAFT_CONSENSUS_PAGE_URL,
+        "targets": targets[:5],
+    }
+
+
+def _draft_prospect_position_tokens(value: str | None) -> set[str]:
+    raw = str(value or "").upper().strip()
+    if not raw:
+        return set()
+
+    normalized = raw.replace(" ", "")
+    tokens = {normalized}
+    tokens.update(token for token in re.split(r"[^A-Z]+", normalized) if token)
+    bucket = _position_to_need_bucket(normalized)
+    if bucket:
+        tokens.add(bucket)
+
+    alias_map = {
+        "ED": {"EDGE", "DE"},
+        "EDGE": {"ED", "DE"},
+        "DE": {"EDGE", "ED"},
+        "LB": {"ILB", "OLB", "MLB"},
+        "DB": {"CB", "S"},
+        "S": {"DB"},
+        "CB": {"DB"},
+        "OT": {"OL"},
+        "OG": {"OL"},
+        "C": {"OL"},
+    }
+    expanded = set(tokens)
+    for token in list(tokens):
+        expanded.update(alias_map.get(token, set()))
+    return {token for token in expanded if token}
+
+
+def _serialize_team_minimal_reference(team: Team) -> dict:
+    espn_logo_key = {
+        "WAS": "wsh",
+        "LA": "lar",
+    }.get(
+        str(team.abbreviation or "").upper().strip(),
+        str(team.abbreviation or "").lower().strip(),
+    )
+    color_logo_url = (
+        f"https://a.espncdn.com/i/teamlogos/nfl/500/{espn_logo_key}.png"
+        if espn_logo_key
+        else None
+    )
+    return {
+        "id": team.id,
+        "abbreviation": team.abbreviation,
+        "display_name": team.display_name,
+        "short_display_name": team.short_display_name,
+        "color_primary": team.color_primary,
+        "color_secondary": team.color_secondary,
+        "logo_url": color_logo_url,
+    }
+
+
+def _parse_draft_projection_pick_range(
+    value: str | None,
+) -> tuple[int | None, int | None]:
+    raw = str(value or "").upper().strip()
+    if not raw:
+        return None, None
+    if "UDFA" in raw:
+        return 257, 300
+
+    round_match = re.search(r"\b([1-7])(ST|ND|RD|TH)\b", raw)
+    top_match = re.search(r"TOP\s+(\d+)", raw)
+    if top_match:
+        try:
+            top_value = int(top_match.group(1))
+        except (TypeError, ValueError):
+            top_value = None
+        if top_value:
+            if round_match and int(round_match.group(1)) > 1:
+                round_num = int(round_match.group(1))
+                round_start = 1 + ((round_num - 1) * 32)
+                return round_start, min(
+                    round_num * 32, round_start + max(top_value - 1, 7)
+                )
+            return 1, top_value
+
+    if not round_match:
+        return None, None
+
+    round_num = int(round_match.group(1))
+    round_start = 1 + ((round_num - 1) * 32)
+    round_end = round_num * 32
+    if "EARLY" in raw or "TOP" in raw:
+        return round_start, min(round_end, round_start + 10)
+    if "MID" in raw:
+        return min(round_end, round_start + 10), min(round_end, round_start + 21)
+    if "LATE" in raw:
+        return max(round_start, round_end - 10), round_end
+    return round_start, round_end
+
+
+def _estimate_draft_target_pick_window(
+    target: dict,
+) -> tuple[int | None, int | None, float | None]:
+    range_start, range_end = _parse_draft_iq_pick_range(target.get("range"))
+    projection_start, projection_end = _parse_draft_projection_pick_range(
+        target.get("draft_projection")
+    )
+
+    anchor = _coerce_float(target.get("true_adp"))
+    if anchor is None:
+        anchor_rank = _coerce_int(target.get("overall_rank")) or _coerce_int(
+            target.get("buzz_overall_rank")
+        )
+        if anchor_rank is not None:
+            anchor = float(anchor_rank)
+
+    window_start = None
+    window_end = None
+    if range_start is not None and range_end is not None:
+        # Treat an explicit consensus range as a hard pick window.
+        window_start = range_start
+        window_end = range_end
+    elif projection_start is not None and projection_end is not None:
+        window_start = projection_start
+        window_end = projection_end
+
+    if anchor is not None and not (range_start is not None and range_end is not None):
+        buffer = (
+            5 if anchor <= 16 else 7 if anchor <= 40 else 10 if anchor <= 80 else 14
+        )
+        anchor_start = max(1, int(anchor - buffer))
+        anchor_end = max(anchor_start, int(anchor + buffer))
+        window_start = (
+            min(window_start, anchor_start)
+            if window_start is not None
+            else anchor_start
+        )
+        window_end = (
+            max(window_end, anchor_end) if window_end is not None else anchor_end
+        )
+
+    return window_start, window_end, anchor
+
+
+def _attach_draft_fit_teams(
+    targets: list[dict], season_year: int, draft_rows: list[dict]
+) -> list[dict]:
+    if not targets or not draft_rows:
+        return targets
+
+    try:
+        teams = list(
+            Team.objects.using("nfl")
+            .filter(is_active=True)
+            .prefetch_related("logos")
+            .only(
+                "id",
+                "abbreviation",
+                "display_name",
+                "short_display_name",
+                "color_primary",
+                "color_secondary",
+            )
+        )
+    except (ProgrammingError, OperationalError):
+        return targets
+
+    team_refs: dict[str, dict] = {}
+    team_needs_by_abbr: dict[str, dict[str, dict]] = {}
+    for team in teams:
+        team_needs = _build_source_backed_team_needs(team.abbreviation, season_year)
+        if not team_needs:
+            continue
+        team_refs[str(team.abbreviation or "").upper().strip()] = (
+            _serialize_team_minimal_reference(team)
+        )
+        team_needs_by_abbr[str(team.abbreviation or "").upper().strip()] = {
+            str(entry.get("key") or "")
+            .upper()
+            .strip(): {
+                **entry,
+                "rank": index + 1,
+            }
+            for index, entry in enumerate(team_needs)
+            if entry.get("key")
+        }
+
+    if not team_refs:
+        return [{**target, "fit_teams": []} for target in targets]
+
+    picks_by_team: dict[str, list[dict]] = defaultdict(list)
+    for row in draft_rows:
+        team_abbr = str(row.get("current_team_abbr") or "").upper().strip()
+        overall_pick = _coerce_int(row.get("overall_pick"))
+        if not team_abbr or overall_pick is None or team_abbr not in team_refs:
+            continue
+        picks_by_team[team_abbr].append(row)
+
+    enriched_targets: list[dict] = []
+    for target in targets:
+        need_key = str(
+            target.get("need_key")
+            or _position_to_need_bucket(target.get("position"))
+            or ""
+        ).upper()
+        if not need_key:
+            enriched_targets.append({**target, "fit_teams": []})
+            continue
+
+        window_start, window_end, anchor = _estimate_draft_target_pick_window(target)
+        fit_teams = []
+        for team_abbr, needs_by_key in team_needs_by_abbr.items():
+            need_entry = needs_by_key.get(need_key)
+            if need_entry is None:
+                continue
+
+            team_picks = picks_by_team.get(team_abbr, [])
+            if not team_picks:
+                continue
+
+            candidate_picks = []
+            for pick in team_picks:
+                overall_pick = _coerce_int(pick.get("overall_pick"))
+                if overall_pick is None:
+                    continue
+                if (
+                    window_start is not None
+                    and window_end is not None
+                    and not (window_start <= overall_pick <= window_end)
+                ):
+                    continue
+                candidate_picks.append(pick)
+
+            if not candidate_picks:
+                continue
+
+            candidate_picks.sort(
+                key=lambda row: (
+                    _coerce_int(row.get("overall_pick")) or 999,
+                    _coerce_int(row.get("round")) or 99,
+                )
+            )
+            first_pick = candidate_picks[0]
+            first_pick_number = _coerce_int(first_pick.get("overall_pick"))
+            if first_pick_number is None:
+                continue
+            relevant_pick_numbers = [
+                pick_number
+                for pick_number in (
+                    _coerce_int(row.get("overall_pick")) for row in candidate_picks
+                )
+                if pick_number is not None
+            ]
+            pick_label = (
+                f"Picks {', '.join(f'#{pick_number}' for pick_number in relevant_pick_numbers)}"
+                if len(relevant_pick_numbers) > 1
+                else f"Pick #{first_pick_number}"
+            )
+            need_rank = _coerce_int(need_entry.get("rank")) or 99
+            fit_teams.append(
+                {
+                    "team_detail": team_refs[team_abbr],
+                    "need_key": need_key,
+                    "need_label": need_entry.get("label"),
+                    "need_rank": need_rank,
+                    "pick_label": pick_label,
+                    "round": _coerce_int(first_pick.get("round")),
+                    "overall_pick": first_pick_number,
+                }
+            )
+
+        fit_teams.sort(
+            key=lambda row: (
+                int(row.get("overall_pick") or 999),
+                int(row.get("need_rank") or 99),
+                str(row.get("team_detail", {}).get("display_name") or ""),
+            )
+        )
+        enriched_targets.append(
+            {
+                **target,
+                "fit_teams": fit_teams,
+            }
+        )
+
+    return enriched_targets
+
+
+def _serialize_draft_prospect_for_target(prospect: DraftProspect) -> dict:
+    return {
+        "source_url": prospect.source_url or None,
+        "source_label": "NFLDraftBuzz scouting report",
+        "class_year": prospect.class_year or None,
+        "hometown": prospect.hometown or None,
+        "role": prospect.role or None,
+        "jersey_number": prospect.jersey_number or None,
+        "draft_year": prospect.season,
+        "draft_projection": prospect.draft_projection or None,
+        "buzz_overall_rating": prospect.overall_rating,
+        "buzz_overall_rank": prospect.overall_rank,
+        "buzz_position_rank": prospect.position_rank,
+        "buzz_position_rank_group": prospect.position_rank_group or None,
+        "all_scouts_overall_rank": prospect.all_scouts_overall_rank,
+        "all_scouts_position_rank": prospect.all_scouts_position_rank,
+        "height": prospect.height or None,
+        "weight": prospect.weight,
+        "forty_yard": prospect.forty_yard,
+        "hand_size": prospect.hand_size or None,
+        "arm_length": prospect.arm_length or None,
+        "age": prospect.age,
+        "birth_date": prospect.birth_date.isoformat() if prospect.birth_date else None,
+        "source_last_updated": (
+            prospect.source_last_updated.isoformat()
+            if prospect.source_last_updated
+            else None
+        ),
+        "college_games": prospect.college_games,
+        "college_snaps": prospect.college_snaps,
+        "bio": prospect.bio or None,
+        "summary": prospect.summary or None,
+        "strengths": list(prospect.strengths or []),
+        "weaknesses": list(prospect.weaknesses or []),
+        "honors": list(prospect.honors or []),
+        "production_stats": list(prospect.production_stats or []),
+        "scouting_grades": list(prospect.scouting_grades or []),
+        "measurable_percentiles": list(prospect.measurable_percentiles or []),
+        "recruiting_ratings": list(prospect.recruiting_ratings or []),
+        "comparison_players": list(prospect.comparison_players or []),
+        "image_url": prospect.image_url or None,
+        "college_logo_url": prospect.college_logo_url or None,
+    }
+
+
+def _attach_draft_prospect_details(targets: list[dict], season_year: int) -> list[dict]:
+    if not targets:
+        return targets
+
+    try:
+        prospects = list(
+            DraftProspect.objects.using("nfl")
+            .filter(season=season_year, source="nfldraftbuzz")
+            .only(
+                "id",
+                "name",
+                "position",
+                "school",
+                "class_year",
+                "hometown",
+                "role",
+                "jersey_number",
+                "source_url",
+                "image_url",
+                "college_logo_url",
+                "overall_rating",
+                "overall_rank",
+                "position_rank",
+                "position_rank_group",
+                "draft_projection",
+                "all_scouts_overall_rank",
+                "all_scouts_position_rank",
+                "height",
+                "weight",
+                "forty_yard",
+                "hand_size",
+                "arm_length",
+                "age",
+                "birth_date",
+                "source_last_updated",
+                "college_games",
+                "college_snaps",
+                "bio",
+                "summary",
+                "strengths",
+                "weaknesses",
+                "honors",
+                "production_stats",
+                "scouting_grades",
+                "measurable_percentiles",
+                "recruiting_ratings",
+                "comparison_players",
+            )
+        )
+    except (ProgrammingError, OperationalError):
+        return targets
+
+    prospects_by_name: dict[str, list[DraftProspect]] = defaultdict(list)
+    for prospect in prospects:
+        for key in _person_name_match_keys(prospect.name):
+            prospects_by_name[key].append(prospect)
+
+    enriched_targets: list[dict] = []
+    for target in targets:
+        candidate_map: dict[int, DraftProspect] = {}
+        for target_name_key in _person_name_match_keys(target.get("name")):
+            for candidate in prospects_by_name.get(target_name_key, []):
+                candidate_map[candidate.id] = candidate
+        candidates = list(candidate_map.values())
+        if not candidates:
+            enriched_targets.append(target)
+            continue
+
+        target_school_key = _canonical_name_key(target.get("school"))
+        target_position_tokens = _draft_prospect_position_tokens(target.get("position"))
+        target_rank = _coerce_int(target.get("overall_rank"))
+
+        def _candidate_score(prospect: DraftProspect):
+            school_score = (
+                0
+                if target_school_key
+                and _canonical_name_key(prospect.school) == target_school_key
+                else 1
+            )
+            position_score = (
+                0
+                if target_position_tokens
+                and target_position_tokens
+                & _draft_prospect_position_tokens(prospect.position)
+                else 1
+            )
+            rank_score = abs((prospect.overall_rank or 999) - (target_rank or 999))
+            return (school_score, position_score, rank_score, prospect.id)
+
+        best = sorted(candidates, key=_candidate_score)[0]
+        enriched_targets.append(
+            {**target, **_serialize_draft_prospect_for_target(best)}
+        )
+
+    return enriched_targets
+
+
+def _build_team_draft_outlook(
+    team: Team,
+    season_year: int,
+    unsigned_entries: list[TeamFreeAgentTrackerEntry],
+    incoming_entries: list[TeamFreeAgentTrackerEntry],
+    re_signed_entries: list[TeamFreeAgentTrackerEntry],
+    cuts: list[PlayerTransaction],
+    signed_elsewhere: list[PlayerTransaction],
+) -> dict:
+    draft_rows = _fetch_tankathon_draft_rows()
+    draft_picks = sorted(
+        (
+            row
+            for row in draft_rows
+            if row.get("current_team_abbr") == team.abbreviation
+        ),
+        key=lambda row: (
+            _coerce_int(row.get("round")) or 99,
+            _coerce_int(row.get("overall_pick")) or 999,
+        ),
+    )
+
+    source_backed_needs = _build_source_backed_team_needs(
+        team.abbreviation, season_year
+    )
+    if source_backed_needs:
+        team_needs = source_backed_needs
+    else:
+        active_players = list(
+            Player.objects.using("nfl")
+            .filter(current_team=team, is_active=True)
+            .exclude(roster_status__in=["UFA", "RET", "CUT"])
+            .only(
+                "id",
+                "display_name",
+                "position",
+                "position_group",
+                "depth_chart_position",
+                "roster_status",
+            )
+        )
+
+        bucket_members: dict[str, set[str]] = defaultdict(set)
+        bucket_additions: dict[str, set[str]] = defaultdict(set)
+        bucket_departures: dict[str, set[str]] = defaultdict(set)
+
+        def _person_key(player_id, name: str | None) -> str:
+            return str(player_id) if player_id else _canonical_name_key(name)
+
+        for player in active_players:
+            bucket = _position_to_need_bucket(
+                player.position, player.position_group, player.depth_chart_position
+            )
+            if not bucket:
+                continue
+            bucket_members[bucket].add(_person_key(player.id, player.display_name))
+
+        for entry in list(incoming_entries) + list(re_signed_entries):
+            bucket = _position_to_need_bucket(entry.position)
+            if not bucket:
+                continue
+            bucket_additions[bucket].add(
+                _person_key(entry.player_id, entry.player_name)
+            )
+
+        for entry in unsigned_entries:
+            bucket = _position_to_need_bucket(entry.position)
+            if not bucket:
+                continue
+            bucket_departures[bucket].add(
+                _person_key(entry.player_id, entry.player_name)
+            )
+
+        for txn in list(cuts) + list(signed_elsewhere):
+            player = getattr(txn, "player", None)
+            bucket = _position_to_need_bucket(
+                getattr(player, "position", None) or None,
+                getattr(player, "position_group", None) or None,
+            )
+            if not bucket:
+                bucket = _position_to_need_bucket(
+                    getattr(player, "position", None)
+                    or getattr(txn, "player_position", None)
+                    or None
+                )
+            if not bucket:
+                continue
+            bucket_departures[bucket].add(
+                _person_key(
+                    getattr(player, "id", None),
+                    getattr(player, "display_name", None),
+                )
+            )
+
+        team_needs = []
+        for bucket, target in TEAM_NEED_TARGETS.items():
+            active_count = len(bucket_members[bucket] | bucket_additions[bucket])
+            departure_count = len(bucket_departures[bucket])
+            score = max(target - active_count, 0) * 2 + departure_count
+            if active_count <= 1 and bucket in {"OL", "CB", "EDGE", "WR"}:
+                score += 1
+            if score <= 0:
+                continue
+            detail_bits = [f"{active_count} under contract"]
+            if departure_count:
+                detail_bits.append(f"{departure_count} leaving / unsigned")
+            team_needs.append(
+                {
+                    "key": bucket,
+                    "label": TEAM_NEED_LABELS.get(bucket, bucket),
+                    "score": score,
+                    "detail": " · ".join(detail_bits),
+                }
+            )
+
+        team_needs.sort(key=lambda row: (-row["score"], row["label"]))
+
+    draft_targets = _build_team_draft_targets(team, draft_picks, team_needs)
+    draft_targets["targets"] = _attach_draft_prospect_details(
+        list(draft_targets.get("targets", [])), season_year
+    )
+    draft_targets["targets"] = _attach_draft_fit_teams(
+        list(draft_targets.get("targets", [])),
+        season_year,
+        draft_rows,
+    )
+    return {
+        "season": season_year,
+        "source_url": TANKATHON_FULL_DRAFT_URL,
+        "draft_picks": draft_picks,
+        "team_needs": team_needs[:5],
+        "draft_targets_source_url": draft_targets.get("source_url"),
+        "draft_targets": draft_targets.get("targets", []),
+    }
 
 
 # =============================================================================
@@ -253,8 +1428,235 @@ class TeamViewSet(viewsets.ReadOnlyModelViewSet):
         if roster_status:
             players = players.filter(roster_status=roster_status)
 
+        player_ids = list(players.values_list("id", flat=True))
         serializer = PlayerListSerializer(players, many=True)
-        return Response(serializer.data)
+        payload = list(serializer.data)
+
+        status_by_player_id = {}
+        if player_ids:
+            try:
+                tracker_entries = (
+                    TeamFreeAgentTrackerEntry.objects.filter(
+                        season=_current_free_agency_year(), player_id__in=player_ids
+                    )
+                    .filter(Q(team=team) | Q(signed_with_team=team))
+                    .select_related("team", "signed_with_team")
+                    .order_by("player_id", "team__abbreviation", "fa_type")
+                )
+                priority = {
+                    "RE_SIGNED_2026": 0,
+                    "ACQUIRED_FA_OR_TRADE_2026": 1,
+                    "ERFA": 2,
+                    "RFA": 3,
+                    "UFA": 4,
+                }
+                for entry in tracker_entries:
+                    status_code = _derive_team_roster_free_agency_status(team, entry)
+                    if not status_code or not entry.player_id:
+                        continue
+                    current = status_by_player_id.get(entry.player_id)
+                    current_priority = priority.get(current, 99)
+                    next_priority = priority.get(status_code, 99)
+                    if current is None or next_priority < current_priority:
+                        status_by_player_id[entry.player_id] = status_code
+            except (ProgrammingError, OperationalError) as exc:
+                if _is_missing_relation_error(exc):
+                    logger.warning(
+                        "Free-agent tracker table unavailable; returning roster without enrichment for %s: %s",
+                        team.abbreviation,
+                        exc,
+                    )
+                else:
+                    raise
+
+        for row in payload:
+            player_id = row.get("id")
+            status_code = status_by_player_id.get(player_id)
+            row["free_agency_status"] = status_code
+            row["free_agency_status_display"] = (
+                FREE_AGENCY_STATUS_DISPLAY.get(status_code) if status_code else None
+            )
+
+        return Response(payload)
+
+    @action(detail=True, methods=["get"], url_path="free-agent-tracker")
+    @cached_view("teams", ttl=TTL_MEDIUM)
+    def free_agent_tracker(self, request, abbreviation=None):
+        """
+        GET /teams/{abbr}/free-agent-tracker/?season=2026
+
+        Returns the Ourlads-style team free-agent tracker for a calendar year.
+        """
+        team = self.get_object()
+        season = request.query_params.get("season")
+        try:
+            season_year = (
+                int(season) if season is not None else _current_free_agency_year()
+            )
+        except (TypeError, ValueError):
+            season_year = _current_free_agency_year()
+
+        tracker_player_ids: set[int] = set()
+        entries_list: list[TeamFreeAgentTrackerEntry] = []
+        incoming_entries_list: list[TeamFreeAgentTrackerEntry] = []
+        incoming_data = []
+        try:
+            base_tracker_qs = (
+                TeamFreeAgentTrackerEntry.objects.filter(season=season_year)
+                .select_related("team", "signed_with_team", "player")
+                .prefetch_related(
+                    "team__logos",
+                    "signed_with_team__logos",
+                    Prefetch(
+                        "player__contracts",
+                        queryset=PlayerContract.objects.select_related("team").order_by(
+                            "-is_active", "-year_signed", "-created_at"
+                        ),
+                    ),
+                    Prefetch(
+                        "player__transactions",
+                        queryset=PlayerTransaction.objects.select_related(
+                            "from_team", "to_team"
+                        ).order_by("-date", "-created_at"),
+                    ),
+                )
+            )
+            entries = base_tracker_qs.filter(team=team).order_by("player_name")
+            incoming_entries = (
+                base_tracker_qs.filter(signed_with_team=team)
+                .exclude(team=team)
+                .order_by("player_name")
+            )
+            entries_list = list(entries)
+            incoming_entries_list = list(incoming_entries)
+
+            data = TeamFreeAgentTrackerEntrySerializer(entries_list, many=True).data
+            incoming_data = TeamFreeAgentTrackerEntrySerializer(
+                incoming_entries_list, many=True
+            ).data
+            tracker_player_ids = {
+                entry.player_id
+                for entry in entries_list + incoming_entries_list
+                if entry.player_id
+            }
+        except (ProgrammingError, OperationalError) as exc:
+            if _is_missing_relation_error(exc):
+                logger.warning(
+                    "Free-agent tracker table unavailable; returning empty payload for %s season %s: %s",
+                    team.abbreviation,
+                    season_year,
+                    exc,
+                )
+                data = []
+                incoming_data = []
+            else:
+                raise
+
+        cuts_qs = (
+            PlayerTransaction.objects.filter(
+                from_team=team,
+                date__year=season_year,
+                transaction_type__in=["released", "waived", "waived_injured"],
+            )
+            .select_related("player", "from_team", "to_team")
+            .prefetch_related("from_team__logos", "to_team__logos")
+            .order_by("-date", "player__display_name")
+        )
+        seen_cut_players: set[int] = set()
+        cuts = []
+        for txn in cuts_qs:
+            if txn.player_id and txn.player_id in seen_cut_players:
+                continue
+            if txn.player_id:
+                seen_cut_players.add(txn.player_id)
+            cuts.append(txn)
+        cuts_data = TeamFreeAgencyTransactionSerializer(cuts, many=True).data
+
+        signed_elsewhere_player_ids = tracker_player_ids | {
+            txn.player_id for txn in cuts if txn.player_id
+        }
+        signed_elsewhere_qs = (
+            PlayerTransaction.objects.filter(
+                season=season_year,
+                player_id__in=signed_elsewhere_player_ids,
+                transaction_type__in=["signed", "signed_ps", "claimed", "traded"],
+                to_team__isnull=False,
+            )
+            .exclude(to_team=team)
+            .select_related("player", "from_team", "to_team")
+            .prefetch_related("from_team__logos", "to_team__logos")
+            .order_by("-date", "player__display_name")
+        )
+        seen_signed_elsewhere: set[int] = set()
+        signed_elsewhere = []
+        for txn in signed_elsewhere_qs:
+            if not txn.player_id or txn.player_id in seen_signed_elsewhere:
+                continue
+            seen_signed_elsewhere.add(txn.player_id)
+            signed_elsewhere.append(txn)
+        signed_elsewhere_data = TeamFreeAgencyTransactionSerializer(
+            signed_elsewhere, many=True
+        ).data
+
+        unsigned_entries = [
+            entry
+            for entry in entries_list
+            if not entry.signed_with_team_id
+            and (entry.fa_type or "").upper().strip() in {"UFA", "RFA", "ERFA"}
+        ]
+        re_signed_entries = [
+            entry for entry in entries_list if entry.signed_with_team_id == team.id
+        ]
+        draft_outlook = _build_team_draft_outlook(
+            team=team,
+            season_year=season_year,
+            unsigned_entries=unsigned_entries,
+            incoming_entries=incoming_entries_list,
+            re_signed_entries=re_signed_entries,
+            cuts=cuts,
+            signed_elsewhere=signed_elsewhere,
+        )
+
+        contract_changes = (
+            PlayerContract.objects.filter(
+                team=team,
+                is_active=True,
+                year_signed=season_year,
+            )
+            .exclude(player_id__in=tracker_player_ids)
+            .exclude(player__draft_year=season_year)
+            .exclude(player__rookie_season=season_year)
+            .select_related("player", "team")
+            .prefetch_related("team__logos")
+            .order_by("-year_signed", "-apy", "player__display_name")
+        )
+        contract_changes_data = TeamFreeAgencyContractChangeSerializer(
+            contract_changes, many=True
+        ).data
+
+        return Response(
+            {
+                "season": season_year,
+                "team": TeamMinimalSerializer(team).data,
+                "count": len(data),
+                "results": data,
+                "incoming_count": len(incoming_data),
+                "incoming_results": incoming_data,
+                "cuts_count": len(cuts_data),
+                "cuts": cuts_data,
+                "signed_elsewhere_count": len(signed_elsewhere_data),
+                "signed_elsewhere": signed_elsewhere_data,
+                "contract_changes_count": len(contract_changes_data),
+                "contract_changes": contract_changes_data,
+                "draft_source_url": draft_outlook.get("source_url"),
+                "draft_picks": draft_outlook.get("draft_picks", []),
+                "team_needs": draft_outlook.get("team_needs", []),
+                "draft_targets_source_url": draft_outlook.get(
+                    "draft_targets_source_url"
+                ),
+                "draft_targets": draft_outlook.get("draft_targets", []),
+            }
+        )
 
     @action(detail=True, methods=["get"], url_path="schedule")
     def schedule(self, request, abbreviation=None):
@@ -278,6 +1680,588 @@ class TeamViewSet(viewsets.ReadOnlyModelViewSet):
 
         serializer = GameListSerializer(games, many=True)
         return Response(serializer.data)
+
+    @action(detail=True, methods=["get"], url_path="season-stats")
+    def season_stats(self, request, abbreviation=None):
+        """
+        GET /teams/{abbr}/season-stats/
+
+        Returns per-season aggregate stats for this team, oldest to newest.
+        Joins TeamStanding for W/L records when available.
+        """
+        team = self.get_object()
+
+        # Aggregate TeamGameStats by season
+        agg_qs = (
+            TeamGameStats.objects.filter(team=team)
+            .values("season_year")
+            .annotate(
+                games=Count("id"),
+                points_for=Coalesce(Sum("points_scored"), 0),
+                points_against=Coalesce(Sum("points_allowed"), 0),
+                total_yards=Coalesce(Sum("total_yards"), 0),
+                pass_yards=Coalesce(Sum("pass_yards"), 0),
+                rush_yards=Coalesce(Sum("rush_yards"), 0),
+                sacks_made=Coalesce(
+                    Sum("sacks_made"), Value(0, output_field=FloatField())
+                ),
+                turnovers=Coalesce(Sum("turnovers"), 0),
+                takeaways=Coalesce(Sum("takeaways"), 0),
+                third_down_att=Coalesce(Sum("third_down_attempts"), 0),
+                third_down_conv=Coalesce(Sum("third_down_conversions"), 0),
+                redzone_att=Coalesce(Sum("redzone_attempts"), 0),
+                redzone_scores=Coalesce(Sum("redzone_scores"), 0),
+                off_epa_sum=Sum("offensive_epa"),
+                def_epa_sum=Sum("defensive_epa"),
+            )
+            .order_by("season_year")
+        )
+
+        standings_map = {s.season_id: s for s in TeamStanding.objects.filter(team=team)}
+
+        result = []
+        for row in agg_qs:
+            season = row["season_year"]
+            standing = standings_map.get(season)
+            g = row["games"] or 1
+            td_att = row["third_down_att"] or 1
+            rz_att = row["redzone_att"] or 1
+
+            result.append(
+                {
+                    "season": season,
+                    "games": row["games"],
+                    "wins": standing.wins if standing else None,
+                    "losses": standing.losses if standing else None,
+                    "ties": standing.ties if standing else None,
+                    "pct": round(standing.pct, 3) if standing else None,
+                    "points_for": row["points_for"],
+                    "points_against": row["points_against"],
+                    "point_diff": row["points_for"] - row["points_against"],
+                    "ppg": round(row["points_for"] / g, 1),
+                    "papg": round(row["points_against"] / g, 1),
+                    "total_yds_pg": round(row["total_yards"] / g, 1),
+                    "pass_yds_pg": round(row["pass_yards"] / g, 1),
+                    "rush_yds_pg": round(row["rush_yards"] / g, 1),
+                    "sacks_pg": round(row["sacks_made"] / g, 2),
+                    "turnovers": row["turnovers"],
+                    "turnovers_pg": round(row["turnovers"] / g, 2),
+                    "takeaways": row["takeaways"],
+                    "takeaways_pg": round(row["takeaways"] / g, 2),
+                    "third_down_pct": round(row["third_down_conv"] / td_att * 100, 1),
+                    "redzone_pct": round(row["redzone_scores"] / rz_att * 100, 1),
+                    "off_epa_pg": (
+                        round(row["off_epa_sum"] / g, 2)
+                        if row["off_epa_sum"] is not None
+                        else None
+                    ),
+                    "def_epa_pg": (
+                        round(row["def_epa_sum"] / g, 2)
+                        if row["def_epa_sum"] is not None
+                        else None
+                    ),
+                    "seed": standing.seed if standing else None,
+                    "div_rank": standing.div_rank if standing else None,
+                    "sos": (
+                        round(standing.sos, 3)
+                        if standing and standing.sos is not None
+                        else None
+                    ),
+                }
+            )
+
+        return Response(result)
+
+    @action(detail=True, methods=["get"], url_path="game-log")
+    def game_log(self, request, abbreviation=None):
+        """
+        GET /teams/{abbr}/game-log/?season=2024
+
+        Per-game results with box stats for this team.
+        Ordered newest-first (most recent season/week at top).
+        """
+        team = self.get_object()
+        season_year = request.query_params.get("season")
+
+        stats_qs = (
+            TeamGameStats.objects.filter(team=team)
+            .select_related("game", "game__home_team", "game__away_team", "opponent")
+            .prefetch_related("opponent__logos")
+            .order_by("-season_year", "-week")
+        )
+        if season_year:
+            stats_qs = stats_qs.filter(season_year=int(season_year))
+
+        stats_rows = list(stats_qs)
+        opponent_stats_by_game = {
+            (opp_stats.game_id, opp_stats.team_id): opp_stats
+            for opp_stats in TeamGameStats.objects.filter(
+                game_id__in=[gs.game_id for gs in stats_rows]
+            )
+            .exclude(team=team)
+            .only("game_id", "team_id", "pass_yards", "rush_yards")
+        }
+
+        result = []
+        for gs in stats_rows:
+            game = gs.game
+            opp = gs.opponent
+            opp_stats = opponent_stats_by_game.get((gs.game_id, opp.id))
+
+            # Resolve scores from perspective of this team
+            if gs.is_home:
+                team_score = game.home_score
+                opp_score = game.away_score
+            else:
+                team_score = game.away_score
+                opp_score = game.home_score
+
+            # Win/loss/tie only for completed games (status is 'final' or 'final_ot')
+            if game.status in (
+                "post",
+                "final",
+                "final_ot",
+                "STATUS_FINAL",
+                "completed",
+            ):
+                if team_score > opp_score:
+                    result_str = "W"
+                elif team_score < opp_score:
+                    result_str = "L"
+                else:
+                    result_str = "T"
+            else:
+                result_str = None
+
+            # Resolve opponent logo
+            opp_logo = None
+            if (
+                hasattr(opp, "_prefetched_objects_cache")
+                and "logos" in opp._prefetched_objects_cache
+            ):
+                logos = opp._prefetched_objects_cache["logos"]
+            else:
+                logos = list(opp.logos.all()[:4])
+            logo_map = {logo.logo_type: logo.url for logo in logos}
+            opp_logo = (
+                logo_map.get("scoreboard")
+                or logo_map.get("default")
+                or logo_map.get("scoreboard-dark")
+                or logo_map.get("dark")
+                or (logos[0].url if logos else None)
+            )
+
+            result.append(
+                {
+                    "game_id": game.id,
+                    "week": gs.week,
+                    "season_year": gs.season_year,
+                    "season_type": game.season_type,
+                    "game_date": game.game_date,
+                    "is_home": gs.is_home,
+                    "is_division_game": game.is_division_game,
+                    "opponent_abbr": opp.abbreviation,
+                    "opponent_display": opp.display_name,
+                    "opponent_color": opp.color_primary,
+                    "opponent_logo": opp_logo,
+                    "game_status": game.status,
+                    "team_score": team_score,
+                    "opp_score": opp_score,
+                    "result": result_str,
+                    # Box stats
+                    "total_yards": gs.total_yards,
+                    "pass_yards": gs.pass_yards,
+                    "rush_yards": gs.rush_yards,
+                    "pass_yards_allowed": (
+                        opp_stats.pass_yards if opp_stats is not None else None
+                    ),
+                    "rush_yards_allowed": (
+                        opp_stats.rush_yards if opp_stats is not None else None
+                    ),
+                    "sacks_made": gs.sacks_made,
+                    "turnovers": gs.turnovers,
+                    "takeaways": gs.takeaways,
+                    "third_down_conv": gs.third_down_conversions,
+                    "third_down_att": gs.third_down_attempts,
+                    "redzone_scores": gs.redzone_scores,
+                    "redzone_att": gs.redzone_attempts,
+                    "off_epa": gs.offensive_epa,
+                    "def_epa": gs.defensive_epa,
+                    "pass_epa": gs.passing_epa,
+                    "rush_epa": gs.rushing_epa,
+                    "time_of_possession": gs.time_of_possession,
+                }
+            )
+
+        return Response(result)
+
+    @action(detail=False, methods=["get"], url_path="dvoa")
+    @cached_view("teams", ttl=TTL_SHORT)
+    def dvoa_rankings(self, request):
+        """
+        GET /teams/dvoa/?season=2025&season_type=REG
+
+        Returns league-wide team DVOA snapshots for a season/season_type.
+        If season is omitted, uses latest available for the season_type.
+        """
+        season_type = (request.query_params.get("season_type") or "REG").upper()
+        if season_type not in {"REG", "POST"}:
+            return Response(
+                {"error": "Invalid season_type. Use 'REG' or 'POST'."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        season_raw = request.query_params.get("season")
+        base_qs = TeamDvoaRating.objects.filter(season_type=season_type)
+
+        if season_raw:
+            try:
+                season = int(season_raw)
+            except (TypeError, ValueError):
+                return Response(
+                    {"error": "Invalid season."}, status=status.HTTP_400_BAD_REQUEST
+                )
+        else:
+            season = base_qs.aggregate(max_season=Max("season")).get("max_season")
+            if season is None:
+                raise NotFound("No DVOA data available.")
+
+        rows = list(
+            base_qs.filter(season=season)
+            .select_related("team")
+            .prefetch_related("team__logos")
+            .order_by("total_dvoa_rank", "team__abbreviation")
+        )
+        if not rows:
+            raise NotFound(
+                f"No DVOA snapshots found for season {season} ({season_type})."
+            )
+
+        payload = TeamDvoaRatingSerializer(rows, many=True).data
+        return Response(
+            {
+                "season": season,
+                "season_type": season_type,
+                "count": len(payload),
+                "results": payload,
+            }
+        )
+
+    @action(detail=True, methods=["get"], url_path="dvoa")
+    @cached_view("teams", ttl=TTL_SHORT)
+    def dvoa(self, request, abbreviation=None):
+        """
+        GET /teams/{abbr}/dvoa/?season_type=REG
+
+        Returns DVOA history and latest snapshots for the requested team.
+        By default includes both REG and POST buckets.
+        """
+        team = self.get_object()
+        season_type_filter = request.query_params.get("season_type")
+        if season_type_filter:
+            season_type_filter = season_type_filter.upper()
+            if season_type_filter not in {"REG", "POST"}:
+                return Response(
+                    {"error": "Invalid season_type. Use 'REG' or 'POST'."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+        qs = (
+            TeamDvoaRating.objects.filter(team=team)
+            .select_related("team")
+            .prefetch_related("team__logos")
+            .order_by("season", "week")
+        )
+        if season_type_filter:
+            qs = qs.filter(season_type=season_type_filter)
+
+        rows = list(qs)
+        if not rows:
+            raise NotFound(f"No DVOA snapshots found for team '{team.abbreviation}'.")
+
+        grouped = {"REG": [], "POST": []}
+        for row in rows:
+            grouped.setdefault(row.season_type, []).append(row)
+
+        serializer = TeamDvoaRatingSerializer
+        reg_history = grouped.get("REG", [])
+        post_history = grouped.get("POST", [])
+        reg_latest = reg_history[-1] if reg_history else None
+        post_latest = post_history[-1] if post_history else None
+
+        return Response(
+            {
+                "team": TeamMinimalSerializer(team).data,
+                "latest": {
+                    "REG": serializer(reg_latest).data if reg_latest else None,
+                    "POST": serializer(post_latest).data if post_latest else None,
+                },
+                "history": {
+                    "REG": serializer(reg_history, many=True).data,
+                    "POST": serializer(post_history, many=True).data,
+                },
+            }
+        )
+
+    @action(detail=True, methods=["get"], url_path="rbsdm")
+    @cached_view("teams", ttl=TTL_SHORT)
+    def rbsdm(self, request, abbreviation=None):
+        """
+        GET /teams/{abbr}/rbsdm/?season=2025
+
+        Returns RBSDM metrics grouped by dataset for a single team/season.
+        """
+        team = self.get_object()
+        season_raw = request.query_params.get("season")
+        requested_season = None
+
+        def _empty_response(season_value):
+            return Response(
+                {
+                    "season": season_value,
+                    "team": TeamMinimalSerializer(team).data,
+                    "count": 0,
+                    "datasets": {},
+                    "latest": {},
+                }
+            )
+
+        qs = TeamRbsdmMetric.objects.filter(team=team)
+        if season_raw:
+            try:
+                season = int(season_raw)
+                requested_season = season
+            except (TypeError, ValueError):
+                return Response(
+                    {"error": "Invalid season."}, status=status.HTTP_400_BAD_REQUEST
+                )
+        else:
+            try:
+                season = qs.aggregate(max_season=Max("season")).get("max_season")
+            except (ProgrammingError, OperationalError) as exc:
+                if _is_missing_relation_error(exc):
+                    logger.warning(
+                        "RBSDM team table unavailable; returning empty payload for %s: %s",
+                        team.abbreviation,
+                        exc,
+                    )
+                    return _empty_response(requested_season)
+                raise
+
+        if season is None:
+            return _empty_response(None)
+
+        try:
+            rows = list(qs.filter(season=season).order_by("dataset", "week"))
+        except (ProgrammingError, OperationalError) as exc:
+            if _is_missing_relation_error(exc):
+                logger.warning(
+                    "RBSDM team table unavailable; returning empty payload for %s season %s: %s",
+                    team.abbreviation,
+                    season,
+                    exc,
+                )
+                return _empty_response(season)
+            raise
+
+        payload = TeamRbsdmMetricSerializer(rows, many=True).data
+
+        datasets = defaultdict(list)
+        for row in payload:
+            datasets[row["dataset"]].append(row)
+
+        latest = {
+            dataset: items[-1] if items else None for dataset, items in datasets.items()
+        }
+
+        return Response(
+            {
+                "season": season,
+                "team": TeamMinimalSerializer(team).data,
+                "count": len(payload),
+                "datasets": dict(datasets),
+                "latest": latest,
+            }
+        )
+
+    @action(detail=False, methods=["get"], url_path="rankings")
+    def rankings(self, request):
+        """
+        GET /teams/rankings/?season=2024&abbr=SEA
+
+        Returns league/conference/division rank for each major stat category
+        for the requested team. All 32 teams' season aggregates are computed
+        to derive relative rankings.
+        """
+        season_raw = request.query_params.get("season")
+        abbr_raw = request.query_params.get("abbr")
+
+        if not season_raw or not abbr_raw:
+            return Response(
+                {"error": "Both 'season' and 'abbr' query params are required."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            season_year = int(season_raw)
+        except (ValueError, TypeError):
+            return Response(
+                {"error": "Invalid season."}, status=status.HTTP_400_BAD_REQUEST
+            )
+
+        abbr = TEAM_ABBR_NORMALIZE.get(abbr_raw.upper(), abbr_raw.upper())
+
+        # Aggregate all teams for this season
+        agg_qs = list(
+            TeamGameStats.objects.filter(season_year=season_year)
+            .values("team__abbreviation", "team__conference", "team__division")
+            .annotate(
+                games=Count("id"),
+                pts_for=Coalesce(Sum("points_scored"), 0),
+                pts_against=Coalesce(Sum("points_allowed"), 0),
+                ttl_yds=Coalesce(Sum("total_yards"), 0),
+                pass_yds=Coalesce(Sum("pass_yards"), 0),
+                rush_yds=Coalesce(Sum("rush_yards"), 0),
+                sacks_sum=Coalesce(
+                    Sum("sacks_made"), Value(0, output_field=FloatField())
+                ),
+                takeaways_sum=Coalesce(Sum("takeaways"), 0),
+                turnovers_sum=Coalesce(Sum("turnovers"), 0),
+                td_att=Coalesce(Sum("third_down_attempts"), 0),
+                td_conv=Coalesce(Sum("third_down_conversions"), 0),
+                rz_att=Coalesce(Sum("redzone_attempts"), 0),
+                rz_scores=Coalesce(Sum("redzone_scores"), 0),
+                off_epa_sum=Sum("offensive_epa"),
+                def_epa_sum=Sum("defensive_epa"),
+                top_sec_sum=Coalesce(Sum("time_of_possession_seconds"), 0),
+            )
+        )
+
+        if not agg_qs:
+            raise NotFound(f"No team stats found for season {season_year}.")
+
+        dvoa_rows = (
+            TeamDvoaRating.objects.filter(season=season_year, season_type="REG")
+            .values(
+                "team__abbreviation",
+                "week",
+                "total_dvoa",
+                "offense_dvoa",
+                "defense_dvoa",
+                "special_teams_dvoa",
+                "weighted_total_dvoa",
+            )
+            .order_by("team__abbreviation", "-week")
+        )
+        dvoa_map = {}
+        for row in dvoa_rows:
+            abbr_key = row["team__abbreviation"]
+            if abbr_key and abbr_key not in dvoa_map:
+                dvoa_map[abbr_key] = row
+
+        # Compute per-game rates in Python
+        teams = []
+        for row in agg_qs:
+            g = row["games"] or 1
+            td_att = row["td_att"] or 1
+            rz_att = row["rz_att"] or 1
+            dvoa = dvoa_map.get(row["team__abbreviation"], {})
+            teams.append(
+                {
+                    "abbr": row["team__abbreviation"],
+                    "conference": row["team__conference"],
+                    "division": row["team__division"],
+                    "ppg": row["pts_for"] / g,
+                    "papg": row["pts_against"] / g,
+                    "total_yds_pg": row["ttl_yds"] / g,
+                    "pass_yds_pg": row["pass_yds"] / g,
+                    "rush_yds_pg": row["rush_yds"] / g,
+                    "sacks_pg": row["sacks_sum"] / g,
+                    "takeaways_pg": row["takeaways_sum"] / g,
+                    "turnovers_pg": row["turnovers_sum"] / g,
+                    "third_down_pct": row["td_conv"] / td_att * 100,
+                    "redzone_pct": row["rz_scores"] / rz_att * 100,
+                    "off_epa_pg": (
+                        (row["off_epa_sum"] / g)
+                        if row["off_epa_sum"] is not None
+                        else None
+                    ),
+                    "def_epa_pg": (
+                        (row["def_epa_sum"] / g)
+                        if row["def_epa_sum"] is not None
+                        else None
+                    ),
+                    "dvoa_total": dvoa.get("total_dvoa"),
+                    "dvoa_offense": dvoa.get("offense_dvoa"),
+                    "dvoa_defense": dvoa.get("defense_dvoa"),
+                    "dvoa_special_teams": dvoa.get("special_teams_dvoa"),
+                    "dvoa_weighted": dvoa.get("weighted_total_dvoa"),
+                    "top_pg": row["top_sec_sum"] / g,
+                    "turnover_margin_pg": (row["takeaways_sum"] - row["turnovers_sum"])
+                    / g,
+                }
+            )
+
+        target = next((t for t in teams if t["abbr"] == abbr), None)
+        if not target:
+            raise NotFound(f"No stats for team '{abbr}' in season {season_year}.")
+
+        conf = target["conference"]
+        div = target["division"]
+
+        # (stat_key, higher_is_better, label)
+        stat_configs = [
+            ("ppg", True, "Points Per Game"),
+            ("papg", False, "Points Allowed Per Game"),
+            ("total_yds_pg", True, "Total Yards Per Game"),
+            ("pass_yds_pg", True, "Pass Yards Per Game"),
+            ("rush_yds_pg", True, "Rush Yards Per Game"),
+            ("sacks_pg", True, "Sacks Per Game"),
+            ("takeaways_pg", True, "Takeaways Per Game"),
+            ("turnovers_pg", False, "Turnovers Per Game"),
+            ("third_down_pct", True, "3rd Down Conv %"),
+            ("redzone_pct", True, "Red Zone TD %"),
+            ("off_epa_pg", True, "Offensive EPA/G"),
+            ("def_epa_pg", False, "Defensive EPA/G"),
+            ("dvoa_total", True, "Total DVOA"),
+            ("dvoa_offense", True, "Offensive DVOA"),
+            ("dvoa_defense", False, "Defensive DVOA"),
+            ("dvoa_special_teams", True, "Special Teams DVOA"),
+            ("dvoa_weighted", True, "Weighted DVOA"),
+            ("top_pg", True, "Time of Poss/G"),
+            ("turnover_margin_pg", True, "Turnover Margin/G"),
+        ]
+
+        result = {}
+        for stat_key, higher_is_better, label in stat_configs:
+            valid = [t for t in teams if t[stat_key] is not None]
+            sorted_all = sorted(
+                valid, key=lambda t: t[stat_key], reverse=higher_is_better
+            )
+            conf_teams = [t for t in sorted_all if t["conference"] == conf]
+            div_teams = [t for t in sorted_all if t["division"] == div]
+
+            def _rank(lst):
+                idx = next((i for i, t in enumerate(lst) if t["abbr"] == abbr), None)
+                return (idx + 1) if idx is not None else None
+
+            result[stat_key] = {
+                "label": label,
+                "value": (
+                    round(target[stat_key], 2) if target[stat_key] is not None else None
+                ),
+                "league_rank": _rank(sorted_all),
+                "league_total": len(sorted_all),
+                "conf_rank": _rank(conf_teams),
+                "conf_total": len(conf_teams),
+                "conf_name": conf,
+                "div_rank": _rank(div_teams),
+                "div_total": len(div_teams),
+                "div_name": div,
+                "higher_is_better": higher_is_better,
+            }
+
+        return Response(result)
 
 
 # =============================================================================
@@ -688,10 +2672,9 @@ class PlayerViewSet(viewsets.ReadOnlyModelViewSet):
         return player
 
     def get_queryset(self):
+        base_queryset = Player.objects.select_related("current_team")
         if self.action == "retrieve":
-            return Player.objects.select_related(
-                "current_team", "draft_team"
-            ).prefetch_related(
+            base_queryset = base_queryset.select_related("draft_team").prefetch_related(
                 "current_team__logos",
                 "draft_team__logos",
                 "contracts__team",
@@ -723,7 +2706,7 @@ class PlayerViewSet(viewsets.ReadOnlyModelViewSet):
                 .annotate(max_total=Max("total_value"), max_apy=Max("apy"))
             )
 
-        use_materialized = not stats_filter_kwargs
+        use_materialized = not stats_filter_kwargs and self.action != "retrieve"
 
         contract_annotations = (
             {
@@ -916,8 +2899,7 @@ class PlayerViewSet(viewsets.ReadOnlyModelViewSet):
             )
 
         return (
-            Player.objects.select_related("current_team")
-            .annotate(**first_annotate)
+            base_queryset.annotate(**first_annotate)
             .annotate(
                 career_completion_pct=Case(
                     When(
@@ -1473,6 +3455,100 @@ class PlayerViewSet(viewsets.ReadOnlyModelViewSet):
 
         cache_set(ck, result, TTL_LONG)
         return Response(result)
+
+    @action(detail=True, methods=["get"], url_path="rbsdm")
+    @cached_view("players", ttl=TTL_SHORT)
+    def rbsdm(self, request, pk=None):
+        """
+        GET /players/{id}/rbsdm/?season=2025
+
+        Returns RBSDM weekly QB metrics for the selected player/season.
+        Non-QB players typically return an empty result set.
+        """
+        player = self._get_player_for_detail_action(pk)
+        season_raw = request.query_params.get("season")
+
+        def _empty_response(season_value):
+            return Response(
+                {
+                    "season": season_value,
+                    "player_id": str(player.id),
+                    "player_name": player.display_name,
+                    "count": 0,
+                    "rows": [],
+                    "latest": None,
+                }
+            )
+
+        display_key = _canonical_name_key(player.display_name)
+        short_key = _canonical_name_key(player.short_name)
+        initial_last_key = _initial_last_name_key(player.display_name)
+        keys = [k for k in {display_key, short_key, initial_last_key} if k]
+
+        qs = PlayerRbsdmQbMetric.objects.filter(
+            Q(player=player) | Q(player_key__in=keys)
+        )
+
+        if season_raw:
+            try:
+                season = int(season_raw)
+            except (TypeError, ValueError):
+                return Response(
+                    {"error": "Invalid season."}, status=status.HTTP_400_BAD_REQUEST
+                )
+        else:
+            try:
+                season = qs.aggregate(max_season=Max("season")).get("max_season")
+            except (ProgrammingError, OperationalError) as exc:
+                if _is_missing_relation_error(exc):
+                    logger.warning(
+                        "RBSDM player table unavailable; returning empty payload for player %s: %s",
+                        player.id,
+                        exc,
+                    )
+                    return _empty_response(None)
+                raise
+
+        if season is None:
+            return _empty_response(None)
+
+        try:
+            rows = list(qs.filter(season=season).order_by("week", "player_name"))
+        except (ProgrammingError, OperationalError) as exc:
+            if _is_missing_relation_error(exc):
+                logger.warning(
+                    "RBSDM player table unavailable; returning empty payload for player %s season %s: %s",
+                    player.id,
+                    season,
+                    exc,
+                )
+                return _empty_response(season)
+            raise
+
+        if rows:
+            linked_rows = [row for row in rows if row.player_id == player.id]
+            if linked_rows:
+                rows = linked_rows
+            elif player.current_team_id:
+                current_team_rows = [
+                    row for row in rows if row.team_id == player.current_team_id
+                ]
+                if current_team_rows:
+                    rows = current_team_rows
+
+        payload = PlayerRbsdmQbMetricSerializer(rows, many=True).data
+        latest = payload[-1] if payload else None
+
+        return Response(
+            {
+                "season": season,
+                "player_id": str(player.id),
+                "player_name": player.display_name,
+                "count": len(payload),
+                "rows": payload,
+                "latest": latest,
+            }
+        )
 
     @action(detail=False, methods=["get"], url_path="advanced")
     def advanced(self, request):
@@ -2329,6 +4405,7 @@ class GameViewSet(viewsets.ReadOnlyModelViewSet):
                 "roster_status": None,
                 "depth_chart_position": None,
                 "depth_rank": None,
+                "depth_chart_status": None,
                 "offense_snaps": 0,
                 "defense_snaps": 0,
                 "special_snaps": 0,
@@ -2350,6 +4427,10 @@ class GameViewSet(viewsets.ReadOnlyModelViewSet):
             entry["roster_status"] = player.roster_status or entry["roster_status"]
             entry["depth_chart_position"] = (
                 player.depth_chart_position or entry["depth_chart_position"]
+            )
+            entry["depth_rank"] = player.depth_chart_rank or entry["depth_rank"]
+            entry["depth_chart_status"] = (
+                player.depth_chart_status or entry["depth_chart_status"]
             )
             entry["player_name"] = player.display_name or entry["player_name"]
             if player.gsis_id and not entry["player_id"]:
@@ -2430,6 +4511,8 @@ class GameViewSet(viewsets.ReadOnlyModelViewSet):
                 "position_group",
                 "roster_status",
                 "depth_chart_position",
+                "depth_chart_rank",
+                "depth_chart_status",
             )
             for player in players_qs:
                 if player.gsis_id:
@@ -2573,6 +4656,8 @@ class GameViewSet(viewsets.ReadOnlyModelViewSet):
                 "player__position_group",
                 "player__roster_status",
                 "player__depth_chart_position",
+                "player__depth_chart_rank",
+                "player__depth_chart_status",
                 "team__abbreviation",
             )
         )

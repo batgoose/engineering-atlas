@@ -140,7 +140,6 @@ export function FantasyPanel({
 
       {/* Selected team roster */}
       <TeamColumn
-        side="left"
         team={activeTeam}
         roster={activeRoster}
         seasonStats={playerSeasonStats}
@@ -153,7 +152,6 @@ export function FantasyPanel({
 }
 
 function TeamColumn({
-  side,
   team,
   roster,
   seasonStats,
@@ -161,7 +159,6 @@ function TeamColumn({
   selectedPlayer,
   onToggle,
 }: {
-  side: 'left' | 'right';
   team: HudTeam;
   roster: FantasyRosterEntry[];
   seasonStats: Record<string, PlayerSeasonLine>;

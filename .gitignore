@@ -40,3 +40,7 @@ main
 *.dylib
 .claude/settings.json
 docs/*
+localtmp/
+tmp/
+apps/api-django/localtmp/
+apps/api-django/tmp/

@@ -2197,6 +2197,10 @@ export interface GridstreamPlayerTransaction {
   fromTeamAbbr?: string | null;
   toTeamAbbr?: string | null;
   description?: string | null;
+  contractYears?: number | null;
+  contractTotalValue?: number | null;
+  contractApy?: number | null;
+  contractGuaranteed?: number | null;
   season?: number | null;
 }
 
@@ -2298,12 +2302,18 @@ export interface GridstreamPlayerGamelogEntry {
   passYards: number;
   passTd: number;
   interceptionsThrown: number;
+  passingEpa: number | null;
   carries: number;
   rushYards: number;
   rushTd: number;
+  rushingEpa: number | null;
   receptions: number;
   receivingYards: number;
   receivingTd: number;
+  receivingEpa: number | null;
+  targetShare: number | null;
+  airYardsShare: number | null;
+  wopr: number | null;
   // Defense
   tacklesTotal: number;
   sacksMade: number;
@@ -2535,6 +2545,10 @@ interface ApiGridstreamPlayerTransactionRaw {
   from_team_abbr?: string | null;
   to_team_abbr?: string | null;
   description?: string | null;
+  contract_years?: number | null;
+  contract_total_value?: number | null;
+  contract_apy?: number | null;
+  contract_guaranteed?: number | null;
   season?: number | null;
 }
 
@@ -2559,6 +2573,7 @@ interface ApiGridstreamPlayerDetail {
   position?: string | null;
   position_group?: string | null;
   roster_status?: string | null;
+  roster_status_display?: string | null;
   depth_chart_position?: string | null;
   headshot_url?: string | null;
   height?: string | null;
@@ -2575,8 +2590,50 @@ interface ApiGridstreamPlayerDetail {
   entry_year?: number | null;
   years_experience?: number | null;
   games_played?: number | null;
+  games_started?: number | null;
+  offensive_snaps?: number | null;
+  snap_pct?: number | null;
   first_season_played?: number | null;
   last_season_played?: number | null;
+  seasons_count?: number | null;
+  career_completions?: number | null;
+  career_pass_attempts?: number | null;
+  career_completion_pct?: number | null;
+  career_passing_yards?: number | null;
+  career_pass_yards_per_game?: number | null;
+  career_pass_yards_per_attempt?: number | null;
+  career_passing_tds?: number | null;
+  career_interceptions_thrown?: number | null;
+  career_passer_rating?: number | null;
+  career_sacks_taken?: number | null;
+  career_carries?: number | null;
+  career_rushing_yards?: number | null;
+  career_rush_yards_per_game?: number | null;
+  career_yards_per_carry?: number | null;
+  career_rushing_tds?: number | null;
+  career_receptions?: number | null;
+  career_targets?: number | null;
+  career_catch_pct?: number | null;
+  career_receiving_yards?: number | null;
+  career_rec_yards_per_game?: number | null;
+  career_yards_per_reception?: number | null;
+  career_yards_per_target?: number | null;
+  career_receiving_tds?: number | null;
+  career_scrimmage_yards?: number | null;
+  career_total_touchdowns?: number | null;
+  career_touchdowns_per_game?: number | null;
+  career_long_gain?: number | null;
+  career_first_downs?: number | null;
+  career_fumbles?: number | null;
+  career_fumbles_lost?: number | null;
+  career_tackles_total?: number | null;
+  career_sacks_made?: number | null;
+  career_interceptions_caught?: number | null;
+  career_passes_defended?: number | null;
+  career_forced_fumbles?: number | null;
+  career_fg_made?: number | null;
+  career_fg_attempts?: number | null;
+  career_punt_attempts?: number | null;
   is_active?: boolean;
   current_team_detail?: {
     abbreviation?: string | null;
@@ -2643,12 +2700,18 @@ interface ApiGridstreamPlayerGamelogRow {
   passing_yards?: number | null;
   passing_tds?: number | null;
   interceptions_thrown?: number | null;
+  passing_epa?: number | null;
   carries?: number | null;
   rushing_yards?: number | null;
   rushing_tds?: number | null;
+  rushing_epa?: number | null;
   receptions?: number | null;
   receiving_yards?: number | null;
   receiving_tds?: number | null;
+  receiving_epa?: number | null;
+  target_share?: number | null;
+  air_yards_share?: number | null;
+  wopr?: number | null;
   tackles_total?: number | null;
   sacks_made?: number | null;
   qb_hits?: number | null;
@@ -2700,6 +2763,42 @@ interface ApiGridstreamPlayerSplitsRaw {
   nondivision?: SplitAggRow;
 }
 
+interface ApiGridstreamPlayerRbsdmMetricRaw {
+  season?: number | null;
+  week?: number | null;
+  player_name?: string | null;
+  team?: {
+    abbreviation?: string | null;
+    display_name?: string | null;
+    short_display_name?: string | null;
+    color_primary?: string | null;
+    color_secondary?: string | null;
+    logo_url?: string | null;
+  } | null;
+  adj_epa_play?: number | null;
+  epa_play?: number | null;
+  epa_cpoe_composite?: number | null;
+  cpoe?: number | null;
+  success_rate?: number | null;
+  air_yards?: number | null;
+  expected_cmppct?: number | null;
+  cmppct?: number | null;
+  plays?: number | null;
+  table_context?: string | null;
+  metrics?: Record<string, unknown> | null;
+  captured_at?: string | null;
+  updated_at?: string | null;
+}
+
+interface ApiGridstreamPlayerRbsdmResponseRaw {
+  season?: number | null;
+  player_id?: string | null;
+  player_name?: string | null;
+  count?: number | null;
+  rows?: ApiGridstreamPlayerRbsdmMetricRaw[] | null;
+  latest?: ApiGridstreamPlayerRbsdmMetricRaw | null;
+}
+
 export interface FetchGridstreamPlayersDirectoryPageInput {
   apiBase: string;
   filters: Partial<GridstreamPlayerFilterState>;
@@ -2730,6 +2829,42 @@ export interface FetchGridstreamPlayerSplitsInput {
   playerId: string | number;
   season?: number | null;
   signal?: AbortSignal;
+}
+
+export interface FetchGridstreamPlayerRbsdmInput {
+  apiBase: string;
+  playerId: string | number;
+  season?: number | null;
+  signal?: AbortSignal;
+}
+
+export interface GridstreamPlayerRbsdmQbMetric {
+  season: number;
+  week: number;
+  playerName: string;
+  teamAbbr: string;
+  adjEpaPlay: number | null;
+  epaPlay: number | null;
+  epaCpoeComposite: number | null;
+  cpoe: number | null;
+  successRate: number | null;
+  airYards: number | null;
+  expectedCmpPct: number | null;
+  cmpPct: number | null;
+  plays: number | null;
+  tableContext: string;
+  metrics: Record<string, unknown>;
+  capturedAt: string | null;
+  updatedAt: string | null;
+}
+
+export interface GridstreamPlayerRbsdmResponse {
+  season: number | null;
+  playerId: string;
+  playerName: string;
+  count: number;
+  rows: GridstreamPlayerRbsdmQbMetric[];
+  latest: GridstreamPlayerRbsdmQbMetric | null;
 }
 
 function padPositiveInt(value: number | null | undefined, fallback: number): number {
@@ -2925,7 +3060,60 @@ function mapApiPlayerProfile(row: ApiGridstreamPlayerDetail): GridstreamPlayerPr
     draftPick: toSafeInt(row.draft_pick),
     seasonsPlayed,
     gamesPlayed: toSafeInt(row.games_played) ?? 0,
-    rosterStatus: rosterStatusLabelFromCode(row.roster_status, {
+    gamesStarted: toSafeInt(row.games_started),
+    offensiveSnaps: toSafeInt(row.offensive_snaps),
+    snapPct: row.snap_pct == null ? undefined : Number(row.snap_pct),
+    seasonsCount: toSafeInt(row.seasons_count) ?? seasonsPlayed.length,
+    passCompletions: toSafeInt(row.career_completions) ?? 0,
+    passAttempts: toSafeInt(row.career_pass_attempts) ?? 0,
+    completionPct:
+      row.career_completion_pct == null ? undefined : Number(row.career_completion_pct),
+    passingYards: toSafeInt(row.career_passing_yards) ?? 0,
+    passingYardsPerGame:
+      row.career_pass_yards_per_game == null ? undefined : Number(row.career_pass_yards_per_game),
+    yardsPerAttempt:
+      row.career_pass_yards_per_attempt == null
+        ? undefined
+        : Number(row.career_pass_yards_per_attempt),
+    passingTds: toSafeInt(row.career_passing_tds) ?? 0,
+    interceptionsThrown: toSafeInt(row.career_interceptions_thrown) ?? 0,
+    passerRating: row.career_passer_rating == null ? undefined : Number(row.career_passer_rating),
+    sacksTaken: toSafeInt(row.career_sacks_taken) ?? 0,
+    carries: toSafeInt(row.career_carries) ?? 0,
+    rushingYards: toSafeInt(row.career_rushing_yards) ?? 0,
+    rushingYardsPerGame:
+      row.career_rush_yards_per_game == null ? undefined : Number(row.career_rush_yards_per_game),
+    yardsPerCarry:
+      row.career_yards_per_carry == null ? undefined : Number(row.career_yards_per_carry),
+    rushingTds: toSafeInt(row.career_rushing_tds) ?? 0,
+    receptions: toSafeInt(row.career_receptions) ?? 0,
+    targets: toSafeInt(row.career_targets) ?? 0,
+    catchPct: row.career_catch_pct == null ? undefined : Number(row.career_catch_pct),
+    receivingYards: toSafeInt(row.career_receiving_yards) ?? 0,
+    receivingYardsPerGame:
+      row.career_rec_yards_per_game == null ? undefined : Number(row.career_rec_yards_per_game),
+    yardsPerReception:
+      row.career_yards_per_reception == null ? undefined : Number(row.career_yards_per_reception),
+    yardsPerTarget:
+      row.career_yards_per_target == null ? undefined : Number(row.career_yards_per_target),
+    receivingTds: toSafeInt(row.career_receiving_tds) ?? 0,
+    scrimmageYards: toSafeInt(row.career_scrimmage_yards) ?? 0,
+    totalTouchdowns: toSafeInt(row.career_total_touchdowns) ?? 0,
+    touchdownsPerGame:
+      row.career_touchdowns_per_game == null ? undefined : Number(row.career_touchdowns_per_game),
+    longGain: toSafeInt(row.career_long_gain) ?? 0,
+    firstDowns: toSafeInt(row.career_first_downs) ?? 0,
+    fumbles: toSafeInt(row.career_fumbles) ?? 0,
+    fumblesLost: toSafeInt(row.career_fumbles_lost) ?? 0,
+    tacklesTotal: toSafeInt(row.career_tackles_total) ?? 0,
+    sacksMade: row.career_sacks_made == null ? undefined : Number(row.career_sacks_made),
+    interceptionsCaught: toSafeInt(row.career_interceptions_caught) ?? 0,
+    passesDefended: toSafeInt(row.career_passes_defended) ?? 0,
+    forcedFumbles: toSafeInt(row.career_forced_fumbles) ?? 0,
+    fieldGoalsMade: toSafeInt(row.career_fg_made) ?? 0,
+    fieldGoalsAttempted: toSafeInt(row.career_fg_attempts) ?? 0,
+    puntAttempts: toSafeInt(row.career_punt_attempts) ?? 0,
+    rosterStatus: rosterStatusLabelFromCode(row.roster_status_display ?? row.roster_status, {
       isActive: Boolean(row.is_active),
       teamAbbr,
     }),
@@ -3029,6 +3217,10 @@ function mapApiPlayerProfile(row: ApiGridstreamPlayerDetail): GridstreamPlayerPr
       fromTeamAbbr: normalizeString(t.from_team_abbr) || null,
       toTeamAbbr: normalizeString(t.to_team_abbr) || null,
       description: normalizeString(t.description) || null,
+      contractYears: toSafeInt(t.contract_years),
+      contractTotalValue: toSafeInt(t.contract_total_value),
+      contractApy: toSafeInt(t.contract_apy),
+      contractGuaranteed: toSafeInt(t.contract_guaranteed),
       season: toSafeInt(t.season),
     })),
     awards: (row.awards ?? []).map((a) => ({
@@ -3109,12 +3301,18 @@ function mapApiPlayerGamelogRow(row: ApiGridstreamPlayerGamelogRow): GridstreamP
     passYards: toSafeInt(row.passing_yards) ?? 0,
     passTd: toSafeInt(row.passing_tds) ?? 0,
     interceptionsThrown: toSafeInt(row.interceptions_thrown) ?? 0,
+    passingEpa: row.passing_epa == null ? null : Number(row.passing_epa),
     carries: toSafeInt(row.carries) ?? 0,
     rushYards: toSafeInt(row.rushing_yards) ?? 0,
     rushTd: toSafeInt(row.rushing_tds) ?? 0,
+    rushingEpa: row.rushing_epa == null ? null : Number(row.rushing_epa),
     receptions: toSafeInt(row.receptions) ?? 0,
     receivingYards: toSafeInt(row.receiving_yards) ?? 0,
     receivingTd: toSafeInt(row.receiving_tds) ?? 0,
+    receivingEpa: row.receiving_epa == null ? null : Number(row.receiving_epa),
+    targetShare: row.target_share == null ? null : Number(row.target_share),
+    airYardsShare: row.air_yards_share == null ? null : Number(row.air_yards_share),
+    wopr: row.wopr == null ? null : Number(row.wopr),
     tacklesTotal: toSafeInt(row.tackles_total) ?? 0,
     sacksMade: Number(row.sacks_made ?? 0),
     qbHits: toSafeInt(row.qb_hits) ?? 0,
@@ -3150,6 +3348,30 @@ function toSplitAggregate(source: SplitAggRow | null): GridstreamPlayerSplitAggr
     defInts: Number(source?.def_ints ?? 0),
     defIntTds: Number(source?.def_int_tds ?? 0),
     defTds: Number(source?.def_tds ?? 0),
+  };
+}
+
+function mapApiPlayerRbsdmRow(
+  row: ApiGridstreamPlayerRbsdmMetricRaw
+): GridstreamPlayerRbsdmQbMetric {
+  return {
+    season: toSafeInt(row.season) ?? 0,
+    week: toSafeInt(row.week) ?? 0,
+    playerName: normalizeString(row.player_name),
+    teamAbbr: normalizeUpper(row.team?.abbreviation) || '—',
+    adjEpaPlay: row.adj_epa_play == null ? null : Number(row.adj_epa_play),
+    epaPlay: row.epa_play == null ? null : Number(row.epa_play),
+    epaCpoeComposite: row.epa_cpoe_composite == null ? null : Number(row.epa_cpoe_composite),
+    cpoe: row.cpoe == null ? null : Number(row.cpoe),
+    successRate: row.success_rate == null ? null : Number(row.success_rate),
+    airYards: row.air_yards == null ? null : Number(row.air_yards),
+    expectedCmpPct: row.expected_cmppct == null ? null : Number(row.expected_cmppct),
+    cmpPct: row.cmppct == null ? null : Number(row.cmppct),
+    plays: toSafeInt(row.plays),
+    tableContext: normalizeString(row.table_context),
+    metrics: (row.metrics as Record<string, unknown> | null) ?? {},
+    capturedAt: row.captured_at ? normalizeString(row.captured_at) : null,
+    updatedAt: row.updated_at ? normalizeString(row.updated_at) : null,
   };
 }
 
@@ -3715,5 +3937,24 @@ export async function fetchGridstreamPlayerSplits(
     losses: toSplitAggregate(payload.losses ?? null),
     division: toSplitAggregate(payload.division ?? null),
     nondivision: toSplitAggregate(payload.nondivision ?? null),
+  };
+}
+
+export async function fetchGridstreamPlayerRbsdm(
+  input: FetchGridstreamPlayerRbsdmInput
+): Promise<GridstreamPlayerRbsdmResponse> {
+  const normalizedBase = resolveGridstreamApiBase(input.apiBase);
+  const playerId = normalizeString(input.playerId);
+  const query = buildQueryString({ season: input.season ?? null });
+  const url = `${normalizedBase}/players/${encodeURIComponent(playerId)}/rbsdm/${query}`;
+  const payload = await fetchGridstreamJson<ApiGridstreamPlayerRbsdmResponseRaw>(url, input.signal);
+  const rows = (payload.rows ?? []).map(mapApiPlayerRbsdmRow);
+  return {
+    season: payload.season == null ? null : Number(payload.season),
+    playerId: normalizeString(payload.player_id) || playerId,
+    playerName: normalizeString(payload.player_name),
+    count: Number(payload.count ?? rows.length),
+    rows,
+    latest: payload.latest ? mapApiPlayerRbsdmRow(payload.latest) : null,
   };
 }

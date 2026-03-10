@@ -1,8 +1,10 @@
 // apps/web-next/components/__tests__/framework-switcher.test.tsx
-import { describe, it, expect, vi } from 'vitest';
+import { beforeEach, describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { FrameworkSwitcher } from '../framework-switcher';
+
+const mockUsePathname = vi.fn();
 
 // Mock the UI contracts
 vi.mock('@atlas/sdk/contracts', () => ({
@@ -14,7 +16,15 @@ vi.mock('@atlas/sdk/contracts', () => ({
   ],
 }));
 
+vi.mock('next/navigation', () => ({
+  usePathname: () => mockUsePathname(),
+}));
+
 describe('FrameworkSwitcher', () => {
+  beforeEach(() => {
+    mockUsePathname.mockReturnValue('/');
+  });
+
   it('renders without crashing', () => {
     const { container } = render(<FrameworkSwitcher />);
     expect(container).toBeTruthy();
@@ -109,5 +119,13 @@ describe('FrameworkSwitcher', () => {
 
     // Dropdown should close
     expect(screen.queryByText('View in')).not.toBeInTheDocument();
+  });
+
+  it('does not render on gridstream routes', () => {
+    mockUsePathname.mockReturnValue('/gridstream/teams/WAS');
+
+    const { container } = render(<FrameworkSwitcher />);
+
+    expect(container).toBeEmptyDOMElement();
   });
 });

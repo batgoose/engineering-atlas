@@ -9,6 +9,11 @@ for the frontend scoreboard / game detail / team / player views.
 from rest_framework import serializers
 from datetime import date
 
+TEAM_ABBR_TO_COLOR_LOGO_CODE = {
+    "WAS": "wsh",
+    "LA": "lar",
+}
+
 
 def _current_nfl_season() -> int:
     """NFL season year = calendar year the season started. Sept-Dec → current year; Jan-Aug → previous year."""
@@ -25,6 +30,218 @@ def _current_madden_year() -> int:
     return game_year
 
 
+def _is_roster_sync_transaction(transaction: "PlayerTransaction") -> bool:
+    return (transaction.description or "").strip().lower().startswith("roster sync:")
+
+
+def _contract_end_year(contract: "PlayerContract") -> int | None:
+    year_details = getattr(contract, "year_details", None) or []
+    years = [
+        entry.get("year")
+        for entry in year_details
+        if isinstance(entry, dict) and isinstance(entry.get("year"), int)
+    ]
+    if years:
+        return max(years)
+
+    year_signed = getattr(contract, "year_signed", None)
+    total_years = getattr(contract, "years", None)
+    if isinstance(year_signed, int) and isinstance(total_years, int):
+        return year_signed + max(total_years, 1) - 1
+    if isinstance(year_signed, int):
+        return year_signed
+    return None
+
+
+def _is_contract_effectively_active(contract: "PlayerContract") -> bool:
+    if not contract.is_active:
+        return False
+    end_year = _contract_end_year(contract)
+    if end_year is None:
+        return bool(contract.is_active)
+    return end_year >= date.today().year
+
+
+def _infer_free_agent_status(player: "Player") -> tuple[str, str]:
+    years_experience = getattr(player, "years_experience", None)
+    if isinstance(years_experience, int):
+        if years_experience >= 4:
+            return ("UFA", "Unrestricted Free Agent")
+        if years_experience >= 3:
+            return ("RFA", "Restricted Free Agent")
+        if years_experience >= 0:
+            return ("ERFA", "Exclusive Rights Free Agent")
+
+    roster_status = (getattr(player, "roster_status", "") or "").upper()
+    if roster_status == "RFA":
+        return ("RFA", "Restricted Free Agent")
+    if roster_status == "ERFA":
+        return ("ERFA", "Exclusive Rights Free Agent")
+    return ("UFA", "Unrestricted Free Agent")
+
+
+def _player_contracts(player: "Player") -> list["PlayerContract"]:
+    if (
+        hasattr(player, "_prefetched_objects_cache")
+        and "contracts" in player._prefetched_objects_cache
+    ):
+        return list(player._prefetched_objects_cache["contracts"])
+    return list(player.contracts.select_related("team").all())
+
+
+def _player_transactions(player: "Player") -> list["PlayerTransaction"]:
+    if (
+        hasattr(player, "_prefetched_objects_cache")
+        and "transactions" in player._prefetched_objects_cache
+    ):
+        return list(player._prefetched_objects_cache["transactions"])
+    return list(player.transactions.select_related("from_team", "to_team").all())
+
+
+def _player_tracker_entries(player: "Player") -> list["TeamFreeAgentTrackerEntry"]:
+    if (
+        hasattr(player, "_prefetched_objects_cache")
+        and "free_agent_tracker_entries" in player._prefetched_objects_cache
+    ):
+        return list(player._prefetched_objects_cache["free_agent_tracker_entries"])
+    return list(
+        player.free_agent_tracker_entries.select_related(
+            "team", "signed_with_team"
+        ).all()
+    )
+
+
+def _has_current_team_commitment_signal(player: "Player") -> bool:
+    team = getattr(player, "current_team", None)
+    team_id = getattr(player, "current_team_id", None)
+    if not team_id or not getattr(player, "is_active", False):
+        return False
+
+    current_year = date.today().year
+    tracker_entries = _player_tracker_entries(player)
+    if any(
+        entry.season == current_year
+        and getattr(entry, "signed_with_team_id", None) == team_id
+        for entry in tracker_entries
+    ):
+        return True
+
+    for transaction in _player_transactions(player):
+        if _is_roster_sync_transaction(transaction):
+            continue
+        if getattr(transaction, "to_team_id", None) != team_id:
+            continue
+        if not transaction.date or transaction.date.year != current_year:
+            continue
+        if (transaction.transaction_type or "").lower() in {
+            "signed",
+            "signed_ps",
+            "claimed",
+            "traded",
+        }:
+            return True
+
+    return False
+
+
+def _player_effective_status_context(player: "Player") -> dict:
+    cached = getattr(player, "_gridstream_effective_status_context", None)
+    if cached is not None:
+        return cached
+
+    contracts = _player_contracts(player)
+    active_contract = next(
+        (
+            contract
+            for contract in contracts
+            if _is_contract_effectively_active(contract)
+        ),
+        None,
+    )
+
+    roster_status = (getattr(player, "roster_status", "") or "").upper()
+    if active_contract is not None:
+        team = active_contract.team or getattr(player, "current_team", None)
+        context = {
+            "current_team": team,
+            "current_team_abbr": getattr(team, "abbreviation", None),
+            "roster_status": roster_status or "ACT",
+            "roster_status_display": (
+                player.get_roster_status_display()
+                if getattr(player, "roster_status", None)
+                else "Active"
+            ),
+            "is_active": True,
+        }
+        setattr(player, "_gridstream_effective_status_context", context)
+        return context
+
+    if roster_status in {"RET", "RETIRED"}:
+        context = {
+            "current_team": None,
+            "current_team_abbr": None,
+            "roster_status": "RET",
+            "roster_status_display": "Retired",
+            "is_active": False,
+        }
+        setattr(player, "_gridstream_effective_status_context", context)
+        return context
+
+    if _has_current_team_commitment_signal(player):
+        team = getattr(player, "current_team", None)
+        context = {
+            "current_team": team,
+            "current_team_abbr": getattr(team, "abbreviation", None),
+            "roster_status": "ACT",
+            "roster_status_display": "Active",
+            "is_active": True,
+        }
+        setattr(player, "_gridstream_effective_status_context", context)
+        return context
+
+    if roster_status in {"CUT", "RELEASED", "WAIVED"}:
+        context = {
+            "current_team": None,
+            "current_team_abbr": None,
+            "roster_status": "CUT",
+            "roster_status_display": "Released",
+            "is_active": False,
+        }
+        setattr(player, "_gridstream_effective_status_context", context)
+        return context
+
+    latest_contract_end = max(
+        (_contract_end_year(contract) or -1 for contract in contracts), default=-1
+    )
+    if latest_contract_end >= 0 and latest_contract_end < date.today().year:
+        free_agent_status, free_agent_display = _infer_free_agent_status(player)
+        context = {
+            "current_team": None,
+            "current_team_abbr": None,
+            "roster_status": free_agent_status,
+            "roster_status_display": free_agent_display,
+            "is_active": False,
+        }
+        setattr(player, "_gridstream_effective_status_context", context)
+        return context
+
+    team = getattr(player, "current_team", None)
+    context = {
+        "current_team": team,
+        "current_team_abbr": getattr(team, "abbreviation", None),
+        "roster_status": roster_status
+        or ("ACT" if getattr(player, "is_active", False) else ""),
+        "roster_status_display": (
+            player.get_roster_status_display()
+            if getattr(player, "roster_status", None)
+            else ("Active" if getattr(player, "is_active", False) else None)
+        ),
+        "is_active": bool(getattr(player, "is_active", False)),
+    }
+    setattr(player, "_gridstream_effective_status_context", context)
+    return context
+
+
 from .models import (
     Team,
     TeamLogo,
@@ -34,6 +251,7 @@ from .models import (
     PlayerCombine,
     PlayerCollegeHistory,
     PlayerTransaction,
+    TeamFreeAgentTrackerEntry,
     SocialAccount,
     GameHashtag,
     NewsSource,
@@ -55,6 +273,9 @@ from .models import (
     PlayerNextGenStats,
     PlayerAward,
     PlayerMaddenRating,
+    TeamDvoaRating,
+    TeamRbsdmMetric,
+    PlayerRbsdmQbMetric,
 )
 
 # =============================================================================
@@ -111,7 +332,8 @@ class TeamMinimalSerializer(serializers.ModelSerializer):
         ]
 
     def get_logo_url(self, obj):
-        # Prefer default logo, then dark, then first available.
+        # Prefer stable full-color marks. Do not fall back to scoreboard-dark/dark
+        # variants; those monochrome logos are frequently inaccurate for Gridstream UI.
         if (
             hasattr(obj, "_prefetched_objects_cache")
             and "logos" in obj._prefetched_objects_cache
@@ -120,10 +342,22 @@ class TeamMinimalSerializer(serializers.ModelSerializer):
         else:
             logos = list(obj.logos.all()[:4])
         logo_map = {logo.logo_type: logo.url for logo in logos}
-        return (
-            logo_map.get("default")
-            or logo_map.get("dark")
-            or (logos[0].url if logos else None)
+        abbr = str(getattr(obj, "abbreviation", "") or "").upper().strip()
+        espn_logo_key = TEAM_ABBR_TO_COLOR_LOGO_CODE.get(abbr, abbr.lower())
+        if 2 <= len(abbr) <= 3 and espn_logo_key:
+            return f"https://a.espncdn.com/i/teamlogos/nfl/500/{espn_logo_key}.png"
+
+        default_logo = logo_map.get("default")
+        if default_logo:
+            return default_logo
+
+        return next(
+            (
+                logo.url
+                for logo in logos
+                if logo.logo_type not in {"dark", "scoreboard", "scoreboard-dark"}
+            ),
+            None,
         )
 
 
@@ -204,11 +438,12 @@ class SocialAccountSerializer(serializers.ModelSerializer):
 class PlayerListSerializer(serializers.ModelSerializer):
     """For roster lists, search results, and game leader references."""
 
-    current_team_abbr = serializers.CharField(
-        source="current_team.abbreviation", read_only=True, default=None
-    )
+    current_team = serializers.SerializerMethodField()
+    current_team_abbr = serializers.SerializerMethodField()
     current_team_colors = serializers.SerializerMethodField()
+    roster_status = serializers.SerializerMethodField()
     roster_status_display = serializers.SerializerMethodField()
+    is_active = serializers.SerializerMethodField()
     age = serializers.SerializerMethodField()
     games_played = serializers.IntegerField(read_only=True, default=0)
     games_started = serializers.IntegerField(
@@ -273,7 +508,12 @@ class PlayerListSerializer(serializers.ModelSerializer):
             "position",
             "position_group",
             "jersey_number",
+            "height",
+            "weight",
             "roster_status",
+            "depth_chart_position",
+            "depth_chart_rank",
+            "depth_chart_status",
             "roster_status_display",
             "age",
             "current_team",
@@ -335,19 +575,29 @@ class PlayerListSerializer(serializers.ModelSerializer):
         ]
 
     def get_current_team_colors(self, obj):
-        if obj.current_team:
+        team = _player_effective_status_context(obj)["current_team"]
+        if team:
             return {
-                "primary": obj.current_team.color_primary,
-                "secondary": obj.current_team.color_secondary,
+                "primary": team.color_primary,
+                "secondary": team.color_secondary,
             }
         return None
 
+    def get_current_team(self, obj):
+        team = _player_effective_status_context(obj)["current_team"]
+        return getattr(team, "id", None)
+
+    def get_current_team_abbr(self, obj):
+        return _player_effective_status_context(obj)["current_team_abbr"]
+
+    def get_roster_status(self, obj):
+        return _player_effective_status_context(obj)["roster_status"]
+
     def get_roster_status_display(self, obj):
-        if obj.roster_status:
-            return obj.get_roster_status_display()
-        if obj.is_active and obj.current_team is None:
-            return "Free Agent"
-        return None
+        return _player_effective_status_context(obj)["roster_status_display"]
+
+    def get_is_active(self, obj):
+        return _player_effective_status_context(obj)["is_active"]
 
     def get_age(self, obj):
         if not obj.birth_date:
@@ -362,6 +612,7 @@ class PlayerListSerializer(serializers.ModelSerializer):
 
 
 class PlayerContractSerializer(serializers.ModelSerializer):
+    is_active = serializers.SerializerMethodField()
     team_abbr = serializers.CharField(
         source="team.abbreviation", read_only=True, default=None
     )
@@ -385,6 +636,9 @@ class PlayerContractSerializer(serializers.ModelSerializer):
             "year_details",
             "otc_url",
         ]
+
+    def get_is_active(self, obj):
+        return _is_contract_effectively_active(obj)
 
 
 class PlayerCombineSerializer(serializers.ModelSerializer):
@@ -448,7 +702,216 @@ class PlayerTransactionSerializer(serializers.ModelSerializer):
             "to_team",
             "to_team_abbr",
             "description",
+            "contract_years",
+            "contract_total_value",
+            "contract_apy",
+            "contract_guaranteed",
             "season",
+        ]
+
+
+class TeamFreeAgentTrackerEntrySerializer(serializers.ModelSerializer):
+    team_detail = TeamMinimalSerializer(source="team", read_only=True)
+    signed_with_team_detail = TeamMinimalSerializer(
+        source="signed_with_team", read_only=True
+    )
+    tracker_status_display = serializers.SerializerMethodField()
+    contract_detail = serializers.SerializerMethodField()
+    player_id = serializers.IntegerField(
+        source="player.id", read_only=True, default=None
+    )
+    player_gsis_id = serializers.CharField(
+        source="player.gsis_id", read_only=True, default=None
+    )
+
+    class Meta:
+        model = TeamFreeAgentTrackerEntry
+        fields = [
+            "id",
+            "season",
+            "player_id",
+            "player_gsis_id",
+            "player_name",
+            "ourlads_player_id",
+            "position",
+            "fa_type",
+            "tracker_status",
+            "tracker_status_display",
+            "team_detail",
+            "signed_with_team_detail",
+            "contract_detail",
+            "source_url",
+            "updated_at",
+        ]
+
+    def get_tracker_status_display(self, obj):
+        return obj.get_tracker_status_display()
+
+    def _resolve_signed_contract(self, obj):
+        player = getattr(obj, "player", None)
+        if not player or not obj.signed_with_team_id:
+            return None
+
+        if (
+            hasattr(player, "_prefetched_objects_cache")
+            and "contracts" in player._prefetched_objects_cache
+        ):
+            contracts = list(player._prefetched_objects_cache["contracts"])
+        else:
+            contracts = list(player.contracts.select_related("team").all())
+
+        matching = [
+            contract
+            for contract in contracts
+            if contract.team_id == obj.signed_with_team_id
+        ]
+        if not matching:
+            return None
+
+        matching.sort(
+            key=lambda contract: (
+                1 if contract.is_active else 0,
+                contract.year_signed or 0,
+                contract.created_at,
+            ),
+            reverse=True,
+        )
+        return matching[0]
+
+    def _resolve_spotrac_transaction_contract(self, obj):
+        player = getattr(obj, "player", None)
+        if not player or not obj.signed_with_team_id:
+            return None
+
+        if (
+            hasattr(player, "_prefetched_objects_cache")
+            and "transactions" in player._prefetched_objects_cache
+        ):
+            transactions = list(player._prefetched_objects_cache["transactions"])
+        else:
+            transactions = list(
+                player.transactions.select_related("from_team", "to_team").all()
+            )
+
+        matching = [
+            transaction
+            for transaction in transactions
+            if transaction.to_team_id == obj.signed_with_team_id
+            and transaction.transaction_type
+            in {"signed", "signed_ps", "claimed", "traded"}
+            and any(
+                value is not None
+                for value in (
+                    transaction.contract_years,
+                    transaction.contract_total_value,
+                    transaction.contract_apy,
+                    transaction.contract_guaranteed,
+                )
+            )
+        ]
+        if not matching:
+            return None
+
+        matching.sort(
+            key=lambda transaction: (
+                transaction.date or date.min,
+                transaction.season or 0,
+                transaction.created_at,
+            ),
+            reverse=True,
+        )
+        return matching[0]
+
+    def get_contract_detail(self, obj):
+        contract = self._resolve_signed_contract(obj)
+        if contract:
+            return {
+                "year_signed": contract.year_signed,
+                "years": contract.years,
+                "total_value": contract.total_value,
+                "apy": contract.apy,
+                "guaranteed": contract.guaranteed,
+                "is_active": contract.is_active,
+                "otc_url": contract.otc_url or None,
+            }
+
+        transaction = self._resolve_spotrac_transaction_contract(obj)
+        if not transaction:
+            return None
+
+        return {
+            "year_signed": (
+                transaction.date.year if transaction.date else transaction.season
+            ),
+            "years": transaction.contract_years,
+            "total_value": transaction.contract_total_value,
+            "apy": transaction.contract_apy,
+            "guaranteed": (
+                transaction.contract_guaranteed
+                if transaction.contract_guaranteed not in {None, 0}
+                else None
+            ),
+            "is_active": True,
+            "otc_url": None,
+        }
+
+
+class TeamFreeAgencyTransactionSerializer(serializers.ModelSerializer):
+    player_id = serializers.IntegerField(
+        source="player.id", read_only=True, default=None
+    )
+    player_name = serializers.CharField(
+        source="player.display_name", read_only=True, default=""
+    )
+    player_position = serializers.CharField(
+        source="player.position", read_only=True, default=""
+    )
+    from_team_detail = TeamMinimalSerializer(source="from_team", read_only=True)
+    to_team_detail = TeamMinimalSerializer(source="to_team", read_only=True)
+
+    class Meta:
+        model = PlayerTransaction
+        fields = [
+            "id",
+            "player_id",
+            "player_name",
+            "player_position",
+            "transaction_type",
+            "date",
+            "description",
+            "season",
+            "from_team_detail",
+            "to_team_detail",
+        ]
+
+
+class TeamFreeAgencyContractChangeSerializer(serializers.ModelSerializer):
+    player_id = serializers.IntegerField(
+        source="player.id", read_only=True, default=None
+    )
+    player_name = serializers.CharField(
+        source="player.display_name", read_only=True, default=""
+    )
+    player_position = serializers.CharField(
+        source="player.position", read_only=True, default=""
+    )
+    team_detail = TeamMinimalSerializer(source="team", read_only=True)
+
+    class Meta:
+        model = PlayerContract
+        fields = [
+            "id",
+            "player_id",
+            "player_name",
+            "player_position",
+            "team_detail",
+            "year_signed",
+            "years",
+            "total_value",
+            "apy",
+            "guaranteed",
+            "is_active",
+            "otc_url",
         ]
 
 
@@ -461,8 +924,12 @@ class PlayerAwardSerializer(serializers.ModelSerializer):
 class PlayerDetailSerializer(serializers.ModelSerializer):
     """Full player profile — /players/{id}/ endpoint."""
 
-    current_team_detail = TeamMinimalSerializer(source="current_team", read_only=True)
+    current_team = serializers.SerializerMethodField()
+    current_team_detail = serializers.SerializerMethodField()
     draft_team_detail = TeamMinimalSerializer(source="draft_team", read_only=True)
+    roster_status = serializers.SerializerMethodField()
+    roster_status_display = serializers.SerializerMethodField()
+    is_active = serializers.SerializerMethodField()
     contracts = PlayerContractSerializer(many=True, read_only=True)
     combine_results = PlayerCombineSerializer(many=True, read_only=True)
     college_history = PlayerCollegeHistorySerializer(many=True, read_only=True)
@@ -470,8 +937,54 @@ class PlayerDetailSerializer(serializers.ModelSerializer):
     recent_transactions = serializers.SerializerMethodField()
     awards = PlayerAwardSerializer(many=True, read_only=True)
     games_played = serializers.SerializerMethodField()
+    games_started = serializers.IntegerField(
+        read_only=True, default=None, allow_null=True
+    )
+    offensive_snaps = serializers.IntegerField(
+        read_only=True, default=None, allow_null=True
+    )
+    snap_pct = serializers.FloatField(read_only=True, default=None, allow_null=True)
     first_season_played = serializers.SerializerMethodField()
     last_season_played = serializers.SerializerMethodField()
+    seasons_count = serializers.IntegerField(read_only=True, default=0)
+    career_completions = serializers.IntegerField(read_only=True, default=0)
+    career_pass_attempts = serializers.IntegerField(read_only=True, default=0)
+    career_completion_pct = serializers.FloatField(read_only=True, default=0)
+    career_passing_yards = serializers.IntegerField(read_only=True, default=0)
+    career_pass_yards_per_game = serializers.FloatField(read_only=True, default=0)
+    career_pass_yards_per_attempt = serializers.FloatField(read_only=True, default=0)
+    career_passing_tds = serializers.IntegerField(read_only=True, default=0)
+    career_interceptions_thrown = serializers.IntegerField(read_only=True, default=0)
+    career_passer_rating = serializers.FloatField(read_only=True, default=0)
+    career_sacks_taken = serializers.IntegerField(read_only=True, default=0)
+    career_carries = serializers.IntegerField(read_only=True, default=0)
+    career_rushing_yards = serializers.IntegerField(read_only=True, default=0)
+    career_rush_yards_per_game = serializers.FloatField(read_only=True, default=0)
+    career_yards_per_carry = serializers.FloatField(read_only=True, default=0)
+    career_rushing_tds = serializers.IntegerField(read_only=True, default=0)
+    career_receptions = serializers.IntegerField(read_only=True, default=0)
+    career_targets = serializers.IntegerField(read_only=True, default=0)
+    career_catch_pct = serializers.FloatField(read_only=True, default=0)
+    career_receiving_yards = serializers.IntegerField(read_only=True, default=0)
+    career_rec_yards_per_game = serializers.FloatField(read_only=True, default=0)
+    career_yards_per_reception = serializers.FloatField(read_only=True, default=0)
+    career_yards_per_target = serializers.FloatField(read_only=True, default=0)
+    career_receiving_tds = serializers.IntegerField(read_only=True, default=0)
+    career_scrimmage_yards = serializers.IntegerField(read_only=True, default=0)
+    career_total_touchdowns = serializers.IntegerField(read_only=True, default=0)
+    career_touchdowns_per_game = serializers.FloatField(read_only=True, default=0)
+    career_long_gain = serializers.IntegerField(read_only=True, default=0)
+    career_first_downs = serializers.IntegerField(read_only=True, default=0)
+    career_fumbles = serializers.IntegerField(read_only=True, default=0)
+    career_fumbles_lost = serializers.IntegerField(read_only=True, default=0)
+    career_tackles_total = serializers.IntegerField(read_only=True, default=0)
+    career_sacks_made = serializers.FloatField(read_only=True, default=0)
+    career_interceptions_caught = serializers.IntegerField(read_only=True, default=0)
+    career_passes_defended = serializers.IntegerField(read_only=True, default=0)
+    career_forced_fumbles = serializers.IntegerField(read_only=True, default=0)
+    career_fg_made = serializers.IntegerField(read_only=True, default=0)
+    career_fg_attempts = serializers.IntegerField(read_only=True, default=0)
+    career_punt_attempts = serializers.IntegerField(read_only=True, default=0)
     madden_rating = serializers.SerializerMethodField()
     latest_ff_ranking = serializers.SerializerMethodField()
 
@@ -493,7 +1006,10 @@ class PlayerDetailSerializer(serializers.ModelSerializer):
             "current_team",
             "current_team_detail",
             "roster_status",
+            "roster_status_display",
             "depth_chart_position",
+            "depth_chart_rank",
+            "depth_chart_status",
             "headshot_url",
             "height",
             "height_inches",
@@ -513,8 +1029,50 @@ class PlayerDetailSerializer(serializers.ModelSerializer):
             "years_experience",
             "is_active",
             "games_played",
+            "games_started",
+            "offensive_snaps",
+            "snap_pct",
             "first_season_played",
             "last_season_played",
+            "seasons_count",
+            "career_completions",
+            "career_pass_attempts",
+            "career_completion_pct",
+            "career_passing_yards",
+            "career_pass_yards_per_game",
+            "career_pass_yards_per_attempt",
+            "career_passing_tds",
+            "career_interceptions_thrown",
+            "career_passer_rating",
+            "career_sacks_taken",
+            "career_carries",
+            "career_rushing_yards",
+            "career_rush_yards_per_game",
+            "career_yards_per_carry",
+            "career_rushing_tds",
+            "career_receptions",
+            "career_targets",
+            "career_catch_pct",
+            "career_receiving_yards",
+            "career_rec_yards_per_game",
+            "career_yards_per_reception",
+            "career_yards_per_target",
+            "career_receiving_tds",
+            "career_scrimmage_yards",
+            "career_total_touchdowns",
+            "career_touchdowns_per_game",
+            "career_long_gain",
+            "career_first_downs",
+            "career_fumbles",
+            "career_fumbles_lost",
+            "career_tackles_total",
+            "career_sacks_made",
+            "career_interceptions_caught",
+            "career_passes_defended",
+            "career_forced_fumbles",
+            "career_fg_made",
+            "career_fg_attempts",
+            "career_punt_attempts",
             "contracts",
             "combine_results",
             "college_history",
@@ -527,6 +1085,25 @@ class PlayerDetailSerializer(serializers.ModelSerializer):
 
     def get_games_played(self, obj):
         return obj.game_stats.count()
+
+    def get_current_team(self, obj):
+        team = _player_effective_status_context(obj)["current_team"]
+        return getattr(team, "id", None)
+
+    def get_current_team_detail(self, obj):
+        team = _player_effective_status_context(obj)["current_team"]
+        if not team:
+            return None
+        return TeamMinimalSerializer(team).data
+
+    def get_roster_status(self, obj):
+        return _player_effective_status_context(obj)["roster_status"]
+
+    def get_roster_status_display(self, obj):
+        return _player_effective_status_context(obj)["roster_status_display"]
+
+    def get_is_active(self, obj):
+        return _player_effective_status_context(obj)["is_active"]
 
     def get_first_season_played(self, obj):
         from django.db.models import Min
@@ -541,8 +1118,16 @@ class PlayerDetailSerializer(serializers.ModelSerializer):
         return result["season_year__max"]
 
     def get_recent_transactions(self, obj):
-        txns = obj.transactions.select_related("from_team", "to_team")[:10]
-        return PlayerTransactionSerializer(txns, many=True).data
+        txns = list(obj.transactions.select_related("from_team", "to_team")[:20])
+        txns.sort(
+            key=lambda txn: (
+                0 if _is_roster_sync_transaction(txn) else 1,
+                txn.date or date.min,
+                txn.created_at,
+            ),
+            reverse=True,
+        )
+        return PlayerTransactionSerializer(txns[:10], many=True).data
 
     def get_madden_rating(self, obj):
         # Only return data from the current Madden game or one version behind
@@ -1029,6 +1614,8 @@ class PlayerGameStatsSerializer(serializers.ModelSerializer):
             "receiving_tds",
             "receiving_long",
             "target_share",
+            "air_yards_share",
+            "wopr",
             "receiving_epa",
             # Defense
             "tackles_total",
@@ -1259,6 +1846,89 @@ class TeamStandingSerializer(serializers.ModelSerializer):
             "streak",
             "last_5",
             "playoff_clincher",
+            "updated_at",
+        ]
+
+
+class TeamDvoaRatingSerializer(serializers.ModelSerializer):
+    team = TeamMinimalSerializer(read_only=True)
+
+    class Meta:
+        model = TeamDvoaRating
+        fields = [
+            "season",
+            "season_type",
+            "week",
+            "team",
+            "record_snapshot",
+            "total_dvoa",
+            "offense_dvoa",
+            "defense_dvoa",
+            "special_teams_dvoa",
+            "weighted_total_dvoa",
+            "total_dvoa_rank",
+            "offense_dvoa_rank",
+            "defense_dvoa_rank",
+            "special_teams_dvoa_rank",
+            "weighted_total_dvoa_rank",
+            "last_week_rank",
+            "last_week_weighted_rank",
+            "non_adjusted_total_voi",
+            "offense_voa_unadjusted",
+            "defense_voa_unadjusted",
+            "special_teams_voa_unadjusted",
+            "estimated_wins",
+            "past_schedule_dvoa",
+            "future_schedule_dvoa",
+            "variance",
+            "weighted_offense_dvoa",
+            "weighted_defense_dvoa",
+            "weighted_special_teams_dvoa",
+            "metrics_raw",
+            "updated_at",
+        ]
+
+
+class TeamRbsdmMetricSerializer(serializers.ModelSerializer):
+    team = TeamMinimalSerializer(read_only=True)
+
+    class Meta:
+        model = TeamRbsdmMetric
+        fields = [
+            "season",
+            "week",
+            "dataset",
+            "team",
+            "table_context",
+            "metrics",
+            "captured_at",
+            "updated_at",
+        ]
+
+
+class PlayerRbsdmQbMetricSerializer(serializers.ModelSerializer):
+    team = TeamMinimalSerializer(read_only=True)
+
+    class Meta:
+        model = PlayerRbsdmQbMetric
+        fields = [
+            "season",
+            "week",
+            "player",
+            "player_name",
+            "team",
+            "adj_epa_play",
+            "epa_play",
+            "epa_cpoe_composite",
+            "cpoe",
+            "success_rate",
+            "air_yards",
+            "expected_cmppct",
+            "cmppct",
+            "plays",
+            "table_context",
+            "metrics",
+            "captured_at",
             "updated_at",
         ]
 

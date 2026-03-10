@@ -128,17 +128,6 @@ function normalizeTeamHex(value: string | undefined, fallback: string): string {
   return /^[0-9a-f]{3,8}$/i.test(cleaned) ? `#${cleaned}` : fallback;
 }
 
-function normalizePercentLike(value: number | null | undefined): number | null {
-  if (value == null || !Number.isFinite(value)) return null;
-  const normalized = Math.abs(value) <= 1 ? value * 100 : value;
-  return Math.max(-100, Math.min(100, normalized));
-}
-
-function formatSignedPercent(value: number): string {
-  const rounded = Math.round(value * 10) / 10;
-  return `${rounded > 0 ? '+' : ''}${rounded.toFixed(1)}%`;
-}
-
 function compactNameKey(value: string): string {
   return normalizeNameKey(value);
 }

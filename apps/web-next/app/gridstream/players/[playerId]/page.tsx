@@ -3,9 +3,11 @@ import { notFound } from 'next/navigation';
 import {
   GRIDSTREAM_PLAYERS_MOCK_DATA,
   type GridstreamPlayerGamelogPage,
+  type GridstreamPlayerRbsdmResponse,
   type GridstreamPlayerProfile,
   fetchGridstreamPlayerGamelogPage,
   fetchGridstreamPlayerProfile,
+  fetchGridstreamPlayerRbsdm,
   fetchGridstreamPlayerSplits,
   findGridstreamPlayerByRouteId,
   formatGridstreamDraftLabel,
@@ -62,6 +64,14 @@ const EMPTY_GAMELOG: GridstreamPlayerGamelogPage = {
   next: null,
   previous: null,
 };
+const EMPTY_RBSDM: GridstreamPlayerRbsdmResponse = {
+  season: null,
+  playerId: '',
+  playerName: '',
+  count: 0,
+  rows: [],
+  latest: null,
+};
 
 interface GridstreamPlayerDetailPageProps {
   params: Promise<{ playerId: string }> | { playerId: string };
@@ -83,10 +93,28 @@ function toPositiveInt(value: string | undefined, fallback: number): number {
 function toFallbackProfile(routeId: string): GridstreamPlayerProfile | null {
   const player = findGridstreamPlayerByRouteId(GRIDSTREAM_PLAYERS_MOCK_DATA, routeId);
   if (!player) return null;
+  const normalizedStatus = player.rosterStatus.toLowerCase();
   return {
     ...player,
-    isActive: player.rosterStatus.toLowerCase() !== 'free agent',
+    isActive:
+      !normalizedStatus.includes('free agent') &&
+      !normalizedStatus.includes('released') &&
+      !normalizedStatus.includes('retired'),
   };
+}
+
+function rosterStatusTone(status: string | null | undefined): 'active' | 'reserve' | 'inactive' {
+  const normalized = (status ?? '').toLowerCase();
+  if (!normalized) return 'inactive';
+  if (normalized.includes('active')) return 'active';
+  if (
+    normalized.includes('reserve') ||
+    normalized.includes('injur') ||
+    normalized.includes('question')
+  ) {
+    return 'reserve';
+  }
+  return 'inactive';
 }
 
 function maddenOvrTier(ovr: number): 'mythic' | 'elite' | 'good' | 'average' | 'below' | 'poor' {
@@ -286,6 +314,7 @@ export default async function GridstreamPlayerDetailPage({
   const numericPlayerId = /^\d+$/.test(routeId) ? routeId : null;
   let profile: GridstreamPlayerProfile | null = null;
   let gamelog = EMPTY_GAMELOG;
+  let rbsdm = EMPTY_RBSDM;
   let splits = EMPTY_SPLITS;
   let dataWarning: string | null = null;
 
@@ -303,7 +332,7 @@ export default async function GridstreamPlayerDetailPage({
       const latestSeason = profile.seasonsPlayed.length ? Math.max(...profile.seasonsPlayed) : null;
       const selectedSeason = isCareer ? null : (seasonParam ?? latestSeason);
       try {
-        const [gamelogData, splitsData] = await Promise.all([
+        const [gamelogData, splitsData, rbsdmData] = await Promise.all([
           fetchGridstreamPlayerGamelogPage({
             apiBase: API_BASE,
             playerId: numericPlayerId,
@@ -316,11 +345,17 @@ export default async function GridstreamPlayerDetailPage({
             playerId: numericPlayerId,
             season: selectedSeason,
           }),
+          fetchGridstreamPlayerRbsdm({
+            apiBase: API_BASE,
+            playerId: numericPlayerId,
+            season: selectedSeason,
+          }),
         ]);
         gamelog = gamelogData;
         splits = splitsData;
+        rbsdm = rbsdmData;
       } catch (error) {
-        dataWarning = error instanceof Error ? error.message : 'Failed to load gamelog/splits.';
+        dataWarning = error instanceof Error ? error.message : 'Failed to load player analytics.';
       }
     }
   }
@@ -338,7 +373,8 @@ export default async function GridstreamPlayerDetailPage({
     ? Array.from(new Set(profile.seasonsPlayed)).sort((a, b) => b - a)
     : [];
 
-  const statusTone = profile.isActive ? 'active' : 'inactive';
+  const statusLabel = profile.rosterStatus || (profile.isActive ? 'Active' : 'Inactive');
+  const statusTone = rosterStatusTone(statusLabel);
 
   return (
     <main className="gs-players-page">
@@ -395,9 +431,7 @@ export default async function GridstreamPlayerDetailPage({
                   {profile.teamAbbr}
                 </span>
               )}
-              <span className={`gs-players-status-pill is-${statusTone}`}>
-                {profile.isActive ? 'Active' : 'Inactive'}
-              </span>
+              <span className={`gs-players-status-pill is-${statusTone}`}>{statusLabel}</span>
             </div>
           </div>
           <Link href="/gridstream/players" className="gs-players-link gs-player-detail-back">
@@ -804,6 +838,7 @@ export default async function GridstreamPlayerDetailPage({
 
         <PlayerStatsTabs
           gamelog={gamelog}
+          rbsdm={rbsdm}
           splits={splits}
           selectedSeason={selectedSeason}
           seasonOptions={seasonOptions}

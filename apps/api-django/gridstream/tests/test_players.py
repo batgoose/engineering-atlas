@@ -1,6 +1,7 @@
 """Tests for /players/ endpoints — list, detail, gamelog, splits."""
 
 import pytest
+from datetime import date
 from django.db import connections
 from django.urls import reverse
 from rest_framework import status
@@ -338,6 +339,99 @@ class TestPlayerList:
 
         names = [p["display_name"] for p in resp.data["results"]]
         assert "Inactive By Default" not in names
+
+    def test_list_derives_free_agent_context_from_expired_contract(
+        self, api_client, player_qb, team_sea
+    ):
+        from gridstream.models import PlayerContract
+
+        player_qb.current_team = team_sea
+        player_qb.roster_status = "ACT"
+        player_qb.is_active = True
+        player_qb.years_experience = 6
+        player_qb.save(using="nfl")
+
+        PlayerContract.objects.using("nfl").create(
+            player=player_qb,
+            team=team_sea,
+            is_active=True,
+            year_signed=date.today().year - 1,
+            years=1,
+            total_value=3000000,
+            apy=3000000,
+            guaranteed=1400000,
+            year_details=[{"year": date.today().year - 1, "team": "SEA"}],
+        )
+
+        url = reverse("player-list")
+        resp = api_client.get(url, {"search": "Geno"})
+
+        assert resp.status_code == status.HTTP_200_OK
+        player = resp.data["results"][0]
+        assert player["current_team"] is None
+        assert player["current_team_abbr"] is None
+        assert player["current_team_colors"] is None
+        assert player["roster_status"] == "UFA"
+        assert player["roster_status_display"] == "Unrestricted Free Agent"
+        assert player["is_active"] is False
+
+    def test_list_keeps_active_context_for_current_year_re_signing_signal(
+        self, api_client, player_qb, team_sea
+    ):
+        from gridstream.models import (
+            PlayerContract,
+            PlayerTransaction,
+            TeamFreeAgentTrackerEntry,
+        )
+
+        current_year = date.today().year
+        player_qb.current_team = team_sea
+        player_qb.roster_status = "ACT"
+        player_qb.is_active = True
+        player_qb.years_experience = 6
+        player_qb.save(using="nfl")
+
+        PlayerContract.objects.using("nfl").create(
+            player=player_qb,
+            team=team_sea,
+            is_active=True,
+            year_signed=current_year - 1,
+            years=1,
+            total_value=3000000,
+            apy=3000000,
+            guaranteed=1400000,
+            year_details=[{"year": current_year - 1, "team": "SEA"}],
+        )
+        TeamFreeAgentTrackerEntry.objects.using("nfl").create(
+            team=team_sea,
+            season=current_year,
+            player=player_qb,
+            player_name=player_qb.display_name,
+            fa_type="UFA",
+            signed_with_team=team_sea,
+            tracker_status="re_signed",
+            source_url="https://www.ourlads.com/nfl-free-agent-tracker/team/seattle-seahawks/2026",
+        )
+        PlayerTransaction.objects.using("nfl").create(
+            player=player_qb,
+            transaction_type="signed",
+            date=date(current_year, 2, 23),
+            from_team=None,
+            to_team=team_sea,
+            description="Spotrac: Signed a 2 year extension with Seattle",
+            season=current_year,
+        )
+
+        url = reverse("player-list")
+        resp = api_client.get(url, {"search": "Geno"})
+
+        assert resp.status_code == status.HTTP_200_OK
+        player = resp.data["results"][0]
+        assert player["current_team"] == team_sea.id
+        assert player["current_team_abbr"] == "SEA"
+        assert player["roster_status"] == "ACT"
+        assert player["roster_status_display"] == "Active"
+        assert player["is_active"] is True
 
     def test_filter_by_team_not(self, api_client, player_qb, player_wr, player_was_qb):
         url = reverse("player-list")
@@ -716,6 +810,157 @@ class TestPlayerDetail:
         assert contract["years"] == 3
         assert contract["team_abbr"] == "SEA"
 
+    def test_detail_marks_expired_contract_inactive(
+        self, api_client, player_qb, team_sea
+    ):
+        from gridstream.models import PlayerContract
+
+        last_year = date.today().year - 1
+        PlayerContract.objects.using("nfl").create(
+            player=player_qb,
+            team=team_sea,
+            is_active=True,
+            year_signed=last_year,
+            years=1,
+            total_value=3000000,
+            apy=3000000,
+            guaranteed=1400000,
+        )
+
+        url = reverse("player-detail", kwargs={"pk": player_qb.pk})
+        resp = api_client.get(url)
+
+        assert resp.status_code == status.HTTP_200_OK
+        assert resp.data["contracts"][0]["year_signed"] == last_year
+        assert resp.data["contracts"][0]["is_active"] is False
+
+    def test_detail_recent_transactions_prefers_real_moves_over_roster_sync(
+        self, api_client, player_qb, team_sea, team_was
+    ):
+        from gridstream.models import PlayerTransaction
+
+        PlayerTransaction.objects.using("nfl").create(
+            player=player_qb,
+            transaction_type="signed",
+            date=date(date.today().year - 1, 3, 17),
+            from_team=team_was,
+            to_team=team_sea,
+            description="Signed a one-year deal with Seattle",
+            season=date.today().year - 1,
+        )
+        PlayerTransaction.objects.using("nfl").create(
+            player=player_qb,
+            transaction_type="signed",
+            date=date(date.today().year, 2, 24),
+            from_team=None,
+            to_team=team_sea,
+            description="Roster sync: Geno Smith moved from FA to SEA",
+            season=date.today().year,
+        )
+
+        url = reverse("player-detail", kwargs={"pk": player_qb.pk})
+        resp = api_client.get(url)
+
+        assert resp.status_code == status.HTTP_200_OK
+        assert (
+            resp.data["recent_transactions"][0]["description"]
+            == "Signed a one-year deal with Seattle"
+        )
+        assert (
+            resp.data["recent_transactions"][0]["date"]
+            == f"{date.today().year - 1}-03-17"
+        )
+
+    def test_detail_derives_free_agent_context_from_expired_contract(
+        self, api_client, player_qb, team_sea
+    ):
+        from gridstream.models import PlayerContract
+
+        player_qb.current_team = team_sea
+        player_qb.roster_status = "ACT"
+        player_qb.is_active = True
+        player_qb.years_experience = 6
+        player_qb.save(using="nfl")
+
+        PlayerContract.objects.using("nfl").create(
+            player=player_qb,
+            team=team_sea,
+            is_active=True,
+            year_signed=date.today().year - 1,
+            years=1,
+            total_value=3000000,
+            apy=3000000,
+            guaranteed=1400000,
+            year_details=[{"year": date.today().year - 1, "team": "SEA"}],
+        )
+
+        url = reverse("player-detail", kwargs={"pk": player_qb.pk})
+        resp = api_client.get(url)
+
+        assert resp.status_code == status.HTTP_200_OK
+        assert resp.data["current_team"] is None
+        assert resp.data["current_team_detail"] is None
+        assert resp.data["roster_status"] == "UFA"
+        assert resp.data["roster_status_display"] == "Unrestricted Free Agent"
+        assert resp.data["is_active"] is False
+
+    def test_detail_keeps_active_context_for_current_year_re_signing_signal(
+        self, api_client, player_qb, team_sea
+    ):
+        from gridstream.models import (
+            PlayerContract,
+            PlayerTransaction,
+            TeamFreeAgentTrackerEntry,
+        )
+
+        current_year = date.today().year
+        player_qb.current_team = team_sea
+        player_qb.roster_status = "ACT"
+        player_qb.is_active = True
+        player_qb.years_experience = 6
+        player_qb.save(using="nfl")
+
+        PlayerContract.objects.using("nfl").create(
+            player=player_qb,
+            team=team_sea,
+            is_active=True,
+            year_signed=current_year - 1,
+            years=1,
+            total_value=3000000,
+            apy=3000000,
+            guaranteed=1400000,
+            year_details=[{"year": current_year - 1, "team": "SEA"}],
+        )
+        TeamFreeAgentTrackerEntry.objects.using("nfl").create(
+            team=team_sea,
+            season=current_year,
+            player=player_qb,
+            player_name=player_qb.display_name,
+            fa_type="UFA",
+            signed_with_team=team_sea,
+            tracker_status="re_signed",
+            source_url="https://www.ourlads.com/nfl-free-agent-tracker/team/seattle-seahawks/2026",
+        )
+        PlayerTransaction.objects.using("nfl").create(
+            player=player_qb,
+            transaction_type="signed",
+            date=date(current_year, 2, 23),
+            from_team=None,
+            to_team=team_sea,
+            description="Spotrac: Signed a 2 year extension with Seattle",
+            season=current_year,
+        )
+
+        url = reverse("player-detail", kwargs={"pk": player_qb.pk})
+        resp = api_client.get(url)
+
+        assert resp.status_code == status.HTTP_200_OK
+        assert resp.data["current_team"] == team_sea.id
+        assert resp.data["current_team_detail"]["abbreviation"] == "SEA"
+        assert resp.data["roster_status"] == "ACT"
+        assert resp.data["roster_status_display"] == "Active"
+        assert resp.data["is_active"] is True
+
     def test_detail_includes_combine(self, api_client, player_wr, player_combine):
         url = reverse("player-detail", kwargs={"pk": player_wr.pk})
         resp = api_client.get(url)
@@ -759,6 +1004,18 @@ class TestPlayerDetail:
         assert resp.data["draft_year"] == 2013
         assert resp.data["draft_round"] == 2
         assert resp.data["draft_overall"] == 39
+
+    def test_detail_includes_career_summary_stats(
+        self, api_client, player_qb, player_game_stats_qb
+    ):
+        url = reverse("player-detail", kwargs={"pk": player_qb.pk})
+        resp = api_client.get(url)
+
+        assert resp.status_code == status.HTTP_200_OK
+        assert resp.data["career_passing_yards"] == 280
+        assert resp.data["career_passing_tds"] == 2
+        assert resp.data["career_completion_pct"] == pytest.approx(70.9677, rel=1e-3)
+        assert resp.data["career_rushing_yards"] == 15
 
     def test_retrieve_nonexistent_returns_404(self, api_client, db):
         url = reverse("player-detail", kwargs={"pk": 99999})
