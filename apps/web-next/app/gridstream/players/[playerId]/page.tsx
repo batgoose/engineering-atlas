@@ -401,7 +401,17 @@ export default async function GridstreamPlayerDetailPage({
             </div>
           )}
           <div className="gs-player-detail-header-text">
-            <div className="gs-players-kicker">Gridstream / Players / Profile</div>
+            <div className="gs-players-kicker">
+              <Link href="/gridstream" className="gs-players-kicker-link">
+                GRIDSTREAM
+              </Link>
+              {' / '}
+              <Link href="/gridstream/players" className="gs-players-kicker-link">
+                PLAYERS
+              </Link>
+              {' / '}
+              PROFILE
+            </div>
             <h1 className="gs-players-title">{profile.displayName}</h1>
             <div className="gs-player-detail-badge-row">
               {profile.jerseyNumber && (
@@ -718,6 +728,29 @@ export default async function GridstreamPlayerDetailPage({
                 </details>
               );
             })()}
+
+            {/* RAS Card */}
+            {profile.ras && (
+              <details className="hud-panel gs-player-detail-ras" open>
+                <summary className="gs-players-kicker">
+                  Relative Athletic Score
+                  <span className="gs-panel-toggle-icon" aria-hidden="true" />
+                </summary>
+                <div className="gs-player-detail-ras-body">
+                  {profile.ras.rasSummary && (
+                    <p className="gs-player-detail-ras-summary">{profile.ras.rasSummary}</p>
+                  )}
+                  {profile.ras.rasImageUrl && (
+                    // eslint-disable-next-line @next/next/no-img-element -- external RAS card URLs
+                    <img
+                      src={profile.ras.rasImageUrl}
+                      alt={`${profile.displayName} RAS card`}
+                      className="gs-player-detail-ras-image"
+                    />
+                  )}
+                </div>
+              </details>
+            )}
 
             {/* College History — from DB entries, or constructed from raw college field */}
             {(() => {

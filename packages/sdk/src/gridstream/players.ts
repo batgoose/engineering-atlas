@@ -2261,6 +2261,20 @@ export interface GridstreamPlayerFFRanking {
   positionRank?: number | null;
 }
 
+export interface GridstreamPlayerRAS {
+  rasPlayerId: number;
+  rasScore: number | null;
+  rasSummary: string;
+  hasRas: boolean;
+  position: string;
+  draftYear: number | null;
+  draftRound: number | null;
+  draftPick: number | null;
+  isUndrafted: boolean;
+  isProspect: boolean;
+  rasImageUrl: string | null;
+}
+
 export interface GridstreamPlayerProfile extends GridstreamPlayerSummary {
   firstName?: string;
   lastName?: string;
@@ -2281,6 +2295,7 @@ export interface GridstreamPlayerProfile extends GridstreamPlayerSummary {
   collegeConference?: string | null;
   contracts?: GridstreamPlayerContract[];
   combineResults?: GridstreamPlayerCombineResult[];
+  ras?: GridstreamPlayerRAS | null;
   collegeHistory?: GridstreamPlayerCollegeHistoryEntry[];
   socialAccounts?: GridstreamPlayerSocialAccount[];
   recentTransactions?: GridstreamPlayerTransaction[];
@@ -2685,6 +2700,19 @@ interface ApiGridstreamPlayerDetail {
     rank_best?: number | null;
     rank_worst?: number | null;
     position_rank?: number | null;
+  } | null;
+  ras?: {
+    ras_player_id: number;
+    ras_score?: number | null;
+    ras_summary?: string;
+    has_ras?: boolean;
+    position?: string;
+    draft_year?: number | null;
+    draft_round?: number | null;
+    draft_pick?: number | null;
+    is_undrafted?: boolean;
+    is_prospect?: boolean;
+    ras_image_url?: string | null;
   } | null;
 }
 
@@ -3270,6 +3298,21 @@ function mapApiPlayerProfile(row: ApiGridstreamPlayerDetail): GridstreamPlayerPr
           rankBest: row.latest_ff_ranking.rank_best ?? null,
           rankWorst: row.latest_ff_ranking.rank_worst ?? null,
           positionRank: row.latest_ff_ranking.position_rank ?? null,
+        }
+      : null,
+    ras: row.ras
+      ? {
+          rasPlayerId: row.ras.ras_player_id,
+          rasScore: row.ras.ras_score ?? null,
+          rasSummary: row.ras.ras_summary ?? '',
+          hasRas: Boolean(row.ras.has_ras),
+          position: normalizeUpper(row.ras.position) || '',
+          draftYear: toSafeInt(row.ras.draft_year),
+          draftRound: toSafeInt(row.ras.draft_round),
+          draftPick: toSafeInt(row.ras.draft_pick),
+          isUndrafted: Boolean(row.ras.is_undrafted),
+          isProspect: Boolean(row.ras.is_prospect),
+          rasImageUrl: normalizeString(row.ras.ras_image_url) || null,
         }
       : null,
   };

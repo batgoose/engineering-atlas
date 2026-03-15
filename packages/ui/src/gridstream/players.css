@@ -54,6 +54,16 @@
   text-transform: uppercase;
 }
 
+/* Ancestor segments in the breadcrumb — linked, dimmer than the current segment */
+.gs-players-kicker-link {
+  color: rgba(111, 154, 184, 0.85);
+  text-decoration: none;
+  transition: color 0.12s;
+}
+.gs-players-kicker-link:hover {
+  color: var(--gs-cyan);
+}
+
 .gs-players-title {
   margin: 8px 0 0;
   color: var(--gs-text-bright);
@@ -2748,6 +2758,39 @@ details.hud-panel > summary.gs-players-kicker:hover .gs-panel-toggle-icon {
   font-weight: 700;
   color: var(--gs-text-bright);
   letter-spacing: 0.02em;
+}
+
+/* =============================================================================
+   PLAYER DETAIL — RAS CARD
+   ============================================================================= */
+
+.gs-player-detail-ras {
+  padding: 16px 20px 20px;
+}
+
+.gs-player-detail-ras-body {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px 0 0;
+}
+
+.gs-player-detail-ras-image {
+  max-width: 100%;
+  width: 620px;
+  height: auto;
+  border-radius: 4px;
+  display: block;
+  border: 1px solid rgba(192, 104, 48, 0.5);
+  box-shadow: 0 0 12px rgba(192, 104, 48, 0.12);
+}
+
+.gs-player-detail-ras-summary {
+  font-size: 0.85rem;
+  color: var(--gs-text-secondary, rgba(255 255 255 / 0.6));
+  line-height: 1.5;
+  margin: 0;
 }
 
 /* =============================================================================

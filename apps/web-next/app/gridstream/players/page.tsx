@@ -1637,7 +1637,13 @@ export default function GridstreamPlayersPage() {
       <div className="gs-players-shell">
         <header className="gs-players-header">
           <div>
-            <div className="gs-players-kicker">Gridstream / Players</div>
+            <div className="gs-players-kicker">
+              <Link href="/gridstream" className="gs-players-kicker-link">
+                GRIDSTREAM
+              </Link>
+              {' / '}
+              PLAYERS
+            </div>
             <h1 className="gs-players-title">Player Database</h1>
             <p className="gs-players-subtitle">
               API-backed player directory with shareable filter URLs, paging, and drill-down links
@@ -1645,7 +1651,7 @@ export default function GridstreamPlayersPage() {
             </p>
           </div>
           <Link href="/gridstream" className="gs-players-link">
-            ← Back To Gridstream Hub
+            ← BACK TO GRIDSTREAM HUB
           </Link>
         </header>
 

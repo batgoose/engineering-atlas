@@ -500,7 +500,8 @@ export function LiveGameView({
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? 10 : 20 }}>
-          <span
+          <Link
+            href="/gridstream"
             style={{
               fontFamily: F.display,
               fontWeight: 800,
@@ -508,10 +509,11 @@ export function LiveGameView({
               color: C.cyan,
               letterSpacing: '.14em',
               textShadow: `0 0 10px ${C.cyanGlow}`,
+              textDecoration: 'none',
             }}
           >
             GRIDSTREAM
-          </span>
+          </Link>
           {!isMobile && <div style={{ width: 1, height: 20, background: C.panelBorder }} />}
           <Link
             href="/gridstream/games"

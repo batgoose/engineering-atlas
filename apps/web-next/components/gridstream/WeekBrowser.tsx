@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, type CSSProperties } from 'react';
+import Link from 'next/link';
 import { weekLabel, isPostseasonWeek } from '@atlas/sdk/gridstream/api-transforms';
 import { gridstreamColors as C, gridstreamFonts as F } from '@atlas/sdk/gridstream/theme';
 
@@ -80,7 +81,7 @@ export function WeekBrowser({
           style={{
             display: 'flex',
             alignItems: 'center',
-            justifyContent: 'flex-start',
+            justifyContent: 'space-between',
             marginBottom: 6,
             gap: 12,
             flexWrap: 'wrap',
@@ -94,6 +95,29 @@ export function WeekBrowser({
               flexWrap: 'wrap',
             }}
           >
+            <Link
+              href="/gridstream"
+              style={{
+                fontFamily: F.display,
+                fontSize: 14,
+                fontWeight: 700,
+                letterSpacing: '0.14em',
+                color: C.textMuted,
+                textDecoration: 'none',
+              }}
+            >
+              GRIDSTREAM
+            </Link>
+            <span
+              style={{
+                fontFamily: F.mono,
+                fontSize: 11,
+                color: C.textMuted,
+                letterSpacing: '0.1em',
+              }}
+            >
+              /
+            </span>
             <span
               style={{
                 fontFamily: F.display,
@@ -103,7 +127,7 @@ export function WeekBrowser({
                 color: C.cyan,
               }}
             >
-              GRIDSTREAM
+              GAMES
             </span>
             <span
               style={{
@@ -113,7 +137,7 @@ export function WeekBrowser({
                 letterSpacing: '0.1em',
               }}
             >
-              / GAMES /
+              /
             </span>
             <span
               style={{
@@ -127,6 +151,18 @@ export function WeekBrowser({
               {weekLabel(week).toUpperCase()}
             </span>
           </div>
+          <Link
+            href="/gridstream"
+            style={{
+              fontFamily: F.display,
+              fontSize: 11,
+              letterSpacing: '0.08em',
+              color: C.textMuted,
+              textDecoration: 'none',
+            }}
+          >
+            ← BACK TO HUB
+          </Link>
         </div>
 
         {/* Controls */}

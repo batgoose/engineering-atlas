@@ -26,13 +26,20 @@ const navCards = [
     title: 'Teams',
     href: '/gridstream/teams',
     description: 'Check franchise trends, team metrics, and year-over-year snapshots.',
-    status: 'Scaffolded',
+    status: 'Live',
   },
   {
     title: 'Fantasy',
     href: '/gridstream/fantasy',
     description: 'Follow fantasy scoring views and prep for future Yahoo/league integrations.',
     status: 'Scaffolded',
+  },
+  {
+    title: '2026 Draft',
+    href: '/gridstream/draft',
+    description:
+      "Multi-source prospect big board — sort by any scout's rankings or the combined average. Scouting profiles on click.",
+    status: 'New',
   },
 ];
 
