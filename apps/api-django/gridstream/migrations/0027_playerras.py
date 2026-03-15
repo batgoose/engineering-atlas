@@ -199,13 +199,19 @@ class Migration(migrations.Migration):
                                         "nflmockdraftdb_the_draft_network",
                                         "The Draft Network",
                                     ),
-                                    ("nflmockdraftdb_field_yates", "Field Yates (ESPN)"),
+                                    (
+                                        "nflmockdraftdb_field_yates",
+                                        "Field Yates (ESPN)",
+                                    ),
                                     ("nflmockdraftdb_tankathon", "Tankathon"),
                                     (
                                         "nflmockdraftdb_bleacher_report",
                                         "Bleacher Report",
                                     ),
-                                    ("nflmockdraftdb_rob_rang", "Rob Rang (Fox Sports)"),
+                                    (
+                                        "nflmockdraftdb_rob_rang",
+                                        "Rob Rang (Fox Sports)",
+                                    ),
                                     (
                                         "nflmockdraftdb_michael_renner",
                                         "Michael Renner (CBS Sports)",
