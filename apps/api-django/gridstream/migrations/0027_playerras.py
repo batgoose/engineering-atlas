@@ -23,50 +23,58 @@ class Migration(migrations.Migration):
                 max_length=30,
             ),
         ),
-        migrations.CreateModel(
-            name="DraftMockDraft",
-            fields=[
-                (
-                    "id",
-                    models.BigAutoField(
-                        auto_created=True,
-                        primary_key=True,
-                        serialize=False,
-                        verbose_name="ID",
-                    ),
+        migrations.SeparateDatabaseAndState(
+            database_operations=[],
+            state_operations=[
+                migrations.CreateModel(
+                    name="DraftMockDraft",
+                    fields=[
+                        (
+                            "id",
+                            models.BigAutoField(
+                                auto_created=True,
+                                primary_key=True,
+                                serialize=False,
+                                verbose_name="ID",
+                            ),
+                        ),
+                        ("season", models.IntegerField()),
+                        ("slug", models.SlugField(max_length=160)),
+                        ("source_key", models.CharField(max_length=80)),
+                        ("source_label", models.CharField(max_length=160)),
+                        (
+                            "source_analyst",
+                            models.CharField(blank=True, default="", max_length=80),
+                        ),
+                        (
+                            "source_outlet",
+                            models.CharField(blank=True, default="", max_length=80),
+                        ),
+                        (
+                            "source_url",
+                            models.URLField(blank=True, default="", max_length=500),
+                        ),
+                        ("source_updated", models.DateField(blank=True, null=True)),
+                        ("picks", models.JSONField(default=list)),
+                        ("scraped_at", models.DateTimeField(blank=True, null=True)),
+                        ("created_at", models.DateTimeField(auto_now_add=True)),
+                        ("updated_at", models.DateTimeField(auto_now=True)),
+                    ],
+                    options={
+                        "ordering": ["season", "source_label"],
+                        "indexes": [
+                            models.Index(
+                                fields=["season"], name="gridstream__season_3b39dc_idx"
+                            ),
+                            models.Index(
+                                fields=["season", "source_key"],
+                                name="gridstream__season_03737a_idx",
+                            ),
+                        ],
+                        "unique_together": {("season", "slug")},
+                    },
                 ),
-                ("season", models.IntegerField()),
-                ("slug", models.SlugField(max_length=160)),
-                ("source_key", models.CharField(max_length=80)),
-                ("source_label", models.CharField(max_length=160)),
-                (
-                    "source_analyst",
-                    models.CharField(blank=True, default="", max_length=80),
-                ),
-                (
-                    "source_outlet",
-                    models.CharField(blank=True, default="", max_length=80),
-                ),
-                ("source_url", models.URLField(blank=True, default="", max_length=500)),
-                ("source_updated", models.DateField(blank=True, null=True)),
-                ("picks", models.JSONField(default=list)),
-                ("scraped_at", models.DateTimeField(blank=True, null=True)),
-                ("created_at", models.DateTimeField(auto_now_add=True)),
-                ("updated_at", models.DateTimeField(auto_now=True)),
             ],
-            options={
-                "ordering": ["season", "source_label"],
-                "indexes": [
-                    models.Index(
-                        fields=["season"], name="gridstream__season_3b39dc_idx"
-                    ),
-                    models.Index(
-                        fields=["season", "source_key"],
-                        name="gridstream__season_03737a_idx",
-                    ),
-                ],
-                "unique_together": {("season", "slug")},
-            },
         ),
         migrations.CreateModel(
             name="PlayerRAS",
@@ -155,91 +163,106 @@ class Migration(migrations.Migration):
                 "ordering": ["ras_player_id"],
             },
         ),
-        migrations.CreateModel(
-            name="DraftProspectRanking",
-            fields=[
-                (
-                    "id",
-                    models.BigAutoField(
-                        auto_created=True,
-                        primary_key=True,
-                        serialize=False,
-                        verbose_name="ID",
-                    ),
-                ),
-                ("season", models.IntegerField()),
-                (
-                    "source",
-                    models.CharField(
-                        choices=[
-                            (
-                                "nflmockdraftdb_consensus",
-                                "Consensus (NFLMockDraftDatabase)",
+        migrations.SeparateDatabaseAndState(
+            database_operations=[],
+            state_operations=[
+                migrations.CreateModel(
+                    name="DraftProspectRanking",
+                    fields=[
+                        (
+                            "id",
+                            models.BigAutoField(
+                                auto_created=True,
+                                primary_key=True,
+                                serialize=False,
+                                verbose_name="ID",
                             ),
-                            (
-                                "nflmockdraftdb_daniel_jeremiah",
-                                "Daniel Jeremiah (NFL.com)",
+                        ),
+                        ("season", models.IntegerField()),
+                        (
+                            "source",
+                            models.CharField(
+                                choices=[
+                                    (
+                                        "nflmockdraftdb_consensus",
+                                        "Consensus (NFLMockDraftDatabase)",
+                                    ),
+                                    (
+                                        "nflmockdraftdb_daniel_jeremiah",
+                                        "Daniel Jeremiah (NFL.com)",
+                                    ),
+                                    (
+                                        "nflmockdraftdb_dane_brugler",
+                                        "Dane Brugler (The Athletic)",
+                                    ),
+                                    (
+                                        "nflmockdraftdb_the_draft_network",
+                                        "The Draft Network",
+                                    ),
+                                    ("nflmockdraftdb_field_yates", "Field Yates (ESPN)"),
+                                    ("nflmockdraftdb_tankathon", "Tankathon"),
+                                    (
+                                        "nflmockdraftdb_bleacher_report",
+                                        "Bleacher Report",
+                                    ),
+                                    ("nflmockdraftdb_rob_rang", "Rob Rang (Fox Sports)"),
+                                    (
+                                        "nflmockdraftdb_michael_renner",
+                                        "Michael Renner (CBS Sports)",
+                                    ),
+                                    (
+                                        "nflmockdraftdb_ryan_wilson",
+                                        "Ryan Wilson (CBS Sports)",
+                                    ),
+                                    (
+                                        "nflmockdraftdb_charles_mcdonald",
+                                        "Charles McDonald (Yahoo Sports)",
+                                    ),
+                                ],
+                                max_length=80,
                             ),
-                            (
-                                "nflmockdraftdb_dane_brugler",
-                                "Dane Brugler (The Athletic)",
+                        ),
+                        ("source_label", models.CharField(max_length=120)),
+                        ("source_analyst", models.CharField(blank=True, max_length=80)),
+                        ("source_outlet", models.CharField(blank=True, max_length=80)),
+                        ("source_url", models.URLField(blank=True, max_length=500)),
+                        ("source_updated", models.DateField(blank=True, null=True)),
+                        ("rank", models.IntegerField()),
+                        ("name", models.CharField(max_length=120)),
+                        ("name_slug", models.SlugField(max_length=160)),
+                        ("position", models.CharField(blank=True, max_length=20)),
+                        ("school", models.CharField(blank=True, max_length=120)),
+                        ("scraped_at", models.DateTimeField(blank=True, null=True)),
+                        (
+                            "prospect",
+                            models.ForeignKey(
+                                blank=True,
+                                null=True,
+                                on_delete=django.db.models.deletion.SET_NULL,
+                                related_name="external_rankings",
+                                to="gridstream.draftprospect",
                             ),
-                            ("nflmockdraftdb_the_draft_network", "The Draft Network"),
-                            ("nflmockdraftdb_field_yates", "Field Yates (ESPN)"),
-                            ("nflmockdraftdb_tankathon", "Tankathon"),
-                            ("nflmockdraftdb_bleacher_report", "Bleacher Report"),
-                            ("nflmockdraftdb_rob_rang", "Rob Rang (Fox Sports)"),
-                            (
-                                "nflmockdraftdb_michael_renner",
-                                "Michael Renner (CBS Sports)",
+                        ),
+                    ],
+                    options={
+                        "ordering": ["season", "source", "rank"],
+                        "indexes": [
+                            models.Index(
+                                fields=["season", "source"],
+                                name="gridstream__season_c3c485_idx",
                             ),
-                            ("nflmockdraftdb_ryan_wilson", "Ryan Wilson (CBS Sports)"),
-                            (
-                                "nflmockdraftdb_charles_mcdonald",
-                                "Charles McDonald (Yahoo Sports)",
+                            models.Index(
+                                fields=["season", "rank"],
+                                name="gridstream__season_d04d8f_idx",
+                            ),
+                            models.Index(
+                                fields=["name_slug", "season"],
+                                name="gridstream__name_sl_e81182_idx",
                             ),
                         ],
-                        max_length=80,
-                    ),
-                ),
-                ("source_label", models.CharField(max_length=120)),
-                ("source_analyst", models.CharField(blank=True, max_length=80)),
-                ("source_outlet", models.CharField(blank=True, max_length=80)),
-                ("source_url", models.URLField(blank=True, max_length=500)),
-                ("source_updated", models.DateField(blank=True, null=True)),
-                ("rank", models.IntegerField()),
-                ("name", models.CharField(max_length=120)),
-                ("name_slug", models.SlugField(max_length=160)),
-                ("position", models.CharField(blank=True, max_length=20)),
-                ("school", models.CharField(blank=True, max_length=120)),
-                ("scraped_at", models.DateTimeField(blank=True, null=True)),
-                (
-                    "prospect",
-                    models.ForeignKey(
-                        blank=True,
-                        null=True,
-                        on_delete=django.db.models.deletion.SET_NULL,
-                        related_name="external_rankings",
-                        to="gridstream.draftprospect",
-                    ),
+                        "unique_together": {("season", "source", "name_slug")},
+                    },
                 ),
             ],
-            options={
-                "ordering": ["season", "source", "rank"],
-                "indexes": [
-                    models.Index(
-                        fields=["season", "source"],
-                        name="gridstream__season_c3c485_idx",
-                    ),
-                    models.Index(
-                        fields=["season", "rank"], name="gridstream__season_d04d8f_idx"
-                    ),
-                    models.Index(
-                        fields=["name_slug", "season"],
-                        name="gridstream__name_sl_e81182_idx",
-                    ),
-                ],
-                "unique_together": {("season", "source", "name_slug")},
-            },
         ),
     ]
