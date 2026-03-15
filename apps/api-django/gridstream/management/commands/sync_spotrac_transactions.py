@@ -18,6 +18,7 @@ import unicodedata
 from dataclasses import dataclass
 from datetime import date, datetime
 
+
 import requests
 from django.core.management.base import BaseCommand
 from django.db.models import Q
@@ -480,10 +481,19 @@ class Command(BaseCommand):
         parser.add_argument(
             "--dry-run", action="store_true", help="Do not write DB changes."
         )
+        parser.add_argument(
+            "--global-only",
+            action="store_true",
+            help=(
+                "Skip per-team pages; only fetch the global all-transactions page "
+                "and the free-agent contracts page (~2 requests). Use for frequent polling."
+            ),
+        )
 
     def handle(self, *args, **options):
         season = options["season"]
         dry_run = options["dry_run"]
+        global_only = options["global_only"]
         requested = [(abbr or "").upper().strip() for abbr in options["teams"] if abbr]
         requested_set = set(requested)
 
@@ -597,19 +607,34 @@ class Command(BaseCommand):
                     )
                     continue
 
-                transaction, was_created = PlayerTransaction.objects.using(
-                    "nfl"
-                ).get_or_create(
-                    player=player,
-                    transaction_type=transaction_type,
-                    date=entry.occurred_on,
-                    defaults={
-                        "from_team": from_team,
-                        "to_team": to_team,
-                        "description": description,
-                        "season": season,
-                    },
+                existing = list(
+                    PlayerTransaction.objects.using("nfl")
+                    .filter(
+                        player=player,
+                        transaction_type=transaction_type,
+                        date=entry.occurred_on,
+                    )
+                    .order_by("id")
                 )
+                if existing:
+                    # Keep first, delete any accidental duplicates
+                    if len(existing) > 1:
+                        PlayerTransaction.objects.using("nfl").filter(
+                            id__in=[t.id for t in existing[1:]]
+                        ).delete()
+                    transaction = existing[0]
+                    was_created = False
+                else:
+                    transaction = PlayerTransaction.objects.using("nfl").create(
+                        player=player,
+                        transaction_type=transaction_type,
+                        date=entry.occurred_on,
+                        from_team=from_team,
+                        to_team=to_team,
+                        description=description,
+                        season=season,
+                    )
+                    was_created = True
                 if was_created:
                     created += 1
                     team_created += 1
@@ -748,28 +773,36 @@ class Command(BaseCommand):
                 f"unmatched={contract_unmatched} skipped={contract_skipped}"
             )
 
-        for team in teams:
-            team_code = _spotrac_team_code(team)
-            source_url = SPOTRAC_TRANSACTIONS_URL.format(team_code=team_code)
-            try:
-                resp = session.get(source_url, timeout=30)
-                resp.raise_for_status()
-            except requests.RequestException as exc:
-                self.stderr.write(
-                    self.style.ERROR(
-                        f"[{team.abbreviation}] failed to fetch Spotrac: {exc}"
-                    )
-                )
-                continue
+        def _fetch(url: str) -> requests.Response:
+            # (connect_timeout, read_timeout): read timeout resets per chunk, so
+            # 45 s covers drip-feed responses without a separate thread-pool hack.
+            return session.get(url, timeout=(10, 45))
 
-            entries = _extract_spotrac_transactions(source_url, resp.text, season)
-            _process_entries(entries, team, team.abbreviation)
-            time.sleep(0.1)
+        if global_only:
+            self.stdout.write("--global-only: skipping per-team pages")
+        else:
+            for team in teams:
+                team_code = _spotrac_team_code(team)
+                source_url = SPOTRAC_TRANSACTIONS_URL.format(team_code=team_code)
+                try:
+                    resp = _fetch(source_url)
+                    resp.raise_for_status()
+                except (requests.RequestException, requests.Timeout) as exc:
+                    self.stderr.write(
+                        self.style.ERROR(
+                            f"[{team.abbreviation}] failed to fetch Spotrac: {exc}"
+                        )
+                    )
+                    continue
+
+                entries = _extract_spotrac_transactions(source_url, resp.text, season)
+                _process_entries(entries, team, team.abbreviation)
+                time.sleep(0.1)
 
         try:
-            resp = session.get(SPOTRAC_ALL_TRANSACTIONS_URL, timeout=30)
+            resp = _fetch(SPOTRAC_ALL_TRANSACTIONS_URL)
             resp.raise_for_status()
-        except requests.RequestException as exc:
+        except (requests.RequestException, requests.Timeout) as exc:
             self.stderr.write(
                 self.style.ERROR(f"[GLOBAL] failed to fetch Spotrac: {exc}")
             )
@@ -780,9 +813,9 @@ class Command(BaseCommand):
             _process_entries(global_entries, None, "GLOBAL")
 
         try:
-            resp = session.get(SPOTRAC_FREE_AGENTS_URL, timeout=30)
+            resp = _fetch(SPOTRAC_FREE_AGENTS_URL)
             resp.raise_for_status()
-        except requests.RequestException as exc:
+        except (requests.RequestException, requests.Timeout) as exc:
             self.stderr.write(
                 self.style.ERROR(f"[FREE AGENTS] failed to fetch Spotrac: {exc}")
             )

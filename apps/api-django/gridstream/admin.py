@@ -25,6 +25,7 @@ from .models import (
     TeamGameStats,
     Playbook,
     PlaybookEntry,
+    SyncJobRun,
 )
 
 # =============================================================================
@@ -384,3 +385,40 @@ class PlaybookEntryInline(admin.TabularInline):
 class PlaybookAdmin(NflDbAdmin):
     list_display = ("name", "source_game", "is_full_game", "play_count")
     inlines = [PlaybookEntryInline]
+
+
+# =============================================================================
+# ADMIN HUB OPS
+# =============================================================================
+
+
+@admin.register(SyncJobRun)
+class SyncJobRunAdmin(admin.ModelAdmin):
+    list_display = (
+        "action_key",
+        "status",
+        "started_at",
+        "finished_at",
+        "duration_display",
+        "command_preview",
+    )
+    list_filter = ("status", "action_key")
+    readonly_fields = (
+        "action_key",
+        "task_id",
+        "status",
+        "command_preview",
+        "started_at",
+        "finished_at",
+        "output",
+    )
+    ordering = ("-started_at",)
+    search_fields = ("action_key", "command_preview")
+
+    def duration_display(self, obj):
+        if obj.started_at and obj.finished_at:
+            s = int((obj.finished_at - obj.started_at).total_seconds())
+            return f"{s // 60}m {s % 60}s" if s >= 60 else f"{s}s"
+        return "—"
+
+    duration_display.short_description = "Duration"

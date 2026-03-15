@@ -100,6 +100,8 @@ from .models import (
     PlayerContract,
     PlayerTransaction,
     DraftProspect,
+    DraftProspectRanking,
+    DraftMockDraft,
     TeamFreeAgentTrackerEntry,
     Season,
     Game,
@@ -4995,3 +4997,289 @@ class PlaybookViewSet(viewsets.ReadOnlyModelViewSet):
 
         serializer = PlaybookEntrySerializer(entries, many=True)
         return Response(serializer.data)
+
+
+# =============================================================================
+# DRAFT
+# =============================================================================
+
+_TTL_DRAFT = 60 * 30  # 30 minutes — boards update infrequently
+
+
+class DraftViewSet(viewsets.ViewSet):
+    """
+    Draft prospect big board endpoints.
+
+    GET /draft/big-board/?season=2026
+        Returns all ranking sources active for the season, plus a merged list of
+        prospects with each source's rank and a computed average rank across
+        all sources that have ranked them.  Prospects without a DraftProspect
+        record (full NFLDraftBuzz scouting data) are still included — they just
+        won't have the detailed fields.
+    """
+
+    @action(detail=False, methods=["get"], url_path="big-board")
+    def big_board(self, request):
+        """GET /draft/big-board/?season= — merged multi-source big board."""
+        season = _coerce_int(request.query_params.get("season")) or date.today().year
+
+        cache_key_value = f"gs:draft:big_board:{season}"
+        cached = cache_get(cache_key_value)
+        if cached is not None:
+            return Response(cached)
+
+        # ------------------------------------------------------------------
+        # 1. Load all ranking rows for the season
+        # ------------------------------------------------------------------
+        rankings = list(
+            DraftProspectRanking.objects.filter(season=season)
+            .select_related("prospect")
+            .order_by("source", "rank")
+        )
+
+        if not rankings:
+            return Response(
+                {
+                    "season": season,
+                    "sources": [],
+                    "entries": [],
+                }
+            )
+
+        # ------------------------------------------------------------------
+        # 2. Build source metadata (one entry per distinct source)
+        # ------------------------------------------------------------------
+        seen_sources: set[str] = set()
+        sources: list[dict] = []
+        for r in rankings:
+            if r.source in seen_sources:
+                continue
+            seen_sources.add(r.source)
+            sources.append(
+                {
+                    "key": r.source,
+                    "label": r.source_label,
+                    "analyst": r.source_analyst or None,
+                    "outlet": r.source_outlet or None,
+                    "url": r.source_url or None,
+                    "updated": (
+                        r.source_updated.isoformat() if r.source_updated else None
+                    ),
+                }
+            )
+
+        # Sort sources: consensus first, then alphabetical by label
+        def _source_sort_key(s):
+            return (0 if "consensus" in s["key"] else 1, s["label"].lower())
+
+        sources.sort(key=_source_sort_key)
+
+        # ------------------------------------------------------------------
+        # 3. Group rankings by player (name_slug) and compute avg rank
+        # ------------------------------------------------------------------
+        # name_slug → { ranks per source, prospect obj, name/pos/school }
+        player_map: dict[str, dict] = {}
+
+        for r in rankings:
+            slug = r.name_slug
+            if slug not in player_map:
+                player_map[slug] = {
+                    "name_slug": slug,
+                    "name": r.name,
+                    "position": r.position,
+                    "school": r.school,
+                    "rankings": {},
+                    "prospect": r.prospect,
+                }
+            entry = player_map[slug]
+            entry["rankings"][r.source] = r.rank
+            # Prefer the entry with a linked prospect
+            if r.prospect and not entry["prospect"]:
+                entry["prospect"] = r.prospect
+
+        # ------------------------------------------------------------------
+        # 4. Compute average rank and NFLDraftBuzz rank; sort by avg
+        # ------------------------------------------------------------------
+        entries: list[dict] = []
+        for entry in player_map.values():
+            rank_values = [v for v in entry["rankings"].values() if v is not None]
+            avg_rank = (
+                round(sum(rank_values) / len(rank_values), 2) if rank_values else None
+            )
+            buzz_rank = None
+            prospect: DraftProspect | None = entry["prospect"]
+
+            prospect_data = None
+            if prospect:
+                buzz_rank = prospect.overall_rank
+                prospect_data = _serialize_draft_prospect_quick(prospect)
+
+            entries.append(
+                {
+                    "nameSlug": entry["name_slug"],
+                    "name": entry["name"],
+                    "position": entry["position"],
+                    "school": entry["school"],
+                    "rankings": entry["rankings"],
+                    "avgRank": avg_rank,
+                    "buzzRank": buzz_rank,
+                    "prospect": prospect_data,
+                }
+            )
+
+        # Sort: average rank ascending (unranked at the end)
+        entries.sort(key=lambda e: (e["avgRank"] is None, e["avgRank"] or 9999))
+
+        payload = {
+            "season": season,
+            "sources": sources,
+            "entries": entries,
+        }
+
+        cache_set(cache_key_value, payload, ttl=_TTL_DRAFT)
+        return Response(payload)
+
+    @action(detail=False, methods=["get"], url_path="mock-drafts")
+    def mock_drafts(self, request):
+        """GET /draft/mock-drafts/?season= — all curated mock drafts with full pick lists."""
+        season = _coerce_int(request.query_params.get("season")) or date.today().year
+
+        cache_key_value = f"gs:draft:mock_drafts:{season}"
+        cached = cache_get(cache_key_value)
+        if cached is not None:
+            return Response(cached)
+
+        mocks_qs = list(
+            DraftMockDraft.objects.filter(season=season).order_by("source_label")
+        )
+
+        if not mocks_qs:
+            return Response({"season": season, "sources": [], "mocks": []})
+
+        # Build prospect lookup keyed by nflmockdraftdb name_slug for pick enrichment.
+        # DraftProspectRanking bridges nflmockdraftdb URL slugs → DraftProspect records;
+        # the nfldraftbuzz source_slug format (Name-Position-School) does not match pick URLs.
+        prospect_by_slug: dict[str, DraftProspect] = {}
+        for ranking in (
+            DraftProspectRanking.objects.filter(season=season)
+            .select_related("prospect")
+            .exclude(prospect=None)
+        ):
+            if ranking.prospect:
+                prospect_by_slug[ranking.name_slug] = ranking.prospect
+
+        def _serialize_pick(pick: dict) -> dict:
+            player = pick.get("player") or {}
+            team = pick.get("team") or {}
+            college = player.get("college") or {}
+            player_url = player.get("url") or ""
+            player_slug = player_url.rstrip("/").split("/")[-1]
+            team_url = team.get("url") or ""
+            team_slug = team_url.rstrip("/").split("/")[-1]
+
+            prospect = prospect_by_slug.get(player_slug)
+            prospect_data = (
+                _serialize_draft_prospect_quick(prospect) if prospect else None
+            )
+
+            return {
+                "pick": pick.get("pick"),
+                "round": pick.get("round") or 1,
+                "playerName": player.get("name") or "",
+                "playerSlug": player_slug,
+                "playerPosition": player.get("position") or "",
+                "playerCollege": college.get("name") or "",
+                "playerCollegeLogo": college.get("logo") or None,
+                "teamSlug": team_slug,
+                "teamColor": team.get("color") or None,
+                "teamLogo": team.get("logo") or None,
+                "traded": pick.get("traded"),
+                "blurb": pick.get("blurb"),
+                "prospect": prospect_data,
+            }
+
+        sources = []
+        mocks_out = []
+        for mock in mocks_qs:
+            picks_out = [_serialize_pick(p) for p in mock.picks]
+            sources.append(
+                {
+                    "key": mock.source_key,
+                    "label": mock.source_label,
+                    "analyst": mock.source_analyst or None,
+                    "outlet": mock.source_outlet or None,
+                    "url": mock.source_url or None,
+                    "updated": (
+                        mock.source_updated.isoformat() if mock.source_updated else None
+                    ),
+                    "pickCount": len(picks_out),
+                }
+            )
+            mocks_out.append(
+                {
+                    "key": mock.source_key,
+                    "label": mock.source_label,
+                    "analyst": mock.source_analyst or None,
+                    "outlet": mock.source_outlet or None,
+                    "updated": (
+                        mock.source_updated.isoformat() if mock.source_updated else None
+                    ),
+                    "picks": picks_out,
+                }
+            )
+
+        payload = {"season": season, "sources": sources, "mocks": mocks_out}
+        cache_set(cache_key_value, payload, ttl=_TTL_DRAFT)
+        return Response(payload)
+
+
+def _serialize_draft_prospect_quick(prospect: "DraftProspect") -> dict:
+    """
+    Compact serialization of a DraftProspect for embedding in the big board.
+    Matches the DraftProspectQuickView shape used by the front-end drawer.
+    """
+    return {
+        "name": prospect.name,
+        "position": prospect.position or None,
+        "school": prospect.school or None,
+        "imageUrl": prospect.image_url or None,
+        "collegeLogoUrl": prospect.college_logo_url or None,
+        "draftProjection": prospect.draft_projection or None,
+        "buzzOverallRating": prospect.overall_rating,
+        "buzzOverallRank": prospect.overall_rank,
+        "buzzPositionRank": prospect.position_rank,
+        "buzzPositionRankGroup": prospect.position_rank_group or None,
+        "allScoutsOverallRank": prospect.all_scouts_overall_rank,
+        "allScoutsPositionRank": prospect.all_scouts_position_rank,
+        "height": prospect.height or None,
+        "weight": prospect.weight,
+        "fortyYard": prospect.forty_yard,
+        "handSize": prospect.hand_size or None,
+        "armLength": prospect.arm_length or None,
+        "age": prospect.age,
+        "birthDate": prospect.birth_date.isoformat() if prospect.birth_date else None,
+        "classYear": prospect.class_year or None,
+        "hometown": prospect.hometown or None,
+        "role": prospect.role or None,
+        "jerseyNumber": prospect.jersey_number or None,
+        "sourceUrl": prospect.source_url or None,
+        "sourceLastUpdated": (
+            prospect.source_last_updated.isoformat()
+            if prospect.source_last_updated
+            else None
+        ),
+        "collegeGames": prospect.college_games,
+        "collegeSnaps": prospect.college_snaps,
+        "bio": prospect.bio or None,
+        "summary": prospect.summary or None,
+        "strengths": prospect.strengths or None,
+        "weaknesses": prospect.weaknesses or None,
+        "honors": prospect.honors or None,
+        "productionStats": prospect.production_stats or None,
+        "scoutingGrades": prospect.scouting_grades or None,
+        "measurablePercentiles": prospect.measurable_percentiles or None,
+        "recruitingRatings": prospect.recruiting_ratings or None,
+        "comparisonPlayers": prospect.comparison_players or None,
+        "fitTeams": None,  # not relevant on the standalone big board
+        "draftSeason": prospect.season,
+    }

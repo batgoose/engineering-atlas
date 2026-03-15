@@ -41,6 +41,8 @@ Endpoint map:
 
   GET  /playbooks/                        — simulation playbooks
   GET  /playbooks/{id}/entries/           — playbook plays
+
+  GET  /draft/big-board/?season=          — multi-source prospect big board
 """
 
 from django.urls import path, include
@@ -60,6 +62,7 @@ router.register(
 router.register(r"transactions", views.TransactionViewSet, basename="transaction")
 router.register(r"venues", views.VenueViewSet, basename="venue")
 router.register(r"playbooks", views.PlaybookViewSet, basename="playbook")
+router.register(r"draft", views.DraftViewSet, basename="draft")
 
 urlpatterns = [
     # Router-registered viewsets

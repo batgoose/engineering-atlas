@@ -591,8 +591,18 @@ class PlayerTransaction(models.Model):
 
     created_at = models.DateTimeField(auto_now_add=True)
 
+    # Downstream-sync tracking — False until sync_pending_transactions processes this row
+    is_handled = models.BooleanField(default=False, db_index=True)
+    handled_at = models.DateTimeField(null=True, blank=True)
+
     class Meta:
         ordering = ["-date"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["player", "transaction_type", "date"],
+                name="unique_player_transaction_type_date",
+            )
+        ]
         indexes = [
             models.Index(fields=["player", "-date"]),
             models.Index(fields=["date"]),
@@ -692,6 +702,7 @@ class DraftProspect(models.Model):
 
     SOURCE_CHOICES = [
         ("nfldraftbuzz", "NFLDraftBuzz"),
+        ("nflmockdraftdb", "NFLMockDraftDatabase"),
     ]
 
     season = models.IntegerField(help_text="Draft year / class year, e.g. 2026")
@@ -782,6 +793,115 @@ class DraftProspect(models.Model):
         return (
             f"{self.season} {self.name} ({self.position or '?'}, {self.school or '?'})"
         )
+
+
+class DraftProspectRanking(models.Model):
+    """
+    Per-source ranking for a draft prospect, sourced from nflmockdraftdatabase.com big boards.
+
+    Multiple sources (Daniel Jeremiah, Dane Brugler, Tankathon, etc.) each publish
+    their own ordered big board.  This table stores one row per (season, source, player),
+    optionally linked back to a DraftProspect record for full scouting data.
+    """
+
+    SOURCE_CHOICES = [
+        ("nflmockdraftdb_consensus", "Consensus (NFLMockDraftDatabase)"),
+        ("nflmockdraftdb_daniel_jeremiah", "Daniel Jeremiah (NFL.com)"),
+        ("nflmockdraftdb_dane_brugler", "Dane Brugler (The Athletic)"),
+        ("nflmockdraftdb_the_draft_network", "The Draft Network"),
+        ("nflmockdraftdb_field_yates", "Field Yates (ESPN)"),
+        ("nflmockdraftdb_tankathon", "Tankathon"),
+        ("nflmockdraftdb_bleacher_report", "Bleacher Report"),
+        ("nflmockdraftdb_rob_rang", "Rob Rang (Fox Sports)"),
+        ("nflmockdraftdb_michael_renner", "Michael Renner (CBS Sports)"),
+        ("nflmockdraftdb_ryan_wilson", "Ryan Wilson (CBS Sports)"),
+        ("nflmockdraftdb_charles_mcdonald", "Charles McDonald (Yahoo Sports)"),
+    ]
+
+    season = models.IntegerField()
+    # Internal key matching SOURCE_CHOICES, e.g. "nflmockdraftdb_daniel_jeremiah"
+    source = models.CharField(max_length=80, choices=SOURCE_CHOICES)
+    # Human-readable label for the scout/outlet, e.g. "Daniel Jeremiah (NFL.com)"
+    source_label = models.CharField(max_length=120)
+    # Analyst name, e.g. "Daniel Jeremiah"
+    source_analyst = models.CharField(max_length=80, blank=True)
+    # Outlet name, e.g. "NFL.com"
+    source_outlet = models.CharField(max_length=80, blank=True)
+    # URL to the original board page
+    source_url = models.URLField(max_length=500, blank=True)
+    # Date the board was last updated on source site
+    source_updated = models.DateField(null=True, blank=True)
+
+    rank = models.IntegerField()
+    # Player identity fields — duplicated here so the table is useful standalone
+    name = models.CharField(max_length=120)
+    # URL slug from nflmockdraftdatabase.com, e.g. "fernando-mendoza"
+    name_slug = models.SlugField(max_length=160)
+    position = models.CharField(max_length=20, blank=True)
+    school = models.CharField(max_length=120, blank=True)
+
+    # Optional FK to DraftProspect — set when name/position/school match found
+    prospect = models.ForeignKey(
+        "DraftProspect",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="external_rankings",
+    )
+
+    scraped_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["season", "source", "rank"]
+        unique_together = [["season", "source", "name_slug"]]
+        indexes = [
+            models.Index(fields=["season", "source"]),
+            models.Index(fields=["season", "rank"]),
+            models.Index(fields=["name_slug", "season"]),
+        ]
+        app_label = "gridstream"
+
+    def __str__(self):
+        return f"{self.season} #{self.rank} {self.name} — {self.source_label}"
+
+
+class DraftMockDraft(models.Model):
+    """
+    One analyst's full mock draft scraped from nflmockdraftdatabase.com.
+
+    Picks are stored as a JSONField array — each element is the raw pick object
+    from the site's data-react-props JSON:
+        {pick, round, player: {name, position, url, college: {name, logo}},
+         team: {logo, color, url}, blurb, traded}
+
+    One row per (season, slug).  The GridstreamRouter sends this to the `nfl`
+    database alias alongside the other draft models.
+    """
+
+    season = models.IntegerField()
+    slug = models.SlugField(max_length=160)
+    source_key = models.CharField(max_length=80)
+    source_label = models.CharField(max_length=160)
+    source_analyst = models.CharField(max_length=80, blank=True, default="")
+    source_outlet = models.CharField(max_length=80, blank=True, default="")
+    source_url = models.URLField(max_length=500, blank=True, default="")
+    source_updated = models.DateField(null=True, blank=True)
+    picks = models.JSONField(default=list)
+    scraped_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = [["season", "slug"]]
+        indexes = [
+            models.Index(fields=["season"]),
+            models.Index(fields=["season", "source_key"]),
+        ]
+        ordering = ["season", "source_label"]
+        app_label = "gridstream"
+
+    def __str__(self):
+        return f"{self.season} Mock — {self.source_label}"
 
 
 # =============================================================================
@@ -2409,3 +2529,102 @@ class PlayerMaddenRating(models.Model):
 
     def __str__(self):
         return f"{self.player.display_name} Madden{self.madden_year} OVR {self.overall}"
+
+
+class PlayerRAS(models.Model):
+    """
+    Relative Athletic Score data from ras.football.
+
+    One row per ras.football PlayerID. Linked to a Player when matched by
+    name + draft year. Stores the summary sentence, parsed score, and the
+    MinIO key for the team-overlaid card image.
+    """
+
+    ras_player_id = models.IntegerField(
+        unique=True, db_index=True, help_text="ras.football PlayerID"
+    )
+    player = models.OneToOneField(
+        Player,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="ras",
+    )
+
+    # RAS data
+    ras_score = models.DecimalField(
+        max_digits=4,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Composite RAS out of 10.00",
+    )
+    ras_summary = models.TextField(
+        blank=True, help_text="Full sentence from ras.football"
+    )
+    has_ras = models.BooleanField(
+        default=False, help_text="False if player did not qualify for a score"
+    )
+
+    # Parsed from summary sentence
+    ras_name = models.CharField(max_length=200, blank=True)
+    position = models.CharField(max_length=10, blank=True)
+    draft_year = models.IntegerField(null=True, blank=True)
+    draft_round = models.IntegerField(null=True, blank=True)
+    draft_pick = models.IntegerField(null=True, blank=True)
+    is_undrafted = models.BooleanField(default=False)
+    is_prospect = models.BooleanField(
+        default=False, help_text="True for pre-draft prospects (e.g. 2026 class)"
+    )
+
+    # Image stored in MinIO bucket 'player-ras'
+    ras_image_key = models.CharField(
+        max_length=500, blank=True, help_text="MinIO object key, e.g. '4883.png'"
+    )
+    ras_image_team = models.CharField(
+        max_length=100,
+        blank=True,
+        help_text="Team name used for overlay (blank = no overlay)",
+    )
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        app_label = "gridstream"
+        ordering = ["ras_player_id"]
+
+    def __str__(self):
+        score = f" RAS {self.ras_score}" if self.has_ras else ""
+        return f"{self.ras_name} ({self.draft_year}){score}"
+
+
+class SyncJobRun(models.Model):
+    """
+    Lightweight audit log for admin-hub sync jobs.
+
+    One row per Celery task dispatch. Provides persistent last-run dates
+    and status per action_key so the hub can show data-freshness without
+    relying on volatile session storage.
+    """
+
+    STATUS_QUEUED = "queued"
+    STATUS_STARTED = "started"
+    STATUS_SUCCESS = "success"
+    STATUS_ERROR = "error"
+    STATUS_REVOKED = "revoked"
+
+    action_key = models.CharField(max_length=64, db_index=True)
+    task_id = models.CharField(max_length=255, blank=True, db_index=True)
+    status = models.CharField(max_length=20, default=STATUS_QUEUED)
+    command_preview = models.CharField(max_length=1000, blank=True)
+    started_at = models.DateTimeField(auto_now_add=True)
+    finished_at = models.DateTimeField(null=True, blank=True)
+    output = models.TextField(blank=True)
+
+    class Meta:
+        app_label = "gridstream"
+        ordering = ["-started_at"]
+
+    def __str__(self):
+        return f"{self.action_key} [{self.status}] @ {self.started_at:%Y-%m-%d %H:%M}"

@@ -210,8 +210,19 @@ def _player_effective_status_context(player: "Player") -> dict:
         setattr(player, "_gridstream_effective_status_context", context)
         return context
 
+    # Only include contracts whose end year is reliable: either they have per-year
+    # details (so the last year is known precisely), or they are the active flag.
+    # Inactive contracts without year_details use year_signed+years-1, which can
+    # overshoot when a contract was renegotiated or terminated early (e.g. a 5-year
+    # deal signed in 2022 that was superseded in 2023 would otherwise appear to end
+    # in 2026 and block the free-agent branch).
     latest_contract_end = max(
-        (_contract_end_year(contract) or -1 for contract in contracts), default=-1
+        (
+            _contract_end_year(contract) or -1
+            for contract in contracts
+            if contract.is_active or (getattr(contract, "year_details", None) or [])
+        ),
+        default=-1,
     )
     if latest_contract_end >= 0 and latest_contract_end < date.today().year:
         free_agent_status, free_agent_display = _infer_free_agent_status(player)
@@ -276,6 +287,7 @@ from .models import (
     TeamDvoaRating,
     TeamRbsdmMetric,
     PlayerRbsdmQbMetric,
+    PlayerRAS,
 )
 
 # =============================================================================
@@ -667,6 +679,39 @@ class PlayerCombineSerializer(serializers.ModelSerializer):
         ]
 
 
+class PlayerRASSerializer(serializers.ModelSerializer):
+    ras_image_url = serializers.SerializerMethodField()
+
+    class Meta:
+        model = PlayerRAS
+        fields = [
+            "ras_player_id",
+            "ras_score",
+            "ras_summary",
+            "has_ras",
+            "position",
+            "draft_year",
+            "draft_round",
+            "draft_pick",
+            "is_undrafted",
+            "is_prospect",
+            "ras_image_url",
+        ]
+
+    def get_ras_image_url(self, obj):
+        if not obj.ras_image_key:
+            return None
+        from django.conf import settings
+
+        protocol = "https" if getattr(settings, "MINIO_USE_SSL", False) else "http"
+        endpoint = getattr(
+            settings,
+            "MINIO_PUBLIC_ENDPOINT",
+            getattr(settings, "MINIO_ENDPOINT", "localhost:9000"),
+        )
+        return f"{protocol}://{endpoint}/player-ras/{obj.ras_image_key}"
+
+
 class PlayerCollegeHistorySerializer(serializers.ModelSerializer):
     class Meta:
         model = PlayerCollegeHistory
@@ -932,6 +977,7 @@ class PlayerDetailSerializer(serializers.ModelSerializer):
     is_active = serializers.SerializerMethodField()
     contracts = PlayerContractSerializer(many=True, read_only=True)
     combine_results = PlayerCombineSerializer(many=True, read_only=True)
+    ras = PlayerRASSerializer(read_only=True)
     college_history = PlayerCollegeHistorySerializer(many=True, read_only=True)
     social_accounts = SocialAccountSerializer(many=True, read_only=True)
     recent_transactions = serializers.SerializerMethodField()
@@ -1075,6 +1121,7 @@ class PlayerDetailSerializer(serializers.ModelSerializer):
             "career_punt_attempts",
             "contracts",
             "combine_results",
+            "ras",
             "college_history",
             "social_accounts",
             "recent_transactions",

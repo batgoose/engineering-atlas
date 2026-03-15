@@ -38,7 +38,7 @@ main
 *.dll
 *.so
 *.dylib
-.claude/settings.json
+.claude/
 docs/*
 localtmp/
 tmp/

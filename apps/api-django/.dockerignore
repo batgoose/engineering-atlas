@@ -1,0 +1,8 @@
+gridstream/scripts/node_modules/
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+staticfiles/
+media/
+logs/

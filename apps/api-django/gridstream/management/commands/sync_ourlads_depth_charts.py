@@ -583,6 +583,11 @@ class Command(BaseCommand):
         )
         all_players_by_key = _build_players_by_key(all_players)
         all_players_by_last = _build_players_by_last_name(all_players)
+        teams_by_abbr = {t.abbreviation: t for t in Team.objects.using("nfl").all()}
+        players_by_team_id: dict[int, list[Player]] = {}
+        for p in all_players:
+            if p.current_team_id:
+                players_by_team_id.setdefault(p.current_team_id, []).append(p)
 
         if dry_run:
             self.stdout.write(
@@ -607,7 +612,7 @@ class Command(BaseCommand):
                 continue
 
             db_abbr = _team_code_to_db_abbr(team_code)
-            team = Team.objects.using("nfl").filter(abbreviation=db_abbr).first()
+            team = teams_by_abbr.get(db_abbr)
             if not team:
                 self.stdout.write(
                     self.style.WARNING(
@@ -622,6 +627,7 @@ class Command(BaseCommand):
                 entries=parsed_entries,
                 dry_run=dry_run,
                 clear_missing=clear_missing,
+                team_players=players_by_team_id.get(team.id, []),
                 all_players_by_key=all_players_by_key,
                 all_players_by_last=all_players_by_last,
             )
@@ -689,27 +695,10 @@ class Command(BaseCommand):
         entries: list[ParsedDepthEntry],
         dry_run: bool,
         clear_missing: bool,
+        team_players: list[Player],
         all_players_by_key: dict[str, list[Player]],
         all_players_by_last: dict[str, list[Player]],
     ) -> tuple[Counter, list[str]]:
-        team_players = list(
-            Player.objects.using("nfl")
-            .filter(current_team=team)
-            .only(
-                "id",
-                "display_name",
-                "short_name",
-                "first_name",
-                "last_name",
-                "position",
-                "jersey_number",
-                "current_team_id",
-                "depth_chart_position",
-                "depth_chart_rank",
-                "depth_chart_status",
-            )
-        )
-
         players_by_key = _build_players_by_key(team_players)
         players_by_last = _build_players_by_last_name(team_players)
 

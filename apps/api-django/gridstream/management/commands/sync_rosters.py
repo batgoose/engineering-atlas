@@ -210,17 +210,20 @@ class Command(BaseCommand):
                         .exists()
                     )
                     if not already_contracted:
-                        PlayerTransaction.objects.using("nfl").create(
+                        PlayerTransaction.objects.using("nfl").get_or_create(
                             player=player,
                             transaction_type="signed",  # generic — refine later
                             date=date.today(),
-                            from_team=old_team,
-                            to_team=new_team,
-                            description=(
-                                f"Roster sync: {player.display_name} moved from "
-                                f"{old_team_abbr or 'FA'} to {new_team_abbr}"
-                            ),
-                            season=season,
+                            defaults={
+                                "from_team": old_team,
+                                "to_team": new_team,
+                                "description": (
+                                    f"Roster sync: {player.display_name} moved from "
+                                    f"{old_team_abbr or 'FA'} to {new_team_abbr}"
+                                ),
+                                "season": season,
+                                "is_handled": False,
+                            },
                         )
                     player.current_team = new_team
 
@@ -247,10 +250,18 @@ class Command(BaseCommand):
                 if player.is_active != target_is_active:
                     player.is_active = target_is_active
                     changed = True
-                # Always update last_roster_check
-                player.last_roster_check = now
                 if changed or player.current_team != old_team:
-                    player.save(using="nfl")
+                    player.last_roster_check = now
+                    player.save(
+                        using="nfl",
+                        update_fields=[
+                            "jersey_number",
+                            "roster_status",
+                            "is_active",
+                            "current_team",
+                            "last_roster_check",
+                        ],
+                    )
 
         # ── Check for players who disappeared from roster ────
         # (potentially released/retired)
@@ -315,20 +326,31 @@ class Command(BaseCommand):
                         .exists()
                     )
                     if not recent_exists:
-                        PlayerTransaction.objects.using("nfl").create(
+                        PlayerTransaction.objects.using("nfl").get_or_create(
                             player=player,
                             transaction_type=transaction_type,
                             date=date.today(),
-                            from_team=old_team,
-                            to_team=None,
-                            description=(
-                                f"Roster sync: {player.display_name} missing from "
-                                f"{season} roster snapshot for {old_team.abbreviation}"
-                            ),
-                            season=season,
+                            defaults={
+                                "from_team": old_team,
+                                "to_team": None,
+                                "description": (
+                                    f"Roster sync: {player.display_name} missing from "
+                                    f"{season} roster snapshot for {old_team.abbreviation}"
+                                ),
+                                "season": season,
+                                "is_handled": False,
+                            },
                         )
                 player.last_roster_check = now
-                player.save(using="nfl")
+                player.save(
+                    using="nfl",
+                    update_fields=[
+                        "current_team",
+                        "roster_status",
+                        "is_active",
+                        "last_roster_check",
+                    ],
+                )
 
         if dry_run:
             self.stdout.write(self.style.WARNING("\nDry run — no changes made"))

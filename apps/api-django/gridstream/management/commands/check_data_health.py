@@ -754,7 +754,11 @@ class Command(BaseCommand):
 
         if espn_synced:
             sync_age = timezone.now() - espn_synced[0]
-            status = "OK" if sync_age <= THRESHOLDS["espn_games"] else "STALE"
+            # Don't flag stale when there are no active/upcoming games — offseason
+            if scheduled == 0 and in_progress == 0:
+                status = "OK"
+            else:
+                status = "OK" if sync_age <= THRESHOLDS["espn_games"] else "STALE"
             if status == "STALE":
                 suggestions.append(
                     ("sync_espn_games", f"Last ESPN sync {sync_age.days} days ago")
@@ -843,14 +847,14 @@ class Command(BaseCommand):
         for check in checks:
             style = status_styles.get(check["status"], lambda x: x)
             icon = {
-                "OK": "✓",
-                "INFO": "·",
-                "STALE": "⚠",
-                "WARN": "⚠",
-                "DRIFT": "⚠",
-                "MISSING": "✗",
-                "EMPTY": "✗",
-            }.get(check["status"], "?")
+                "OK": "OK",
+                "INFO": "--",
+                "STALE": "STALE",
+                "WARN": "WARN",
+                "DRIFT": "DRIFT",
+                "MISSING": "MISSING",
+                "EMPTY": "EMPTY",
+            }.get(check["status"], check["status"])
 
             name = check["name"].ljust(22)
             status_tag = style(f"{icon} {check['status']}")
@@ -865,7 +869,9 @@ class Command(BaseCommand):
             for cmd, reason in suggestions:
                 prefix = "python manage.py " if not cmd.startswith("docker") else ""
                 self.stdout.write(f"    {reason}")
-                self.stdout.write(self.style.HTTP_INFO(f"    → {prefix}{cmd}"))
+                self.stdout.write(self.style.HTTP_INFO(f"    >> {prefix}{cmd}"))
+                # Machine-readable marker for the admin hub frontend
+                self.stdout.write(f"SUGGESTION:{cmd}:{reason}")
                 self.stdout.write("")
         else:
             self.stdout.write("  " + "─" * 60)

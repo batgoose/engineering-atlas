@@ -35,7 +35,7 @@ from html.parser import HTMLParser
 import requests
 from django.core.management.base import BaseCommand
 
-from gridstream.models import Player, PlayerContract, Team
+from gridstream.models import Player, PlayerContract, PlayerTransaction, Team
 
 logger = logging.getLogger(__name__)
 
@@ -533,6 +533,11 @@ class Command(BaseCommand):
             help="Only sync a single player by database PK",
         )
         parser.add_argument(
+            "--player-ids",
+            metavar="PKS",
+            help="Comma-separated list of player PKs to sync (used by sync_pending_transactions)",
+        )
+        parser.add_argument(
             "--otc-id",
             metavar="OTC_ID",
             help="Only sync a single player by their OTC ID",
@@ -541,6 +546,17 @@ class Command(BaseCommand):
             "--active-only",
             action="store_true",
             help="Only process players currently on a roster (~2 000 players)",
+        )
+        parser.add_argument(
+            "--since-days",
+            type=int,
+            default=0,
+            metavar="N",
+            help=(
+                "Only process players with a transaction in the last N days, "
+                "plus any player with no contract data yet. "
+                "Good for routine weekly syncs (e.g. --since-days 14)."
+            ),
         )
         parser.add_argument(
             "--dry-run",
@@ -566,6 +582,7 @@ class Command(BaseCommand):
         dry_run = options["dry_run"]
         delay = options["delay"]
         limit = options["limit"]
+        since_days = options["since_days"]
 
         if dry_run:
             self.stdout.write(self.style.WARNING("DRY RUN — nothing will be saved\n"))
@@ -575,8 +592,35 @@ class Command(BaseCommand):
         qs = Player.objects.using("nfl").exclude(otc_id="").filter(otc_id__isnull=False)
         if options["player_id"]:
             qs = qs.filter(pk=options["player_id"])
+        elif options.get("player_ids"):
+            pks = [int(x) for x in options["player_ids"].split(",") if x.strip()]
+            qs = qs.filter(pk__in=pks)
         elif options["otc_id"]:
             qs = qs.filter(otc_id=options["otc_id"])
+        elif since_days:
+            from datetime import date, timedelta
+
+            cutoff = date.today() - timedelta(days=since_days)
+            # Players with a recent transaction (signed/released/traded/etc.)
+            recent_ids = set(
+                PlayerTransaction.objects.using("nfl")
+                .filter(date__gte=cutoff)
+                .values_list("player_id", flat=True)
+            )
+            # Plus players who have never been synced (no contract records at all)
+            synced_ids = set(
+                PlayerContract.objects.using("nfl")
+                .values_list("player_id", flat=True)
+                .distinct()
+            )
+            target_ids = recent_ids | (
+                set(qs.values_list("id", flat=True)) - synced_ids
+            )
+            qs = qs.filter(id__in=target_ids)
+            self.stdout.write(
+                f"  --since-days {since_days}: {len(recent_ids)} with recent transactions, "
+                f"{len(target_ids - recent_ids)} with no contract data  →  {len(target_ids)} total\n"
+            )
         elif options["active_only"]:
             qs = qs.filter(is_active=True)
 

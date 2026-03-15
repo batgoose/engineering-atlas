@@ -148,13 +148,13 @@ class Command(BaseCommand):
             run(
                 "import_nflverse_depth_charts",
                 "import_nflverse_depth_charts",
-                season=season,
+                season=[season],
             )
             # Raw snap counts
             run(
                 "import_nflverse_snap_counts",
                 "import_nflverse_snap_counts",
-                season=season,
+                season=[season],
             )
 
         # ── Phase 2: Game data ────────────────────────────────────────────────

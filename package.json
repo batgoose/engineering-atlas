@@ -38,5 +38,9 @@
   },
   "keywords": [],
   "author": "Jason Booth",
-  "license": "ISC"
+  "license": "ISC",
+  "dependencies": {
+    "playwright-extra": "^4.3.6",
+    "puppeteer-extra-plugin-stealth": "^2.11.2"
+  }
 }
