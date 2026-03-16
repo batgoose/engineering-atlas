@@ -1,0 +1,23 @@
+import { defineConfig } from 'vitest/config';
+import react from '@vitejs/plugin-react';
+import path from 'path';
+
+export default defineConfig({
+  plugins: [react()],
+  test: {
+    globals: true,
+    environment: 'jsdom',
+    setupFiles: './vitest.setup.ts',
+    include: ['**/*.test.{ts,tsx}'],
+    coverage: {
+      reporter: ['text', 'html'],
+      exclude: ['*.config.*', '.next/**', 'node_modules/**'],
+    },
+  },
+  resolve: {
+    alias: {
+      '@': path.resolve(__dirname, './'),
+      '@atlas/sdk/gridstream': path.resolve(__dirname, '../../packages/sdk/src/gridstream'),
+    },
+  },
+});

@@ -1,6 +1,5 @@
 # Django API Development Dockerfile (UV - Simplified)
-
-FROM python:3.10-slim as base
+FROM python:3.14-slim AS base
 
 # Prevent Python from writing pyc files and buffering stdout/stderr
 ENV PYTHONUNBUFFERED=1 \
@@ -13,48 +12,63 @@ RUN apt-get update && apt-get install -y \
     libpq-dev \
     curl \
     git \
+    nodejs \
+    npm \
     && rm -rf /var/lib/apt/lists/*
 
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
 
-FROM base as development
+FROM base AS development
 
 WORKDIR /app
 
 # Install dependencies using uv (directly, not editable)
 # Each package quoted to prevent shell interpretation of < and >
 RUN uv pip install --system \
-    "django>=5.1,<6.0" \
+    "django>=5.2.11,<6.0" \
     "djangorestframework>=3.16.1,<4.0.0" \
     "django-environ>=0.12.0,<0.13.0" \
+    "celery>=5.4.0,<6.0.0" \
     "psycopg[binary]>=3.3.2,<4.0.0" \
     "drf-spectacular>=0.29.0,<0.30.0" \
-    "markdown>=3.10.1,<4.0.0" \
+    "markdown>=3.10.2,<4.0.0" \
     "django-filter>=25.2,<26.0" \
     "django-cors-headers>=4.9.0,<5.0.0" \
-    "black>=26.1.0,<27.0.0"
+    "requests>=2.32.5,<3.0.0" \
+    "redis>=7.1.1,<8.0.0" \
+    "openpyxl>=3.1.0,<4.0.0" \
+    "minio>=7.2.0,<8.0.0" \
+    "black>=26.1.0,<27.0.0" \
+    "pytest>=9.0.2,<10.0.0" \
+    "pytest-django>=4.11.1,<5.0.0"
 
 COPY . .
 
 RUN mkdir -p staticfiles media logs
 
+COPY docker-entrypoint.sh /docker-entrypoint.sh
+RUN chmod +x /docker-entrypoint.sh
+
 EXPOSE 8000
 
+ENTRYPOINT ["/docker-entrypoint.sh"]
 CMD ["python", "manage.py", "runserver", "0.0.0.0:8000"]
 
 # FROM base as production
 # WORKDIR /app
-# # Copy and install dependencies
+#
 # RUN uv pip install --system \
-#     "django>=5.1,<6.0" \
+#     "django>=5.2.11,<6.0" \
 #     "djangorestframework>=3.16.1,<4.0.0" \
 #     "django-environ>=0.12.0,<0.13.0" \
 #     "psycopg[binary]>=3.3.2,<4.0.0" \
 #     "drf-spectacular>=0.29.0,<0.30.0" \
-#     "markdown>=3.10.1,<4.0.0" \
+#     "markdown>=3.10.2,<4.0.0" \
 #     "django-filter>=25.2,<26.0" \
 #     "django-cors-headers>=4.9.0,<5.0.0" \
-# # Copy application code
+#     "requests>=2.32.5,<3.0.0" \
+#     "redis>=7.1.1,<8.0.0"
+#
 # COPY . .
 # RUN python manage.py collectstatic --noinput
 # RUN useradd -m -u 1000 django && chown -R django:django /app

@@ -184,7 +184,7 @@ class Artifact(models.Model):
     ]
 
     DOMAIN_CHOICES = [
-        ("football", "Project Redzone"),
+        ("football", "Project Gridstream"),
         ("atlas", "Engineering Atlas"),
         ("infrastructure", "Infrastructure"),
     ]

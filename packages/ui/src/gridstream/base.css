@@ -1,0 +1,485 @@
+/**
+ * Gridstream HUD base component classes.
+ *
+ * These shared selectors are used across every HUD panel regardless of
+ * framework. Import this file (or the tokens + animations it depends on)
+ * once at the app root; individual component stylesheets can then use
+ * these class names without repeating the declarations.
+ *
+ * Depends on: tokens.css (custom properties), animations.css (keyframes)
+ */
+
+/* ── Panel chrome ─────────────────────────────────────────────────
+ *
+ * .hud-panel — raised, bordered surface used for every information card.
+ * Corner accent lines are drawn via ::before / ::after pseudo-elements.
+ */
+
+.hud-panel {
+  position: relative;
+  background: var(--gs-panel);
+  border: 1px solid var(--gs-panel-border);
+  overflow: hidden;
+}
+
+/* Animated corner tick marks */
+.hud-panel::before,
+.hud-panel::after {
+  content: '';
+  position: absolute;
+  width: 14px;
+  height: 14px;
+  border-color: var(--gs-cyan-dim);
+  border-style: solid;
+  z-index: 5;
+  animation: cornerFlash 8s ease infinite;
+}
+
+.hud-panel::before {
+  top: -1px;
+  left: -1px;
+  border-width: 2px 0 0 2px;
+}
+
+.hud-panel::after {
+  bottom: -1px;
+  right: -1px;
+  border-width: 0 2px 2px 0;
+}
+
+/* ── Typography ───────────────────────────────────────────────────
+ *
+ * .hud-label — section headers, column labels, category titles.
+ */
+
+.hud-label {
+  font-family: var(--gs-font-display);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--gs-text-dim);
+}
+
+/* ── Tab navigation ───────────────────────────────────────────────
+ *
+ * .tab-btn — navigation tabs above the lower panel grid.
+ */
+
+.tab-btn {
+  font-family: var(--gs-font-display);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  padding: 10px 20px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-bottom: none;
+  color: var(--gs-text-dim);
+  cursor: pointer;
+  transition: all 0.15s;
+  position: relative;
+}
+
+/* Indicator pip before each tab label */
+.tab-btn::before {
+  content: '■';
+  font-size: 5px;
+  margin-right: 6px;
+  color: var(--gs-text-muted);
+  vertical-align: middle;
+  transition:
+    color 0.15s,
+    text-shadow 0.15s;
+}
+
+.tab-btn:hover {
+  color: var(--gs-cyan-dim);
+}
+
+.tab-btn:hover::before {
+  color: var(--gs-cyan-dim);
+}
+
+.tab-btn.active {
+  color: var(--gs-cyan);
+  background: var(--gs-panel);
+  border-color: var(--gs-panel-border);
+}
+
+/* Active pip glows */
+.tab-btn.active::before {
+  color: var(--gs-cyan);
+  text-shadow: 0 0 8px rgba(0, 229, 255, 0.9);
+  animation: possGlow 2s ease-in-out infinite;
+}
+
+/* Covers the bottom border of the active tab so it bleeds into the panel */
+.tab-btn.active::after {
+  content: '';
+  position: absolute;
+  bottom: -1px;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: var(--gs-panel);
+}
+
+/* ── Play log ─────────────────────────────────────────────────────
+ *
+ * .play-row — individual entry in the mission log feed.
+ * Animation stagger is applied inline via animation-delay.
+ */
+
+.play-row {
+  display: flex;
+  gap: 14px;
+  padding: 10px 20px;
+  border-bottom: 1px solid rgba(0, 229, 255, 0.03);
+  transition: background 0.1s;
+  animation: slideUp 0.25s ease both;
+}
+
+.play-row:hover {
+  background: rgba(0, 229, 255, 0.02);
+}
+
+/* ── Stat bars ────────────────────────────────────────────────────
+ *
+ * .stat-bar — narrow progress bar under team stats values.
+ */
+
+.stat-bar {
+  height: 5px;
+  background: rgba(0, 229, 255, 0.05);
+  border-radius: 1px;
+  overflow: hidden;
+  margin-top: 5px;
+}
+
+/* ── Scan sweep ───────────────────────────────────────────────────
+ *
+ * .scan-sweep — subtle animated gradient that sweeps the field panel.
+ */
+
+.scan-sweep {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 2;
+  overflow: hidden;
+}
+
+.scan-sweep::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 60px;
+  background: linear-gradient(180deg, transparent, rgba(0, 229, 255, 0.02), transparent);
+  animation: scanPulse 6s linear infinite;
+}
+
+/* ── Play transmission sweep ─────────────────────────────────────
+ *
+ * .play-sweep — one-shot sweep fired on each play change.
+ * Keyed by animationKey in React so it remounts (replaying the
+ * animation) on every new play.
+ */
+
+.play-sweep {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 48px;
+  pointer-events: none;
+  z-index: 5;
+  background: linear-gradient(180deg, transparent, rgba(0, 229, 255, 0.22), transparent);
+  animation: playSweepAnim 0.65s ease-out forwards;
+}
+
+/* ── Game card ────────────────────────────────────────────────────
+ *
+ * .game-card — a scoreboard card linking to a game view.
+ * Extends .hud-panel with hover state and pointer cursor.
+ * .team-row — one team row inside the card (logo + abbr + score).
+ * .quarter-scores — Q1-Q4 breakdown grid below the team rows.
+ * .leader-item — a single stat-leader line in the card footer.
+ */
+
+.game-card {
+  cursor: pointer;
+  transition:
+    border-color 0.2s,
+    box-shadow 0.2s;
+}
+
+.game-card:hover {
+  border-color: rgba(0, 229, 255, 0.3);
+  box-shadow: 0 0 24px rgba(0, 229, 255, 0.06);
+}
+
+.team-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 11px 16px;
+  border-left: 3px solid transparent;
+}
+
+.quarter-scores {
+  display: grid;
+  padding: 6px 16px 8px;
+  border-top: 1px solid rgba(0, 229, 255, 0.07);
+  font-family: var(--gs-font-mono);
+  font-size: 11px;
+  color: var(--gs-text-dim);
+  gap: 3px 0;
+  align-items: center;
+}
+
+.quarter-scores > span {
+  padding: 2px 6px;
+  text-align: center;
+}
+
+.quarter-scores > span:first-of-type {
+  text-align: left;
+  padding-left: 0;
+}
+
+.leader-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 16px;
+  font-family: var(--gs-font-body);
+  font-size: 12px;
+  color: var(--gs-text-dim);
+  border-top: 1px solid rgba(0, 229, 255, 0.04);
+}
+
+.leader-item:first-child {
+  border-top: 1px solid rgba(0, 229, 255, 0.1);
+  margin-top: 2px;
+}
+
+/* ── Replay button ────────────────────────────────────────────────
+ *
+ * .replay-btn — amber-accented action button (replay, share, etc.).
+ */
+
+.replay-btn {
+  font-family: var(--gs-font-display);
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  padding: 4px 12px;
+  background: rgba(255, 182, 18, 0.06);
+  border: 1px solid var(--gs-amber-border);
+  color: var(--gs-amber);
+  cursor: pointer;
+  transition: all 0.15s;
+  text-transform: uppercase;
+}
+
+.replay-btn:hover {
+  background: rgba(255, 182, 18, 0.12);
+  border-color: var(--gs-amber);
+}
+
+/* ── Injury flag popup ────────────────────────────────────────────
+ *
+ * .game-card-injury — trigger element (inline label + ↗ symbol).
+ * .game-card-injury--home — right-aligns the popup.
+ * .game-card-injury-popup — absolutely positioned hover card.
+ */
+
+.game-card-injury {
+  position: relative;
+  display: inline-block;
+  cursor: default;
+}
+
+.game-card-injury-popup {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  top: auto;
+  left: 0;
+  z-index: 200;
+  width: 200px;
+  background: #091624;
+  border: 1px solid rgba(0, 229, 255, 0.22);
+  border-radius: 6px;
+  padding: 10px 12px 12px;
+  box-shadow:
+    0 8px 32px rgba(0, 0, 0, 0.65),
+    0 0 0 1px rgba(0, 229, 255, 0.06);
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition:
+    opacity 0.15s ease,
+    visibility 0.15s ease;
+}
+
+.game-card-injury--home .game-card-injury-popup {
+  left: auto;
+  right: 0;
+}
+
+.game-card-injury:hover .game-card-injury-popup,
+.game-card-injury-popup--open {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+}
+
+.game-card-injury-popup-title {
+  font-family: var(--gs-font-display);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  color: var(--gs-amber);
+  text-transform: uppercase;
+  padding-bottom: 7px;
+  margin-bottom: 4px;
+  border-bottom: 1px solid rgba(0, 229, 255, 0.12);
+}
+
+.game-card-injury-popup-flag {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  padding: 4px 0;
+  border-bottom: 1px solid rgba(0, 229, 255, 0.05);
+}
+
+.game-card-injury-popup-flag:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.game-card-injury-popup-flag-name {
+  font-family: var(--gs-font-mono);
+  font-size: 12px;
+  color: var(--gs-text);
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.game-card-injury-popup-flag-detail {
+  font-family: var(--gs-font-mono);
+  font-size: 10px;
+  color: var(--gs-text-dim);
+  flex: 0 1 auto;
+  white-space: nowrap;
+}
+
+.game-card-injury-popup-flag-code {
+  font-family: var(--gs-font-display);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  flex-shrink: 0;
+  margin-left: auto;
+}
+
+/* ── Visibility-based animation pause ─────────────────────────────
+ *
+ * .gs-animations-paused — applied to the root container when the page/tab
+ * is hidden. Stops all CSS keyframe animations (including pseudo-elements)
+ * to prevent continuous GPU compositing in the background.
+ */
+
+.gs-animations-paused *,
+.gs-animations-paused *::before,
+.gs-animations-paused *::after {
+  animation-play-state: paused !important;
+}
+
+/* ── Hub module navigation tabs ──────────────────────────────────
+ *
+ * .hub-nav-strip — wrapper div: amber top accent, bottom rule.
+ * .hub-nav-tab   — individual link item, equal-width flex children.
+ */
+
+.hub-nav-strip {
+  display: flex;
+  border-top: 2px solid var(--gs-amber);
+  border-bottom: 1px solid rgba(0, 229, 255, 0.14);
+  background: rgba(4, 10, 20, 0.92);
+}
+
+.hub-nav-tab {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 18px 10px;
+  border-right: 1px solid rgba(0, 229, 255, 0.09);
+  color: rgba(230, 242, 255, 0.92);
+  font-family: var(--gs-font-display);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  text-align: center;
+  text-decoration: none;
+  position: relative;
+  text-shadow: 0 0 20px rgba(0, 229, 255, 0.12);
+  transition:
+    color 0.15s,
+    background 0.15s;
+}
+
+.hub-nav-tab:last-child {
+  border-right: none;
+}
+
+/* Cyan bottom underline — scales in on hover */
+.hub-nav-tab::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 15%;
+  right: 15%;
+  height: 2px;
+  background: var(--gs-cyan);
+  transform: scaleX(0);
+  transition: transform 0.15s ease;
+}
+
+.hub-nav-tab:hover {
+  color: var(--gs-cyan);
+  background: rgba(0, 229, 255, 0.04);
+}
+
+.hub-nav-tab:hover::after {
+  transform: scaleX(1);
+}
+
+.hub-nav-tab-badge {
+  font-family: var(--gs-font-mono);
+  font-size: 9px;
+  font-weight: 400;
+  letter-spacing: 0.04em;
+  color: rgba(90, 122, 144, 0.9);
+  text-transform: none;
+}
+
+/* ── Mobile responsive overrides (≤ 639px) ──────────────────────── */
+
+@media (max-width: 639px) {
+  .tab-btn {
+    padding: 10px 11px;
+    font-size: 9px;
+    letter-spacing: 0.08em;
+  }
+
+  .tab-btn::before {
+    display: none;
+  }
+}

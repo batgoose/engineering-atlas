@@ -1,30 +1,18 @@
-
 export {
-  
   configureApi,
   getApiConfig,
   type ApiConfig,
-
-  
   ApiError,
-
-  
   type Category,
   type CompetencyFilters,
   type ArtifactFilters,
-
-  
   getCategories,
   getCategory,
-
-  
   getCompetencies,
   getCompetency,
   getCompetenciesByCategory,
   getHighlightedCompetencies,
   searchCompetencies,
-
-  
   getArtifacts,
   getArtifact,
   getArtifactsByStatus,

@@ -1,11 +1,8 @@
 {
+  "extends": "../../tsconfig.base.json",
   "compilerOptions": {
     // says I'm building for a browser and I want to use the newest javascript features
-    "lib": [
-      "dom",
-      "dom.iterable",
-      "esnext"
-    ],
+    "lib": ["dom", "dom.iterable", "esnext"],
     // allow javascript .js files for legacy code without types
     "allowJs": true,
     // don't check node_modules/ for type errors
@@ -42,12 +39,14 @@
     ],
     "paths": {
       // allows imports like @/components/Button
-      "@/*": [
-        "./*"
-      ],
-      "@atlas/types": [
-        "../../packages/types"
-      ]
+      "@/*": ["./*"],
+      "@atlas/types": ["../../packages/types"],
+      "@atlas/api": ["../../packages/api/src/index.ts"],
+      "@atlas/api/*": ["../../packages/api/src/*"],
+      "@atlas/sdk": ["../../packages/sdk/src/index.ts"],
+      "@atlas/sdk/*": ["../../packages/sdk/src/*"],
+      "@atlas/ui": ["../../packages/ui/src/index.ts"],
+      "@atlas/ui/*": ["../../packages/ui/src/*"]
     },
     "baseUrl": ".",
     // sets the output JS version. ES2017 supports async/await natively, which next is going to handle, so basically tells TS to not down-compile and let the bundler handle it

@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { card_buttons, cards, typography, badges } from '@atlas/ui/styles';
+import { cards, typography, badges } from '@atlas/ui/styles';
 import { CompetencyIcon } from '@/components/CompetencyIcon';
 import type { Artifact } from '@atlas/types';
 import { AtlasIcon } from '@/components/AtlasIcon';
@@ -17,7 +17,7 @@ const getStatusConfig = (status: Artifact['status']) => {
 
 const getDomainDisplay = (domain: Artifact['domain']) => {
   const mapping = {
-    football: 'Redzone',
+    football: 'Gridstream',
     infrastructure: 'Infrastructure',
     atlas: 'Atlas',
   };

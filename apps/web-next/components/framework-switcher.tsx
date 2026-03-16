@@ -1,21 +1,25 @@
 'use client';
 
 import { useState } from 'react';
-import { getFrameworkOptions } from '@atlas/ui/contracts';
+import { usePathname } from 'next/navigation';
+import { getFrameworkOptions } from '@atlas/sdk/contracts';
 import { nav, cards, typography } from '@atlas/ui/styles';
 
 export function FrameworkSwitcher() {
   const [isOpen, setIsOpen] = useState(false);
+  const pathname = usePathname();
   const frameworks = getFrameworkOptions();
   const current = frameworks.find((f) => f.active)!;
+
+  if (pathname?.startsWith('/gridstream')) {
+    return null;
+  }
 
   return (
     <div className="fixed bottom-6 right-6 z-50">
       {isOpen && (
         <div className={nav.switcherDropdown}>
-          <p className={`px-3 py-1 ${typography.caption} uppercase tracking-wider`}>
-            View in
-          </p>
+          <p className={`px-3 py-1 ${typography.caption} uppercase tracking-wider`}>View in</p>
           {frameworks.map((fw) => (
             <button
               key={fw.id}
@@ -25,18 +29,14 @@ export function FrameworkSwitcher() {
                 fw.id === current.id
                   ? nav.switcherItemActive
                   : fw.active
-                  ? nav.switcherItem
-                  : nav.switcherItemDisabled
+                    ? nav.switcherItem
+                    : nav.switcherItemDisabled
               }
             >
               <span className={cards.iconBoxSmall}>{fw.icon}</span>
               {fw.name}
-              {fw.id === current.id && (
-                <span className={`ml-auto ${typography.accent}`}>✓</span>
-              )}
-              {!fw.active && (
-                <span className={`ml-auto ${typography.caption}`}>soon</span>
-              )}
+              {fw.id === current.id && <span className={`ml-auto ${typography.accent}`}>✓</span>}
+              {!fw.active && <span className={`ml-auto ${typography.caption}`}>soon</span>}
             </button>
           ))}
         </div>

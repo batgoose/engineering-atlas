@@ -2,6 +2,9 @@
   "name": "@atlas/api",
   "version": "0.0.1",
   "private": true,
+  "scripts": {
+    "lint": "../../node_modules/.bin/eslint ."
+  },
   "exports": {
     ".": "./src/index.ts"
   },

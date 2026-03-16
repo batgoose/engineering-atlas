@@ -1,5 +1,4 @@
 services:
-  
   postgres-atlas:
     image: pgvector/pgvector:pg16
     container_name: atlas-postgres
@@ -41,6 +40,26 @@ services:
       timeout: 5s
       retries: 5
 
+  postgres-nfl-v2:
+    image: postgres:15-alpine
+    container_name: atlas-nfl-v2-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: nfl_data_v2
+    ports:
+      - '5434:5432'
+    volumes:
+      - postgres-nfl-v2-data:/var/lib/postgresql/data
+      - ./packages/db/init:/docker-entrypoint-initdb.d
+    networks:
+      - atlas-network
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U admin -d nfl_data_v2']
+      interval: 5s
+      timeout: 5s
+      retries: 5
 
   pgbouncer-atlas:
     image: edoburu/pgbouncer
@@ -84,6 +103,26 @@ services:
       postgres-nfl:
         condition: service_healthy
 
+  pgbouncer-nfl-v2:
+    image: edoburu/pgbouncer
+    container_name: atlas-nfl-v2-pgbouncer
+    restart: unless-stopped
+    environment:
+      DB_USER: admin
+      DB_PASSWORD: password
+      DB_HOST: postgres-nfl-v2
+      DB_NAME: nfl_data_v2
+      POOL_MODE: transaction
+      MAX_CLIENT_CONN: 100
+      DEFAULT_POOL_SIZE: 20
+      AUTH_TYPE: scram-sha-256
+    ports:
+      - '6434:5432'
+    networks:
+      - atlas-network
+    depends_on:
+      postgres-nfl-v2:
+        condition: service_healthy
 
   redis:
     image: redis:7-alpine
@@ -113,10 +152,15 @@ services:
     networks:
       - atlas-network
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      test: ['CMD', 'curl', '-f', 'http://localhost:9000/minio/health/live']
       interval: 30s
       timeout: 20s
       retries: 3
+    labels:
+      - 'traefik.enable=true'
+      - 'traefik.http.routers.minio-static.rule=PathPrefix(`/player-ras/`)'
+      - 'traefik.http.routers.minio-static.entrypoints=web'
+      - 'traefik.http.services.minio-static.loadbalancer.server.port=9000'
 
   traefik:
     image: traefik:v2.10
@@ -135,12 +179,12 @@ services:
     networks:
       - atlas-network
     labels:
-      - "traefik.http.middlewares.cors.headers.accesscontrolalloworiginlist=http://localhost:3000,http://app.localhost,http://angular.localhost,http://vue.localhost,http://svelte.localhost"
-      - "traefik.http.middlewares.cors.headers.accesscontrolallowmethods=GET,POST,PUT,DELETE,OPTIONS,PATCH,HEAD"
-      - "traefik.http.middlewares.cors.headers.accesscontrolallowheaders=*"
-      - "traefik.http.middlewares.cors.headers.accesscontrolallowcredentials=true"
-      - "traefik.http.middlewares.cors.headers.accesscontrolmaxage=100"
-
+      - 'traefik.enable=true'
+      - 'traefik.http.middlewares.cors.headers.accesscontrolalloworiginlist=http://localhost:3000,http://app.localhost,http://angular.localhost,http://vue.localhost,http://svelte.localhost'
+      - 'traefik.http.middlewares.cors.headers.accesscontrolallowmethods=GET,POST,PUT,DELETE,OPTIONS,PATCH,HEAD'
+      - 'traefik.http.middlewares.cors.headers.accesscontrolallowheaders=*'
+      - 'traefik.http.middlewares.cors.headers.accesscontrolallowcredentials=true'
+      - 'traefik.http.middlewares.cors.headers.accesscontrolmaxage=100'
 
   api-django:
     build:
@@ -150,9 +194,14 @@ services:
     restart: unless-stopped
     environment:
       - DEBUG=True
+      - LAN_DEV_HOST=${LAN_DEV_HOST:-}
       - DATABASE_URL=postgresql://atlas_user:atlas_password@pgbouncer-atlas:5432/atlas_db
+      - NFL_DATABASE_URL=postgresql://admin:password@pgbouncer-nfl-v2:5432/nfl_data_v2
+      - NFL_DATABASE_V1_URL=postgresql://admin:password@pgbouncer-nfl:5432/nfl_data
+      - NFL_DATABASE_V2_URL=postgresql://admin:password@pgbouncer-nfl-v2:5432/nfl_data_v2
       - REDIS_URL=redis://redis:6379/0
       - MINIO_ENDPOINT=minio:9000
+      - MINIO_PUBLIC_ENDPOINT=localhost
       - MINIO_ACCESS_KEY=atlas_admin
       - MINIO_SECRET_KEY=atlas_password
     volumes:
@@ -160,6 +209,7 @@ services:
       - django-static:/app/staticfiles
       - /app/.venv
       - ./packages/db/seeds:/app/seeds
+      - playwright-cache:/root/.cache/ms-playwright
     ports:
       - '8000:8000'
     networks:
@@ -172,18 +222,52 @@ services:
       minio:
         condition: service_healthy
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:8000/admin/ || exit 1"]
+      test: ['CMD-SHELL', 'curl -f http://localhost:8000/admin/ || exit 1']
       interval: 10s
       timeout: 5s
       retries: 3
-      start_period: 30s
+      start_period: 120s
     labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.api.rule=Host(`api.localhost`)"
-      - "traefik.http.routers.api.entrypoints=web"
-      - "traefik.http.services.api.loadbalancer.server.port=8000"
-      - "traefik.http.routers.api.middlewares=cors@docker"
+      - 'traefik.enable=true'
+      - 'traefik.http.routers.api.rule=Host(`api.localhost`)'
+      - 'traefik.http.routers.api.entrypoints=web'
+      - 'traefik.http.services.api.loadbalancer.server.port=8000'
+      - 'traefik.http.routers.api.middlewares=cors@docker'
 
+  api-celery-worker:
+    build:
+      context: ./apps/api-django
+      dockerfile: Dockerfile.dev
+    container_name: atlas-api-celery
+    restart: unless-stopped
+    command: celery -A config worker -l info
+    environment:
+      - DEBUG=True
+      - LAN_DEV_HOST=${LAN_DEV_HOST:-}
+      - DATABASE_URL=postgresql://atlas_user:atlas_password@pgbouncer-atlas:5432/atlas_db
+      - NFL_DATABASE_URL=postgresql://admin:password@pgbouncer-nfl-v2:5432/nfl_data_v2
+      - NFL_DATABASE_V1_URL=postgresql://admin:password@pgbouncer-nfl:5432/nfl_data
+      - NFL_DATABASE_V2_URL=postgresql://admin:password@pgbouncer-nfl-v2:5432/nfl_data_v2
+      - REDIS_URL=redis://redis:6379/0
+      - MINIO_ENDPOINT=minio:9000
+      - MINIO_PUBLIC_ENDPOINT=localhost
+      - MINIO_ACCESS_KEY=atlas_admin
+      - MINIO_SECRET_KEY=atlas_password
+    volumes:
+      - ./apps/api-django:/app
+      - django-static:/app/staticfiles
+      - /app/.venv
+      - ./packages/db/seeds:/app/seeds
+      - playwright-cache:/root/.cache/ms-playwright
+    networks:
+      - atlas-network
+    depends_on:
+      pgbouncer-atlas:
+        condition: service_started
+      redis:
+        condition: service_started
+      minio:
+        condition: service_healthy
 
   web-next:
     build:
@@ -192,14 +276,12 @@ services:
     container_name: atlas-web-next
     restart: unless-stopped
     environment:
-      - NEXT_PUBLIC_API_URL=https://lxjshlcs-8000.use2.devtunnels.ms/api
+      - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-http://api.localhost/api}
+      - API_URL=http://api-django:8000/api
       - NODE_ENV=development
     volumes:
-      - ./apps/web-next/src:/app/apps/web-next/src
-      - ./apps/web-next/public:/app/apps/web-next/public
-      - ./apps/web-next/app:/app/apps/web-next/app
-      - ./apps/web-next/pages:/app/apps/web-next/pages
-      - ./apps/web-next/.env.local:/app/apps/web-next/.env.local
+      - ./apps/web-next:/app/apps/web-next
+      - ./packages:/app/packages
       - /app/node_modules
       - /app/apps/web-next/node_modules
       - /app/apps/web-next/.next
@@ -211,10 +293,10 @@ services:
       api-django:
         condition: service_healthy
     labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.web-next.rule=Host(`app.localhost`)"
-      - "traefik.http.routers.web-next.entrypoints=web"
-      - "traefik.http.services.web-next.loadbalancer.server.port=3000"
+      - 'traefik.enable=true'
+      - 'traefik.http.routers.web-next.rule=Host(`app.localhost`)'
+      - 'traefik.http.routers.web-next.entrypoints=web'
+      - 'traefik.http.services.web-next.loadbalancer.server.port=3000'
 
   # Angular Frontend (Placeholder - Uncomment when ready)
   # web-angular:
@@ -297,45 +379,68 @@ services:
   # APPLICATION LAYER - MICROSERVICES (Placeholder - Uncomment when ready)
 
   service-rust:
-     build:
-       context: ./apps/service-rust
-       dockerfile: Dockerfile.dev
-     container_name: atlas-service-rust
-     restart: unless-stopped
-     volumes:
-       - ./apps/service-rust:/app
-       - /app/target
-     ports:
+    build:
+      context: ./apps/service-rust
+      dockerfile: Dockerfile.dev
+    container_name: atlas-service-rust
+    restart: no
+    environment:
+      - DATABASE_URL=postgresql://admin:password@pgbouncer-nfl:5432/nfl_data
+      - REDIS_URL=redis://redis:6379/0
+    volumes:
+      - ./apps/service-rust:/app
+      - /app/target
+    ports:
       - '8001:8001'
-     networks:
-       - atlas-network
-     depends_on:
-       - redis
-     labels:
-       - "traefik.enable=true"
-       - "traefik.http.routers.service-rust.rule=Host(`rust-service.localhost`)"
-       - "traefik.http.routers.service-rust.entrypoints=web"
-       - "traefik.http.services.service-rust.loadbalancer.server.port=8001"
+    networks:
+      - atlas-network
+    depends_on:
+      redis:
+        condition: service_started
+      pgbouncer-nfl:
+        condition: service_started
+      postgres-nfl:
+        condition: service_healthy
+    labels:
+      - 'traefik.enable=true'
+      - 'traefik.http.routers.service-rust.rule=Host(`rust-service.localhost`)'
+      - 'traefik.http.routers.service-rust.entrypoints=web'
+      - 'traefik.http.services.service-rust.loadbalancer.server.port=8001'
 
-  # service-go:
-  #   build:
-  #     context: ./apps/service-go
-  #     dockerfile: Dockerfile.dev
-  #   container_name: atlas-service-go
-  #   restart: unless-stopped
-  #   volumes:
-  #     - ./apps/service-go:/app
-  #   ports:
-  #     - '8002:8002'
-  #   networks:
-  #     - atlas-network
-  #   depends_on:
-  #     - redis
-  #   labels:
-  #     - "traefik.enable=true"
-  #     - "traefik.http.routers.service-go.rule=Host(`go-service.localhost`)"
-  #     - "traefik.http.routers.service-go.entrypoints=web"
-  #     - "traefik.http.services.service-go.loadbalancer.server.port=8002"
+  service-go:
+    build:
+      context: ./apps/service-go
+      dockerfile: Dockerfile.dev
+    container_name: atlas-service-go
+    restart: unless-stopped
+    ports:
+      - '8002:8002'
+    volumes:
+      - ./apps/service-go:/app
+      - /app/gridstream/tmp
+    environment:
+      - PORT=8002
+      - REDIS_URL=redis://redis:6379/0
+      - POLL_IN_GAME_SECONDS=8
+      - POLL_PRE_GAME_SECONDS=60
+      - POLL_POST_GAME_SECONDS=300
+      - SIM_DEFAULT_SPEED=5
+    networks:
+      - atlas-network
+    depends_on:
+      - redis
+    healthcheck:
+      test: ['CMD-SHELL', 'curl -f http://localhost:8002/status || exit 1']
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    labels:
+      - 'traefik.enable=true'
+      - 'traefik.http.routers.service-go.rule=Host(`go-service.localhost`)'
+      - 'traefik.http.routers.service-go.entrypoints=web'
+      - 'traefik.http.services.service-go.loadbalancer.server.port=8002'
+      - 'traefik.http.routers.service-go.middlewares=cors@docker'
 
   # service-cpp:
   #   build:
@@ -388,9 +493,13 @@ volumes:
     name: atlas-postgres-data
   postgres-nfl-data:
     name: atlas-nfl-postgres-data
+  postgres-nfl-v2-data:
+    name: atlas-nfl-v2-postgres-data
   redis-data:
     name: atlas-redis-data
   minio-data:
     name: atlas-minio-data
   django-static:
     name: atlas-django-static
+  playwright-cache:
+    name: atlas-playwright-cache

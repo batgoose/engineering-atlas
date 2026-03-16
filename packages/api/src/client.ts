@@ -1,4 +1,3 @@
-
 import type {
   CompetencyNode,
   Artifact,
@@ -8,8 +7,6 @@ import type {
   ArtifactDomain,
   DemoType,
 } from '@atlas/types';
-
-
 
 export interface ApiConfig {
   baseUrl: string;
@@ -29,8 +26,6 @@ export function getApiConfig(): ApiConfig {
   return config;
 }
 
-
-
 export class ApiError extends Error {
   constructor(
     public status: number,
@@ -43,16 +38,12 @@ export class ApiError extends Error {
   }
 }
 
-
-
 export interface Category {
   id: number;
   name: string;
   description: string;
   display_order: number;
 }
-
-
 
 export interface CompetencyFilters {
   category?: number | string;
@@ -70,14 +61,9 @@ export interface ArtifactFilters {
   search?: string;
 }
 
-
-
-async function apiFetch<T>(
-  endpoint: string,
-  options: RequestInit = {}
-): Promise<T> {
+async function apiFetch<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
   const url = `${config.baseUrl}${endpoint}`;
-  
+
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), config.timeout);
 
@@ -97,43 +83,38 @@ async function apiFetch<T>(
       let data: unknown;
       try {
         data = await response.json();
-      } catch {
-        
-      }
+      } catch {}
       throw new ApiError(response.status, response.statusText, url, data);
     }
 
     return response.json();
   } catch (error) {
     clearTimeout(timeoutId);
-    
+
     if (error instanceof ApiError) {
       throw error;
     }
-    
+
     if (error instanceof Error && error.name === 'AbortError') {
       throw new ApiError(408, 'Request Timeout', url);
     }
-    
+
     throw error;
   }
 }
 
-
-
 function buildQueryString(params: Record<string, unknown>): string {
   const searchParams = new URLSearchParams();
-  
+
   Object.entries(params).forEach(([key, value]) => {
     if (value !== undefined && value !== null && value !== '') {
       searchParams.append(key, String(value));
     }
   });
-  
+
   const query = searchParams.toString();
   return query ? `?${query}` : '';
 }
-
 
 export async function getCategories(): Promise<Category[]> {
   return apiFetch<Category[]>('/categories/');
@@ -143,11 +124,8 @@ export async function getCategory(id: number | string): Promise<Category> {
   return apiFetch<Category>(`/categories/${id}/`);
 }
 
-
-export async function getCompetencies(
-  filters?: CompetencyFilters
-): Promise<CompetencyNode[]> {
-  const query = filters ? buildQueryString(filters) : '';
+export async function getCompetencies(filters?: CompetencyFilters): Promise<CompetencyNode[]> {
+  const query = filters ? buildQueryString(filters as Record<string, unknown>) : '';
   return apiFetch<CompetencyNode[]>(`/competencies/${query}`);
 }
 
@@ -165,17 +143,12 @@ export async function getHighlightedCompetencies(): Promise<CompetencyNode[]> {
   return getCompetencies({ portfolio_highlight: true });
 }
 
-export async function searchCompetencies(
-  query: string
-): Promise<CompetencyNode[]> {
+export async function searchCompetencies(query: string): Promise<CompetencyNode[]> {
   return getCompetencies({ search: query });
 }
 
-
-export async function getArtifacts(
-  filters?: ArtifactFilters
-): Promise<Artifact[]> {
-  const query = filters ? buildQueryString(filters) : '';
+export async function getArtifacts(filters?: ArtifactFilters): Promise<Artifact[]> {
+  const query = filters ? buildQueryString(filters as Record<string, unknown>) : '';
   return apiFetch<Artifact[]>(`/artifacts/${query}`);
 }
 
@@ -183,20 +156,14 @@ export async function getArtifact(id: number | string): Promise<Artifact> {
   return apiFetch<Artifact>(`/artifacts/${id}/`);
 }
 
-export async function getArtifactsByStatus(
-  status: ArtifactStatus
-): Promise<Artifact[]> {
+export async function getArtifactsByStatus(status: ArtifactStatus): Promise<Artifact[]> {
   return getArtifacts({ status });
 }
 
-export async function getArtifactsByTech(
-  tech: string
-): Promise<Artifact[]> {
+export async function getArtifactsByTech(tech: string): Promise<Artifact[]> {
   return getArtifacts({ tech_stack: tech });
 }
 
-export async function searchArtifacts(
-  query: string
-): Promise<Artifact[]> {
+export async function searchArtifacts(query: string): Promise<Artifact[]> {
   return getArtifacts({ search: query });
 }

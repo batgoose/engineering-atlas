@@ -1,23 +1,50 @@
-pub mod models;
-
-use anyhow::Result;
-use chrono::NaiveDate;
+use anyhow::{Context, Result};
 use futures_util::StreamExt;
-use models::PlayRecord;
+use parquet::file::reader::{FileReader, SerializedFileReader};
+use parquet::record::Row;
+use sha2::{Digest, Sha256};
+use sqlx::QueryBuilder;
 use sqlx::{Pool, Postgres};
+use std::fs::File as StdFile;
 use std::path::PathBuf;
 use tokio::fs::File;
-use tokio::io::AsyncWriteExt;
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
 pub const BASE_URL: &str = "https://github.com/nflverse/nflverse-data/releases/download/pbp";
 
-pub async fn download_season(year: i32) -> Result<PathBuf> {
-    let url = format!("{}/play_by_play_{}.csv", BASE_URL, year);
+pub struct SeasonDownload {
+    pub year: i32,
+    pub url: String,
+    pub path: PathBuf,
+    pub checksum_sha256: String,
+}
+
+#[derive(Debug, Clone)]
+pub struct RawPbpRow {
+    pub batch_id: Option<i64>,
+    pub game_id: String,
+    pub play_id: String,
+    pub season: Option<i32>,
+    pub week: Option<i32>,
+    pub posteam: Option<String>,
+    pub defteam: Option<String>,
+    pub source_row_number: i32,
+    pub payload: serde_json::Value,
+}
+
+pub async fn download_season(year: i32) -> Result<SeasonDownload> {
+    let url = format!("{}/play_by_play_{}.parquet", BASE_URL, year);
     let mut save_path = std::env::temp_dir();
-    save_path.push(format!("nfl_pbp_{}.csv", year));
+    save_path.push(format!("nfl_pbp_{}.parquet", year));
 
     if save_path.exists() {
-        return Ok(save_path);
+        let checksum = file_sha256_hex(&save_path).await?;
+        return Ok(SeasonDownload {
+            year,
+            url,
+            path: save_path,
+            checksum_sha256: checksum,
+        });
     }
 
     let response = reqwest::get(&url).await?;
@@ -32,114 +59,97 @@ pub async fn download_season(year: i32) -> Result<PathBuf> {
     }
     file.flush().await?;
 
-    Ok(save_path)
+    let checksum = file_sha256_hex(&save_path).await?;
+    Ok(SeasonDownload {
+        year,
+        url,
+        path: save_path,
+        checksum_sha256: checksum,
+    })
 }
 
-pub async fn process_and_insert_season(path: &PathBuf, pool: &Pool<Postgres>) -> Result<usize> {
-    let mut rdr = csv::ReaderBuilder::new()
-        .has_headers(true)
-        .flexible(true)
-        .from_path(path)?;
+pub async fn process_and_insert_season(
+    path: &PathBuf,
+    season: i32,
+    batch_id: Option<i64>,
+    pool: &Pool<Postgres>,
+) -> Result<usize> {
+    ensure_raw_pbp_table(pool).await?;
+    clear_raw_pbp_for_season(pool, season).await?;
 
-    let mut batch: Vec<PlayRecord> = Vec::with_capacity(1000);
+    let file = StdFile::open(path)
+        .with_context(|| format!("Failed opening parquet file: {}", path.display()))?;
+    let reader = SerializedFileReader::new(file)
+        .with_context(|| format!("Failed parsing parquet file: {}", path.display()))?;
+    let row_iter = reader.get_row_iter(None)?;
+
+    let mut batch: Vec<RawPbpRow> = Vec::with_capacity(1000);
     let mut total_count = 0;
+    let mut skipped_count = 0;
+    let mut source_row_number: i32 = 1;
 
-    for record in rdr.deserialize().flatten() {
-        batch.push(record);
+    for row_result in row_iter {
+        let row = row_result.with_context(|| {
+            format!(
+                "Failed reading parquet row {} from {}",
+                source_row_number,
+                path.display()
+            )
+        })?;
+        if let Some(raw_row) = to_raw_pbp_row(row, season, batch_id, source_row_number) {
+            batch.push(raw_row);
+        } else {
+            skipped_count += 1;
+        }
         if batch.len() >= 1000 {
-            insert_batch(pool, &batch).await?;
+            insert_raw_pbp_batch(pool, &batch).await?;
             total_count += batch.len();
             batch.clear();
         }
+        source_row_number += 1;
     }
 
     if !batch.is_empty() {
-        insert_batch(pool, &batch).await?;
+        insert_raw_pbp_batch(pool, &batch).await?;
         total_count += batch.len();
+    }
+
+    if skipped_count > 0 {
+        eprintln!(
+            "⚠️  Skipped {} rows in season {} due to missing game_id/play_id",
+            skipped_count, season
+        );
     }
 
     Ok(total_count)
 }
 
-pub async fn insert_batch(pool: &Pool<Postgres>, plays: &[PlayRecord]) -> Result<()> {
-    let mut query_builder = sqlx::QueryBuilder::new(
-        "INSERT INTO plays (
-            game_id, play_id, old_game_id, drive,
-            home_team, away_team, posteam, posteam_type, defteam,
-            game_date, season_type, week, stadium, weather, surface, roof,
-            qtr, quarter_seconds_remaining, half_seconds_remaining, game_seconds_remaining,
-            down, ydstogo, yardline_100, side_of_field, shotgun, no_huddle,
-            play_type, yards_gained, air_yards, yards_after_catch, epa, wpa, success,
-            passer_player_id, passer_player_name,
-            rusher_player_id, rusher_player_name,
-            receiver_player_id, receiver_player_name,
-            touchdown, interception, fumble, sack, complete_pass, pass_touchdown, rush_touchdown,
-            field_goal_result, kick_distance, punt_blocked,
-            penalty, penalty_type, penalty_yards
+pub async fn insert_raw_pbp_batch(pool: &Pool<Postgres>, rows: &[RawPbpRow]) -> Result<()> {
+    let mut query_builder: QueryBuilder<Postgres> = QueryBuilder::new(
+        "INSERT INTO raw.raw_nflverse_pbp (
+            batch_id,
+            game_id,
+            play_id,
+            season,
+            week,
+            posteam,
+            defteam,
+            source_row_number,
+            payload
         ) ",
     );
 
-    query_builder.push_values(plays, |mut b, play| {
-        let parsed_date = play
-            .game_date
-            .as_ref()
-            .and_then(|d| NaiveDate::parse_from_str(d, "%Y-%m-%d").ok());
-
-        b.push_bind(&play.game_id)
-            .push_bind(play.play_id)
-            .push_bind(&play.old_game_id)
-            .push_bind(play.drive)
-            .push_bind(&play.home_team)
-            .push_bind(&play.away_team)
-            .push_bind(&play.posteam)
-            .push_bind(&play.posteam_type)
-            .push_bind(&play.defteam)
-            .push_bind(parsed_date)
-            .push_bind(&play.season_type)
-            .push_bind(play.week)
-            .push_bind(&play.stadium)
-            .push_bind(&play.weather)
-            .push_bind(&play.surface)
-            .push_bind(&play.roof)
-            .push_bind(play.qtr)
-            .push_bind(play.quarter_seconds_remaining)
-            .push_bind(play.half_seconds_remaining)
-            .push_bind(play.game_seconds_remaining)
-            .push_bind(play.down)
-            .push_bind(play.ydstogo)
-            .push_bind(play.yardline_100)
-            .push_bind(&play.side_of_field)
-            .push_bind(play.shotgun)
-            .push_bind(play.no_huddle)
-            .push_bind(&play.play_type)
-            .push_bind(play.yards_gained)
-            .push_bind(play.air_yards)
-            .push_bind(play.yards_after_catch)
-            .push_bind(play.epa)
-            .push_bind(play.wpa)
-            .push_bind(play.success)
-            .push_bind(&play.passer_player_id)
-            .push_bind(&play.passer_player_name)
-            .push_bind(&play.rusher_player_id)
-            .push_bind(&play.rusher_player_name)
-            .push_bind(&play.receiver_player_id)
-            .push_bind(&play.receiver_player_name)
-            .push_bind(play.touchdown)
-            .push_bind(play.interception)
-            .push_bind(play.fumble)
-            .push_bind(play.sack)
-            .push_bind(play.complete_pass)
-            .push_bind(play.pass_touchdown)
-            .push_bind(play.rush_touchdown)
-            .push_bind(&play.field_goal_result)
-            .push_bind(play.kick_distance)
-            .push_bind(play.punt_blocked)
-            .push_bind(play.penalty)
-            .push_bind(&play.penalty_type)
-            .push_bind(play.penalty_yards);
+    query_builder.push_values(rows, |mut b, row| {
+        b.push_bind(row.batch_id)
+            .push_bind(&row.game_id)
+            .push_bind(&row.play_id)
+            .push_bind(row.season)
+            .push_bind(row.week)
+            .push_bind(&row.posteam)
+            .push_bind(&row.defteam)
+            .push_bind(row.source_row_number)
+            .push_bind(sqlx::types::Json(&row.payload));
     });
-
-    query_builder.push(" ON CONFLICT (game_id, play_id) DO NOTHING");
 
     let query = query_builder.build();
     query.execute(pool).await?;
@@ -147,57 +157,246 @@ pub async fn insert_batch(pool: &Pool<Postgres>, plays: &[PlayRecord]) -> Result
     Ok(())
 }
 
+pub async fn get_raw_pbp_row_count(pool: &Pool<Postgres>) -> Result<i64> {
+    let row: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM raw.raw_nflverse_pbp")
+        .fetch_one(pool)
+        .await?;
+    Ok(row.0)
+}
+
+pub async fn begin_raw_ingest_batch(
+    pool: &Pool<Postgres>,
+    download: &SeasonDownload,
+) -> Result<i64> {
+    let source_file = download
+        .path
+        .file_name()
+        .and_then(|s| s.to_str())
+        .unwrap_or("play_by_play.parquet")
+        .to_string();
+    let source_version = download.year.to_string();
+    let metadata = format!(
+        r#"{{"season":{},"status":"started","ingest_tool":"service-rust","target_table":"raw.raw_nflverse_pbp"}}"#,
+        download.year
+    );
+
+    let row: (i64,) = sqlx::query_as(
+        "INSERT INTO raw.raw_ingest_batch (
+            source_system,
+            dataset_name,
+            source_url,
+            source_file,
+            source_version,
+            source_checksum,
+            metadata
+         ) VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb)
+         RETURNING id",
+    )
+    .bind("nflverse")
+    .bind("pbp")
+    .bind(&download.url)
+    .bind(source_file)
+    .bind(source_version)
+    .bind(&download.checksum_sha256)
+    .bind(metadata)
+    .fetch_one(pool)
+    .await
+    .context("Failed to create raw_ingest_batch row")?;
+
+    Ok(row.0)
+}
+
+pub async fn complete_raw_ingest_batch(
+    pool: &Pool<Postgres>,
+    batch_id: i64,
+    row_count: i64,
+    processed_rows: i64,
+    status: &str,
+    error: Option<&str>,
+) -> Result<()> {
+    let escaped_error = error
+        .unwrap_or("")
+        .replace('\\', "\\\\")
+        .replace('"', "\\\"");
+    let metadata = format!(
+        r#"{{"status":"{}","processed_rows":{},"finished_at":"{}","error":"{}"}}"#,
+        status,
+        processed_rows,
+        chrono::Utc::now().to_rfc3339(),
+        escaped_error
+    );
+
+    sqlx::query(
+        "UPDATE raw.raw_ingest_batch
+            SET row_count = $1,
+                metadata = COALESCE(metadata, '{}'::jsonb) || $2::jsonb
+          WHERE id = $3",
+    )
+    .bind(row_count)
+    .bind(metadata)
+    .bind(batch_id)
+    .execute(pool)
+    .await
+    .context("Failed to update raw_ingest_batch row")?;
+
+    Ok(())
+}
+
+async fn clear_raw_pbp_for_season(pool: &Pool<Postgres>, season: i32) -> Result<()> {
+    sqlx::query("DELETE FROM raw.raw_nflverse_pbp WHERE season = $1")
+        .bind(season)
+        .execute(pool)
+        .await?;
+    Ok(())
+}
+
+async fn ensure_raw_pbp_table(pool: &Pool<Postgres>) -> Result<()> {
+    let row: (Option<String>,) = sqlx::query_as("SELECT to_regclass('raw.raw_nflverse_pbp')::text")
+        .fetch_one(pool)
+        .await?;
+    if row.0.is_none() {
+        anyhow::bail!(
+            "raw.raw_nflverse_pbp does not exist. Run Django migrations on the target database first."
+        );
+    }
+    Ok(())
+}
+
+fn to_raw_pbp_row(
+    row: Row,
+    season_fallback: i32,
+    batch_id: Option<i64>,
+    source_row_number: i32,
+) -> Option<RawPbpRow> {
+    let payload_map = row_to_json_map(row);
+
+    let game_id = value_as_text(payload_map.get("game_id"))?;
+    let play_id = normalize_play_id(value_as_text(payload_map.get("play_id"))?);
+    let season = value_as_i32(payload_map.get("season")).or(Some(season_fallback));
+    let week = value_as_i32(payload_map.get("week"));
+    let posteam = value_as_text(payload_map.get("posteam"));
+    let defteam = value_as_text(payload_map.get("defteam"));
+    let payload = serde_json::Value::Object(payload_map);
+
+    Some(RawPbpRow {
+        batch_id,
+        game_id,
+        play_id,
+        season,
+        week,
+        posteam,
+        defteam,
+        source_row_number,
+        payload,
+    })
+}
+
+fn row_to_json_map(row: Row) -> serde_json::Map<String, serde_json::Value> {
+    if let serde_json::Value::Object(map) = row.to_json_value() {
+        map
+    } else {
+        let mut payload = serde_json::Map::new();
+        payload.insert(
+            "row_string".to_string(),
+            serde_json::Value::String(row.to_string()),
+        );
+        payload
+    }
+}
+
+fn value_as_text(value: Option<&serde_json::Value>) -> Option<String> {
+    match value {
+        Some(serde_json::Value::String(s)) => {
+            let trimmed = s.trim();
+            if trimmed.is_empty() {
+                None
+            } else {
+                Some(trimmed.to_string())
+            }
+        }
+        Some(serde_json::Value::Number(n)) => Some(n.to_string()),
+        Some(serde_json::Value::Bool(b)) => Some(b.to_string()),
+        Some(serde_json::Value::Null) | None => None,
+        Some(other) => Some(other.to_string()),
+    }
+}
+
+fn value_as_i32(value: Option<&serde_json::Value>) -> Option<i32> {
+    match value {
+        Some(serde_json::Value::Number(n)) => {
+            if let Some(v) = n.as_i64() {
+                return i32::try_from(v).ok();
+            }
+            n.as_f64().and_then(|v| i32::try_from(v as i64).ok())
+        }
+        Some(serde_json::Value::String(s)) => {
+            let trimmed = s.trim();
+            if trimmed.is_empty() {
+                return None;
+            }
+            if let Ok(v) = trimmed.parse::<i32>() {
+                return Some(v);
+            }
+            if let Ok(v) = trimmed.parse::<f64>() {
+                return i32::try_from(v as i64).ok();
+            }
+            None
+        }
+        _ => None,
+    }
+}
+
+fn normalize_play_id(play_id: String) -> String {
+    let trimmed = play_id.trim();
+    if let Ok(v) = trimmed.parse::<i64>() {
+        return v.to_string();
+    }
+    if let Ok(v) = trimmed.parse::<f64>() {
+        if (v.fract() - 0.0).abs() < f64::EPSILON {
+            return (v as i64).to_string();
+        }
+    }
+    trimmed.to_string()
+}
+
+async fn file_sha256_hex(path: &PathBuf) -> Result<String> {
+    let mut file = File::open(path)
+        .await
+        .with_context(|| format!("Failed opening file for checksum: {}", path.display()))?;
+    let mut hasher = Sha256::new();
+    let mut buffer = [0_u8; 64 * 1024];
+
+    loop {
+        let bytes_read = file.read(&mut buffer).await?;
+        if bytes_read == 0 {
+            break;
+        }
+        hasher.update(&buffer[..bytes_read]);
+    }
+
+    let checksum = format!("{:x}", hasher.finalize());
+    Ok(checksum)
+}
+
 #[cfg(test)]
 mod unit_tests {
     use super::*;
-    use chrono::Datelike;
-    use models::PlayRecord;
 
     #[test]
-    fn test_parse_sparse_row_timeout() {
-        let csv_data = "\
-play_id,game_id,home_team,away_team,season_type,week,shotgun,no_huddle,posteam
-50,2023_01_DET_KC,KC,DET,REG,1,0,0,";
-
-        let mut rdr = csv::ReaderBuilder::new()
-            .has_headers(true)
-            .flexible(true)
-            .from_reader(csv_data.as_bytes());
-
-        let result = rdr.deserialize::<PlayRecord>().next();
-
-        let record = result
-            .expect("Iterator should have one item")
-            .expect("Should parse timeout row without error");
-
-        assert_eq!(record.play_id, 50.0);
-        assert_eq!(record.week, 1);
-        assert_eq!(record.posteam, None);
+    fn test_normalize_play_id() {
+        assert_eq!(normalize_play_id("12345".to_string()), "12345");
+        assert_eq!(normalize_play_id("12345.0".to_string()), "12345");
+        assert_eq!(normalize_play_id("  98 ".to_string()), "98");
     }
 
     #[test]
-    fn test_date_parsing_logic() {
-        let date_str = Some("2023-12-25".to_string());
-
-        let parsed = date_str
-            .as_ref()
-            .and_then(|d| NaiveDate::parse_from_str(d, "%Y-%m-%d").ok());
-
-        assert!(parsed.is_some());
-        let d = parsed.unwrap();
-        assert_eq!(d.year(), 2023);
-        assert_eq!(d.month(), 12);
-        assert_eq!(d.day(), 25);
-    }
-
-    #[test]
-    fn test_bad_date_handling() {
-        let date_str = Some("Not-A-Date".to_string());
-
-        let parsed = date_str
-            .as_ref()
-            .and_then(|d| NaiveDate::parse_from_str(d, "%Y-%m-%d").ok());
-
-        assert!(parsed.is_none());
+    fn test_value_as_i32() {
+        assert_eq!(
+            value_as_i32(Some(&serde_json::Value::String("2024".into()))),
+            Some(2024)
+        );
+        assert_eq!(value_as_i32(Some(&serde_json::json!(2025))), Some(2025));
+        assert_eq!(value_as_i32(Some(&serde_json::json!(2026.0))), Some(2026));
+        assert_eq!(value_as_i32(Some(&serde_json::Value::Null)), None);
     }
 }

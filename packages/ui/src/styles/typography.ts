@@ -1,28 +1,30 @@
 export const typography = {
-  
-  h1: 'text-4xl md:text-5xl lg:text-6xl font-bold',
-  h2: 'text-2xl font-bold',
-  h3: 'text-xl font-semibold',
-  h4: 'font-semibold',
+  /* display - chakra petch */
+  h1: 'font-display text-4xl md:text-5xl lg:text-6xl font-bold uppercase tracking-tight',
+  h2: 'font-display text-2xl font-bold uppercase tracking-tight',
+  h3: 'font-display text-xl font-semibold uppercase tracking-tight',
+  h4: 'font-display font-semibold uppercase tracking-tight',
 
-  
-  body: 'text-slate-100',
-  bodyLarge: 'text-lg md:text-xl text-slate-400 leading-relaxed',
-  bodyMuted: 'text-slate-400',
-  bodySmall: 'text-sm text-slate-400',
-  bodyXs: 'text-xs text-slate-500',
+  /* body - familjen grotesk */
+  body: 'font-body text-slate-100',
+  bodyLarge: 'font-body text-lg md:text-xl text-slate-400 leading-relaxed',
+  bodyMuted: 'font-body text-slate-400',
+  bodySmall: 'font-body text-sm text-slate-400',
+  bodyXs: 'font-body text-xs text-slate-500',
 
-  
-  gradient: 'text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-emerald-400',
+  /* accents */
+  gradient: 'text-transparent bg-clip-text bg-gradient-to-r from-frontend-light to-frontend',
   mono: 'font-mono',
   monoSmall: 'font-mono text-sm',
-  accent: 'text-cyan-400',
+  accent: 'text-frontend',
 
-  
-  label: 'block text-[10px] uppercase tracking-widest text-slate-500 mb-1', 
-  caption: 'text-xs text-slate-500',
+  /* labels - jetbrains mono */
+  label: 'block font-mono text-[10px] uppercase tracking-widest text-slate-500 mb-1',
+  caption: 'font-mono text-xs text-slate-500',
+  designation:
+    'font-mono text-[11px] font-semibold text-frontend-light tracking-[0.25em] uppercase',
 
-  
-  link: 'text-cyan-400 hover:text-cyan-300 transition-colors',
+  /* links */
+  link: 'text-frontend hover:text-frontend-light transition-colors',
   linkSubtle: 'text-slate-400 hover:text-white transition-colors',
 };

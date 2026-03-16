@@ -1,0 +1,9 @@
+gridstream/scripts/node_modules/
+tmp/
+docs/prospects/
+docs/prospects2/
+docs/prospects3/
+docs/mocks/
+media/
+logs/
+staticfiles/

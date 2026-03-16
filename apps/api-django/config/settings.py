@@ -1,4 +1,6 @@
-import os, sys
+import os
+import re
+import sys
 from pathlib import Path
 import environ
 
@@ -8,11 +10,20 @@ environ.Env.read_env(os.path.join(BASE_DIR, ".env"))
 
 SECRET_KEY = env("SECRET_KEY")
 DEBUG = env("DEBUG")
+LAN_DEV_HOST = env("LAN_DEV_HOST", default="").strip()
+
+
+def _append_unique(target, values):
+    for value in values:
+        if value and value not in target:
+            target.append(value)
+
 
 ALLOWED_HOSTS = [
     "localhost",
     "127.0.0.1",
     "api.localhost",
+    "api-django",  # Docker internal service name for server-side RSC fetches
     "lxjshlcs-80.use2.devtunnels.ms",
     "lxjshlcs-8000.use2.devtunnels.ms",
 ]
@@ -29,6 +40,7 @@ INSTALLED_APPS = [
     "django_filters",
     "drf_spectacular",
     "core",
+    "gridstream",
 ]
 
 MIDDLEWARE = [
@@ -47,11 +59,8 @@ ROOT_URLCONF = "config.urls"
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:3000",
     "http://app.localhost",
-    "http://angular.localhost",
-    "http://vue.localhost",
-    "http://svelte.localhost",
+    "https://app.localhost",
     "https://lxjshlcs-3000.use2.devtunnels.ms",
-    "https://lxjshlcs-8000.use2.devtunnels.ms",
 ]
 
 CORS_ALLOW_ALL_ORIGINS = False
@@ -84,9 +93,18 @@ CSRF_TRUSTED_ORIGINS = [
     "http://localhost:3000",
     "http://app.localhost",
     "https://lxjshlcs-3000.use2.devtunnels.ms",
-    "https://lxjshlcs-80.use2.devtunnels.ms",
-    "https://lxjshlcs-8000.use2.devtunnels.ms",
 ]
+
+if LAN_DEV_HOST:
+    _append_unique(ALLOWED_HOSTS, [LAN_DEV_HOST])
+    _append_unique(
+        CORS_ALLOWED_ORIGINS,
+        [f"http://{LAN_DEV_HOST}:3000", f"http://{LAN_DEV_HOST}"],
+    )
+    _append_unique(
+        CSRF_TRUSTED_ORIGINS,
+        [f"http://{LAN_DEV_HOST}:3000", f"http://{LAN_DEV_HOST}"],
+    )
 
 TEMPLATES = [
     {
@@ -106,10 +124,36 @@ TEMPLATES = [
 
 WSGI_APPLICATION = "config.wsgi.application"
 
+# databases
+# default is atlas core app, nfl is the gridstream app plus raw nflverse plays
+
+NFL_DATABASE_URL = env("NFL_DATABASE_URL")
+NFL_DATABASE_V1_URL = env("NFL_DATABASE_V1_URL", default=NFL_DATABASE_URL)
+NFL_DATABASE_V2_URL = env(
+    "NFL_DATABASE_V2_URL",
+    default="postgresql://admin:password@pgbouncer-nfl-v2:5432/nfl_data_v2",
+)
+
 DATABASES = {
     "default": env.db(),
+    "nfl": env.db("NFL_DATABASE_URL"),
+    "nfl_v1": env.db("NFL_DATABASE_V1_URL", default=NFL_DATABASE_V1_URL),
+    "nfl_v2": env.db("NFL_DATABASE_V2_URL", default=NFL_DATABASE_V2_URL),
 }
-# DATABASES["nfl"] = env.db("NFL_DATABASE_URL", default="")
+
+# Auto-register additional NFL version aliases from env vars like:
+#   NFL_DATABASE_V3_URL=postgresql://...  -> DATABASES["nfl_v3"]
+#   NFL_DATABASE_V4_URL=postgresql://...  -> DATABASES["nfl_v4"]
+for env_key in sorted(os.environ):
+    match = re.match(r"^NFL_DATABASE_V([0-9]+)_URL$", env_key)
+    if not match:
+        continue
+    alias = f"nfl_v{match.group(1)}"
+    if alias in DATABASES:
+        continue
+    DATABASES[alias] = env.db(env_key)
+
+DATABASE_ROUTERS = ["gridstream.db_router.GridstreamRouter"]
 
 AUTH_PASSWORD_VALIDATORS = [
     {
@@ -140,13 +184,36 @@ REST_FRAMEWORK = {
 
 REDIS_URL = env("REDIS_URL", default="redis://localhost:6379/0")
 
+# Phase 5: strict canonical boxscore mode by default.
+# When true, /games/{id}/boxscore can derive a narrow fallback payload from
+# plays/player rows if canonical team stats or leaders are missing.
+GRIDSTREAM_BOXSCORE_RESILIENCE_MODE = env.bool(
+    "GRIDSTREAM_BOXSCORE_RESILIENCE_MODE", default=False
+)
+
+REDIS_URL = env("REDIS_URL", default="redis://localhost:6379/0")
+
+CELERY_BROKER_URL = env("CELERY_BROKER_URL", default=REDIS_URL)
+CELERY_RESULT_BACKEND = env("CELERY_RESULT_BACKEND", default=REDIS_URL)
+CELERY_ACCEPT_CONTENT = ["json"]
+CELERY_TASK_SERIALIZER = "json"
+CELERY_RESULT_SERIALIZER = "json"
+CELERY_TIMEZONE = TIME_ZONE
+CELERY_TASK_TRACK_STARTED = True
+CELERY_TASK_TIME_LIMIT = env.int("CELERY_TASK_TIME_LIMIT", default=21600)
+CELERY_TASK_SOFT_TIME_LIMIT = env.int("CELERY_TASK_SOFT_TIME_LIMIT", default=18000)
+CELERY_BROKER_CONNECTION_RETRY_ON_STARTUP = True
+
 MINIO_ENDPOINT = env("MINIO_ENDPOINT", default="localhost:9000")
+MINIO_PUBLIC_ENDPOINT = env("MINIO_PUBLIC_ENDPOINT", default=MINIO_ENDPOINT)
 MINIO_ACCESS_KEY = env("MINIO_ACCESS_KEY", default="atlas_admin")
 MINIO_SECRET_KEY = env("MINIO_SECRET_KEY", default="atlas_password")
 MINIO_USE_SSL = env.bool("MINIO_USE_SSL", default=False)
 
-if "test" in sys.argv:
+if "test" in sys.argv or "pytest" in sys.modules:
     db_host = "localhost" if os.getenv("CI") else "postgres-atlas"
+    nfl_db_host = "localhost" if os.getenv("CI") else "postgres-nfl"
+    nfl_db_port = "5433" if os.getenv("CI") else "5432"
 
     DATABASES = {
         "default": {
@@ -159,5 +226,17 @@ if "test" in sys.argv:
             "TEST": {
                 "NAME": "test_atlas_db",
             },
-        }
+        },
+        "nfl": {
+            "ENGINE": "django.db.backends.postgresql",
+            "NAME": "nfl_data",
+            "USER": "admin",
+            "PASSWORD": "password",
+            "HOST": nfl_db_host,
+            "PORT": nfl_db_port,
+            "TEST": {
+                "NAME": "test_nfl_data",
+                "DEPENDENCIES": [],
+            },
+        },
     }

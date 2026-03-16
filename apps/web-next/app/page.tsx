@@ -1,18 +1,17 @@
 'use client';
 
 import Link from 'next/link';
-import { useHighlightedCompetencies, useArtifacts } from '@/lib/hooks';
-import { buildHomePageProps } from '@atlas/ui/contracts';
-import { layout, typography, buttons, cards, badges, hero as heroStyles } from '@atlas/ui/styles';
+import { useHighlightedCompetencies, useArtifacts } from '@/app/lib/hooks';
+import { buildHomePageProps } from '@atlas/sdk/contracts';
+import { layout, typography } from '@atlas/ui/styles';
 import { CompetencyIcon } from '@/components/CompetencyIcon';
-import type { HeroProps, ApiMethodCardProps } from '@atlas/ui/contracts';
+import { StatusBar } from '@/components/StatusBar';
+import type { HeroProps, ApiMethodCardProps } from '@atlas/sdk/contracts';
 import type { CompetencyNode, Artifact } from '@atlas/types';
 
 export default function HomePage() {
   const props = buildHomePageProps();
-
   const { data: competencies, isLoading: competenciesLoading } = useHighlightedCompetencies();
-
   const { data: artifacts, isLoading: artifactsLoading } = useArtifacts();
 
   const highlightedSkills = competencies ?? [];
@@ -20,9 +19,11 @@ export default function HomePage() {
 
   return (
     <div className={layout.page}>
+      <StatusBar />
+
       <Hero {...props.hero} />
 
-      <section className={layout.sectionWithBorder}>
+      <section className="py-16 border-t border-white/5">
         <div className={layout.container}>
           <SectionHeader title={props.skillsSectionTitle} link={props.skillsSectionLink} />
           {competenciesLoading ? (
@@ -39,12 +40,10 @@ export default function HomePage() {
         </div>
       </section>
 
-      <section className={layout.sectionWithBorder}>
+      <section className="py-16 border-t border-white/5 relative">
+        <div className="absolute top-0 right-0 w-16 h-16 border-t border-r border-frontend/20 pointer-events-none" />
         <div className={layout.container}>
-          <SectionHeader
-            title="Recent Projects"
-            link={{ href: '/demos', label: 'View all demos →' }}
-          />
+          <SectionHeader title="Recent Projects" link={{ href: '/demos', label: 'View All →' }} />
           {artifactsLoading ? (
             <ProjectsGridSkeleton />
           ) : recentArtifacts.length > 0 ? (
@@ -59,9 +58,9 @@ export default function HomePage() {
         </div>
       </section>
 
-      <section className={layout.sectionAlt}>
+      <section className="py-16 border-t border-white/5 bg-atlas-panel/30 backdrop-blur-md">
         <div className={layout.container}>
-          <h2 className={`${typography.h2} mb-8`}>{props.apiSectionTitle}</h2>
+          <h2 className={`${typography.h2} mb-8 text-frontend`}>{props.apiSectionTitle}</h2>
           <div className={layout.grid4}>
             {props.apiMethods.map((method) => (
               <ApiMethodCard key={method.title} {...method} />
@@ -73,65 +72,229 @@ export default function HomePage() {
   );
 }
 
-// Hero (static content)
-
 function Hero({ greeting, headline, subhead, description, primaryCta, secondaryCta }: HeroProps) {
   return (
-    <section className={heroStyles.section}>
+    <section className="relative py-24 md:py-32 overflow-hidden">
+      {/* subtle radial glow */}
+      <div className="absolute top-1/2 left-[30%] -translate-x-1/2 -translate-y-1/2 w-[800px] h-[600px] bg-frontend/5 blur-[120px] rounded-full pointer-events-none" />
+
+      {/* corner registration marks */}
+      <div className="absolute top-10 right-10 w-12 h-12 border-t border-r border-frontend/15 pointer-events-none" />
+      <div className="absolute bottom-10 left-10 w-12 h-12 border-b border-l border-frontend/10 pointer-events-none" />
+
+      {/* coordinate text */}
+      <span className="absolute left-2 top-1/2 -translate-y-1/2 font-mono text-[9px] text-slate-600/20 tracking-[0.15em] [writing-mode:vertical-rl] pointer-events-none">
+        36.8529° N · 75.9780° W
+      </span>
+
       <div className={layout.container}>
-        <div className={heroStyles.content}>
-          <p className={heroStyles.greeting}>{greeting}</p>
-          <h1 className={heroStyles.headline}>
-            <span className={heroStyles.headlineGradient}>{headline}</span>
-            <br />
-            {subhead}
-          </h1>
-          <p className={heroStyles.description}>{description}</p>
-          <div className={heroStyles.ctaContainer}>
-            <Link href={primaryCta.href} className={buttons.primary}>
-              {primaryCta.label}
-            </Link>
-            <Link href={secondaryCta.href} className={buttons.secondary}>
-              {secondaryCta.label}
-            </Link>
+        <div className="grid lg:grid-cols-[1fr_380px] gap-16 items-start">
+          {/* left column */}
+          <div className="relative">
+            {/* top-left bracket */}
+            <div className="absolute -top-5 -left-5 w-10 h-10 border-t-2 border-l-2 border-frontend opacity-40 pointer-events-none" />
+
+            {/* designation line */}
+            <div className="flex items-center gap-3 mb-6">
+              <span className="w-10 h-0.5 bg-frontend" />
+              <span className={typography.designation}>{greeting}</span>
+            </div>
+
+            <h1 className="font-display text-5xl md:text-7xl font-bold mb-2 tracking-tight uppercase leading-[0.92] text-white">
+              {headline}
+            </h1>
+            <div className="font-display text-5xl md:text-7xl font-bold italic tracking-tight uppercase leading-[0.92] mb-8 text-transparent bg-clip-text bg-cosmic-metallic">
+              {subhead}
+            </div>
+
+            <p className="font-body text-lg text-slate-400 mb-10 leading-relaxed max-w-xl">
+              {description}
+            </p>
+
+            <div className="flex flex-wrap gap-4">
+              <Link
+                href={primaryCta.href}
+                className="inline-flex items-center gap-2.5 px-7 py-3.5 bg-cosmic-metallic shadow-metallic-edge text-atlas-darker font-display font-bold text-[13px] uppercase tracking-wide hover:brightness-110 transition-all hover:-translate-y-0.5 rounded-[3px]"
+              >
+                {primaryCta.label}
+                <svg
+                  className="w-3.5 h-3.5"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M5 12h14M12 5l7 7-7 7" />
+                </svg>
+              </Link>
+              <Link
+                href={secondaryCta.href}
+                className="inline-flex items-center px-7 py-3.5 border-2 border-frontend/30 text-frontend font-display font-semibold text-[13px] uppercase tracking-wide hover:bg-frontend/5 transition-all hover:-translate-y-0.5 rounded-[3px]"
+              >
+                {secondaryCta.label}
+              </Link>
+            </div>
           </div>
+
+          {/* right telemetry panel */}
+          <TelemetryPanel />
         </div>
       </div>
     </section>
   );
 }
 
+function TelemetryPanel() {
+  return (
+    <div className="border border-white/6 rounded bg-atlas-darker/60 backdrop-blur-xl overflow-hidden mt-5 hidden lg:block">
+      {/* header */}
+      <div className="flex items-center justify-between px-4 py-2.5 border-b border-white/6 bg-white/2">
+        <span className="font-mono text-[9px] font-bold text-slate-500 tracking-[0.2em] uppercase">
+          System Telemetry
+        </span>
+        <span className="flex items-center gap-1.5 font-mono text-[9px] text-emerald-500 tracking-wider">
+          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.6)] animate-[healthPulse_2s_ease-in-out_infinite]" />
+          Live
+        </span>
+      </div>
+
+      {/* portfolio */}
+      <TelemetryGroup label="Portfolio">
+        <TelemetryRow label="Competencies" value="47 mapped" highlight />
+        <TelemetryRow label="Project Demos" value="12 active" highlight />
+        <TelemetryRow label="Tech Stack" value="8 languages" />
+      </TelemetryGroup>
+
+      {/* gridstream */}
+      <TelemetryGroup label="Gridstream Platform">
+        <TelemetryRow label="Historical Plays" value="1,283,491" />
+        <TelemetryRow label="NFL Seasons" value="1999–2024" />
+        <TelemetryRow label="Django Models" value="22" />
+      </TelemetryGroup>
+
+      {/* infrastructure */}
+      <TelemetryGroup label="Infrastructure">
+        <TelemetryRow label="API Response" value="84ms p50" status="ok" />
+        <TelemetryRow label="WebSocket Hub" value="Connected" status="ok" />
+        <TelemetryRow label="Cache Hit Rate" value="94.2%" />
+        <TelemetryRow label="Uptime" value="99.7%" />
+      </TelemetryGroup>
+
+      {/* stack tags */}
+      <div className="px-4 py-3 border-t border-white/4 bg-white/1">
+        <div className="font-mono text-[8px] font-bold text-slate-600 tracking-[0.2em] uppercase mb-2">
+          Active Stack
+        </div>
+        <div className="flex flex-wrap gap-1">
+          {['Django', 'Next.js', 'Go', 'Rust'].map((t) => (
+            <span
+              key={t}
+              className="font-mono text-[9px] px-2 py-0.5 border border-frontend/30 rounded-sm text-frontend-light bg-frontend/5 tracking-wider"
+            >
+              {t}
+            </span>
+          ))}
+          {['PostgreSQL', 'Redis', 'Docker', 'C++'].map((t) => (
+            <span
+              key={t}
+              className="font-mono text-[9px] px-2 py-0.5 border border-white/6 rounded-sm text-slate-500 bg-white/2 tracking-wider"
+            >
+              {t}
+            </span>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function TelemetryGroup({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="border-b border-white/4">
+      <div className="px-4 pt-2 pb-1 font-mono text-[8px] font-bold text-slate-600 tracking-[0.2em] uppercase bg-white/1">
+        {label}
+      </div>
+      {children}
+    </div>
+  );
+}
+
+function TelemetryRow({
+  label,
+  value,
+  highlight,
+  status,
+}: {
+  label: string;
+  value: string;
+  highlight?: boolean;
+  status?: 'ok' | 'warn' | 'error';
+}) {
+  const valueColor =
+    status === 'ok' ? 'text-emerald-500' : highlight ? 'text-frontend-light' : 'text-slate-400';
+
+  return (
+    <div className="flex items-center justify-between px-4 py-1.5">
+      <span className="font-mono text-[10px] text-slate-500 tracking-wider">{label}</span>
+      <span className={`flex items-center gap-1.5 font-mono text-[11px] font-medium ${valueColor}`}>
+        {status && (
+          <span
+            className={`w-1 h-1 rounded-full ${status === 'ok' ? 'bg-emerald-500 shadow-[0_0_4px_rgba(16,185,129,0.6)]' : 'bg-red-500'}`}
+          />
+        )}
+        {value}
+      </span>
+    </div>
+  );
+}
+
 function SectionHeader({ title, link }: { title: string; link: { href: string; label: string } }) {
   return (
-    <div className={`${layout.flexBetween} mb-8`}>
-      <h2 className={typography.h2}>{title}</h2>
-      <Link href={link.href} className={`${typography.link} text-sm`}>
+    <div className={`${layout.flexBetween} mb-12`}>
+      <h2 className="font-display text-[28px] font-bold text-white uppercase tracking-tight relative pb-3">
+        {title}
+        <span className="absolute bottom-0 left-0 w-16 h-[3px] bg-gradient-to-r from-frontend to-transparent rounded" />
+      </h2>
+      <Link
+        href={link.href}
+        className="font-mono text-[10px] font-semibold text-frontend-light tracking-[0.15em] uppercase opacity-70 hover:opacity-100 transition-opacity"
+      >
         {link.label}
       </Link>
     </div>
   );
 }
 
-// Skill Card (from API data)
-
 function SkillCard({ skill }: { skill: CompetencyNode }) {
   return (
-    <Link href={`/atlas?skill=${skill.id}`} className={cards.baseHover}>
-      <div className="flex items-start gap-4 mb-3">
-        <div className="p-2 rounded-lg bg-slate-700/50 flex-shrink-0">
-          <CompetencyIcon id={skill.id} size={36} />
+    <Link
+      href={`/atlas?skill=${skill.id}`}
+      className="group relative p-6 bg-atlas-panel/40 backdrop-blur-sm border border-white/5 rounded hover:border-frontend/40 transition-all duration-300 overflow-hidden before:absolute before:top-0 before:left-0 before:right-0 before:h-[2px] before:bg-gradient-to-r before:from-transparent before:via-frontend before:to-transparent before:opacity-0 hover:before:opacity-100 hover:shadow-[0_8px_32px_rgba(0,0,0,0.2),0_0_20px_rgba(217,119,54,0.08)]"
+    >
+      <div className="flex items-start gap-4 mb-4">
+        <div className="p-3 rounded-lg bg-atlas-dark border border-white/8 group-hover:border-frontend/40 transition-all">
+          <CompetencyIcon id={skill.id} size={32} />
         </div>
         <div className="flex-1 min-w-0">
-          <div className="flex items-start justify-between gap-2 mb-1">
-            <h3 className={`${typography.h4} leading-tight`}>{skill.name}</h3>
-            <span className={`${badges.tech} text-xs flex-shrink-0`}>{skill.category.name}</span>
-          </div>
-          <p className={`${typography.bodySmall} line-clamp-2`}>{skill.summary}</p>
+          <h3 className="font-display text-base font-bold text-white uppercase tracking-tight group-hover:text-frontend transition-colors leading-tight">
+            {skill.name}
+          </h3>
+          <span className="font-mono text-[9px] text-frontend/50 tracking-[0.15em] uppercase">
+            {skill.category.name}
+          </span>
         </div>
       </div>
-      <div className="flex flex-wrap gap-1">
+      <p className="text-slate-500 text-sm leading-relaxed mb-4 line-clamp-2 italic">
+        {skill.summary}
+      </p>
+      <div className="flex flex-wrap gap-1.5">
         {skill.tags.slice(0, 3).map((tag) => (
-          <span key={tag} className={`${badges.neutral} text-xs`}>
+          <span
+            key={tag}
+            className="font-mono text-[9px] px-2 py-0.5 border border-white/6 text-slate-600 uppercase tracking-wider"
+          >
             {tag}
           </span>
         ))}
@@ -141,67 +304,52 @@ function SkillCard({ skill }: { skill: CompetencyNode }) {
 }
 
 function ProjectCard({ artifact }: { artifact: Artifact }) {
-  const statusBadge = {
-    complete: badges.success,
-    'in-progress': badges.warning,
-    planned: badges.neutral,
-  }[artifact.status];
-
-  const statusLabel = {
-    complete: 'Complete',
-    'in-progress': 'In Progress',
-    planned: 'Planned',
-  }[artifact.status];
-
   const primaryCompetency = artifact.competencies.find((c) => c.role === 'primary');
-
   return (
-    <Link href={`/demos/${artifact.id}`} className={cards.baseHover}>
-      <div className="flex items-start gap-4 mb-3">
-        {primaryCompetency && (
-          <div className="p-2 rounded-lg bg-slate-700/50 flex-shrink-0">
-            <CompetencyIcon id={primaryCompetency.id} size={32} />
-          </div>
-        )}
-        <div className="flex-1 min-w-0">
-          <div className="flex items-start justify-between gap-2 mb-1">
-            <h3 className={`${typography.h4} leading-tight`}>{artifact.title}</h3>
-            <span className={`${statusBadge} flex-shrink-0`}>{statusLabel}</span>
-          </div>
-          <p className={`${typography.bodySmall} line-clamp-2`}>{artifact.description}</p>
+    <Link
+      href={`/demos/${artifact.id}`}
+      className="group flex flex-col md:flex-row bg-atlas-panel/40 backdrop-blur-sm border-l-4 border-frontend/80 overflow-hidden hover:bg-atlas-panel/60 transition-all"
+    >
+      <div className="p-6 flex-1">
+        <div className="flex justify-between items-start mb-2">
+          <h3 className="font-display text-xl font-bold text-white uppercase tracking-tight group-hover:text-frontend transition-colors">
+            {artifact.title}
+          </h3>
+          <span className="font-mono text-[10px] px-2 py-1 bg-slate-900 text-frontend/70 border border-white/5 uppercase">
+            {artifact.status}
+          </span>
+        </div>
+        <p className="text-slate-400 text-sm mb-6 line-clamp-2 italic">{artifact.description}</p>
+        <div className="flex flex-wrap gap-1.5">
+          {artifact.tech_stack.slice(0, 4).map((tech) => (
+            <span
+              key={tech}
+              className="font-mono text-[10px] font-semibold text-slate-400 uppercase bg-slate-900/50 px-2 py-1 border border-white/5"
+            >
+              {tech}
+            </span>
+          ))}
         </div>
       </div>
-      <div className="flex flex-wrap gap-1">
-        {artifact.tech_stack.slice(0, 4).map((tech) => (
-          <span key={tech} className={badges.tech}>
-            {tech}
-          </span>
-        ))}
+      <div className="md:w-32 bg-frontend/5 flex items-center justify-center border-l border-white/5 group-hover:bg-cosmic-metallic group-hover:text-white transition-all">
+        {primaryCompetency && <CompetencyIcon id={primaryCompetency.id} size={48} />}
       </div>
     </Link>
   );
 }
 
 function ApiMethodCard({ title, description, status }: ApiMethodCardProps) {
-  const statusBadge = {
-    active: badges.success,
-    building: badges.warning,
-    planned: badges.neutral,
-  }[status];
-
-  const statusLabel = {
-    active: 'Live',
-    building: 'Building',
-    planned: 'Planned',
-  }[status];
-
   return (
-    <div className={cards.onDark}>
-      <div className={`${layout.flexBetween} mb-2`}>
-        <h3 className={typography.h4}>{title}</h3>
-        <span className={statusBadge}>{statusLabel}</span>
+    <div className="p-5 bg-atlas-dark border border-white/5 hover:border-frontend/30 transition-colors rounded-sm">
+      <div className="flex justify-between items-center mb-4">
+        <h3 className="font-mono text-xs font-bold text-frontend/80 tracking-widest uppercase">
+          {title}
+        </h3>
+        <div
+          className={`w-2 h-2 rounded-full ${status === 'active' ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]' : 'bg-slate-700'}`}
+        />
       </div>
-      <p className={typography.bodySmall}>{description}</p>
+      <p className="text-slate-500 text-xs leading-relaxed">{description}</p>
     </div>
   );
 }
@@ -210,16 +358,10 @@ function SkillsGridSkeleton() {
   return (
     <div className={layout.grid3}>
       {[...Array(6)].map((_, i) => (
-        <div key={i} className={`${cards.base} animate-pulse`}>
-          <div className="flex items-start gap-4 mb-3">
-            <div className="w-14 h-14 bg-slate-700 rounded-lg flex-shrink-0" />
-            <div className="flex-1">
-              <div className="h-5 bg-slate-700 rounded w-2/3 mb-2" />
-              <div className="h-4 bg-slate-700 rounded w-full" />
-            </div>
-          </div>
-          <div className="h-4 bg-slate-700 rounded w-4/5" />
-        </div>
+        <div
+          key={i}
+          className="p-6 bg-atlas-panel/40 border border-white/5 animate-pulse h-48 rounded"
+        />
       ))}
     </div>
   );
@@ -229,19 +371,7 @@ function ProjectsGridSkeleton() {
   return (
     <div className={layout.grid2}>
       {[...Array(4)].map((_, i) => (
-        <div key={i} className={`${cards.base} animate-pulse`}>
-          <div className="flex items-start gap-4 mb-3">
-            <div className="w-12 h-12 bg-slate-700 rounded-lg flex-shrink-0" />
-            <div className="flex-1">
-              <div className="h-5 bg-slate-700 rounded w-2/3 mb-2" />
-              <div className="h-4 bg-slate-700 rounded w-full" />
-            </div>
-          </div>
-          <div className="flex gap-2">
-            <div className="h-6 bg-slate-700 rounded w-16" />
-            <div className="h-6 bg-slate-700 rounded w-16" />
-          </div>
-        </div>
+        <div key={i} className="h-40 bg-atlas-panel/40 border-l-4 border-white/5 animate-pulse" />
       ))}
     </div>
   );
@@ -249,8 +379,8 @@ function ProjectsGridSkeleton() {
 
 function EmptyState({ message }: { message: string }) {
   return (
-    <div className={`${cards.base} text-center py-12`}>
-      <p className={typography.bodyMuted}>{message}</p>
+    <div className="text-center py-20 border-2 border-dashed border-white/5 rounded-lg">
+      <p className="font-mono text-slate-600 text-sm uppercase tracking-widest">{message}</p>
     </div>
   );
 }

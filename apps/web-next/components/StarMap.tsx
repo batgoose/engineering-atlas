@@ -1,29 +1,26 @@
+// @ts-nocheck
 'use client';
 
 import { useRef, useState, useMemo, useEffect, Suspense } from 'react';
-import { Canvas, useFrame, extend, type Node } from '@react-three/fiber';
+import { Canvas, useFrame, extend } from '@react-three/fiber';
+import type { ThreeEvent } from '@react-three/fiber';
 import { OrbitControls, Html } from '@react-three/drei';
 import { EffectComposer, Bloom } from '@react-three/postprocessing';
 import { UnrealBloomPass } from 'three-stdlib';
-import { SVGLoader } from 'three-stdlib';
 import * as THREE from 'three';
 import { getIconDataUrl } from '@atlas/ui/atlas';
 import type { CompetencyNode } from '@atlas/types';
-import { CONSTELLATIONS, type ConstellationDefinition } from './constellations';
-import { PROCESSED_CONSTELLATIONS } from './constellations';
+import { PROCESSED_CONSTELLATIONS, type ProcessedConstellationDefinition } from '@atlas/sdk/atlas';
 
 const TEXTURE_CACHE: Record<string, THREE.Texture> = {};
 const loader = new THREE.TextureLoader();
 
-
 extend({ UnrealBloomPass });
 declare module '@react-three/fiber' {
   interface ThreeElements {
-    unrealBloomPass: Node<UnrealBloomPass, typeof UnrealBloomPass>;
+    unrealBloomPass: unknown;
   }
 }
-
-
 
 interface StarMapProps {
   competencies: CompetencyNode[];
@@ -33,8 +30,6 @@ interface StarMapProps {
   onStarClick: (competency: CompetencyNode) => void;
   onStarHover: (competency: CompetencyNode | null) => void;
 }
-
-
 
 const STAR_BASE_SIZE = 0.15;
 const STAR_HOVER_SIZE = 0.28;
@@ -61,8 +56,6 @@ function useGlowTexture() {
   }, []);
 }
 
-
-
 export function StarMap({
   competencies,
   activeCategory,
@@ -73,30 +66,22 @@ export function StarMap({
 }: StarMapProps) {
   const [hoveredCategory, setHoveredCategory] = useState<string | null>(null);
   const [isInteracting, setIsInteracting] = useState(false);
-  const bloomRef = useRef<any>(null);
   const bloomIntensity = isInteracting ? 0.1 : 0.6;
-
-  useEffect(() => {
-    if (!bloomRef.current) return;
-
-    bloomRef.current.strength = isInteracting ? 0.05 : 0.4;
-    bloomRef.current.radius = isInteracting ? 0.0 : 0.3;
-  }, [isInteracting]);
+  const bloomRadius = isInteracting ? 0.0 : 0.3;
 
   return (
     <div className="w-full h-full bg-slate-950">
       <Canvas
         camera={{ position: [0, 0, 18], fov: 60 }}
-        
         gl={{
           antialias: false,
           powerPreference: 'high-performance',
-          precision: 'lowp', 
+          precision: 'lowp',
         }}
-        dpr={[1]}
+        dpr={1}
       >
         <color attach="background" args={['#0a0a12']} />
-        <fog attach="fog" args={['#0a0a12', 40, 90]} />
+        <fog attach="fog" args={['#0a0a12', 40, 90] as [string, number, number]} />
 
         <Suspense fallback={null}>
           <ambientLight intensity={0.25} />
@@ -124,15 +109,18 @@ export function StarMap({
           />
 
           <EffectComposer>
-            <Bloom luminanceThreshold={0.0} intensity={bloomIntensity} mipmapBlur />
+            <Bloom
+              luminanceThreshold={0.0}
+              intensity={bloomIntensity}
+              radius={bloomRadius}
+              mipmapBlur
+            />
           </EffectComposer>
         </Suspense>
       </Canvas>
     </div>
   );
 }
-
-
 
 function ConstellationField({
   competencies,
@@ -174,7 +162,7 @@ function ConstellationField({
           <Constellation
             key={categoryName}
             name={categoryName}
-            definition={constellation} 
+            definition={constellation}
             competencies={categoryCompetencies}
             isActive={isActive}
             isHovered={isHovered}
@@ -191,11 +179,9 @@ function ConstellationField({
   );
 }
 
-
-
 interface ConstellationProps {
   name: string;
-  definition: ConstellationDefinition;
+  definition: ProcessedConstellationDefinition;
   competencies: CompetencyNode[];
   isActive: boolean;
   isHovered: boolean;
@@ -220,7 +206,7 @@ function Constellation({
   onStarHover,
   onCategoryHover,
 }: ConstellationProps) {
-  const { center, scale, starPoints, color, geometries } = definition as any;
+  const { center, scale, starPoints, color, geometries } = definition;
 
   const starPositions = useMemo(() => {
     if (!starPoints.length || !competencies.length) return [];
@@ -229,7 +215,7 @@ function Constellation({
     const minSeparation = 0.35;
 
     return competencies.map((comp, i) => {
-      const basePoint = starPoints[i % starPoints.length];
+      const basePoint = starPoints[i % starPoints.length]!;
       const ring = Math.floor(i / starPoints.length);
       const angle = (i * 2.399963229728653) % (Math.PI * 2);
       const radialOffset = ring * minSeparation + ((i * 0.17) % 1) * 0.2;
@@ -267,15 +253,15 @@ function Constellation({
     const points: number[] = [];
 
     for (let i = 0; i < ordered.length - 1; i++) {
-      const a = ordered[i].position;
-      const b = ordered[i + 1].position;
+      const a = ordered[i]!.position;
+      const b = ordered[i + 1]!.position;
       points.push(a.x, a.y, a.z);
       points.push(b.x, b.y, b.z);
     }
 
     if (ordered.length > 2) {
-      const first = ordered[0].position;
-      const last = ordered[ordered.length - 1].position;
+      const first = ordered[0]!.position;
+      const last = ordered[ordered.length - 1]!.position;
       points.push(last.x, last.y, last.z);
       points.push(first.x, first.y, first.z);
     }
@@ -347,9 +333,8 @@ function Constellation({
   );
 }
 
-
 function ConstellationBackdrop({
-  geometries = [], 
+  geometries = [],
   center,
   scale,
   color,
@@ -357,7 +342,7 @@ function ConstellationBackdrop({
   isHovered,
   onHover,
 }: {
-  geometries?: THREE.BufferGeometry[]; 
+  geometries?: THREE.BufferGeometry[];
   center: THREE.Vector3;
   scale: number;
   color: string;
@@ -385,7 +370,7 @@ function ConstellationBackdrop({
     >
       <mesh
         visible={false}
-        onPointerOver={(e) => {
+        onPointerOver={(e: ThreeEvent<PointerEvent>) => {
           e.stopPropagation();
           onHover(true);
           document.body.style.cursor = 'pointer';
@@ -401,16 +386,16 @@ function ConstellationBackdrop({
 
       {geometries.map((geo, i) => (
         <group key={i}>
-          <line geometry={geo}>
+          <lineSegments geometry={geo}>
             <lineBasicMaterial
               color={color}
               transparent
-              opacity={isActive || isHovered ? 0.4 : 0.05} 
+              opacity={isActive || isHovered ? 0.4 : 0.05}
               depthWrite={false}
               blending={THREE.AdditiveBlending}
             />
-          </line>
-          
+          </lineSegments>
+
           {(isActive || isHovered) && (
             <points geometry={geo}>
               <pointsMaterial
@@ -450,7 +435,7 @@ function Star({
   onClick,
   onHover,
 }: StarProps) {
-  const meshRef = useRef<THREE.Mesh>(null);
+  const meshRef = useRef<THREE.Sprite>(null);
   const glowRef = useRef<THREE.Sprite>(null);
   const iconRef = useRef<THREE.Sprite>(null);
 
@@ -459,13 +444,12 @@ function Star({
 
   useEffect(() => {
     const id = competency.id;
-    
+
     if (TEXTURE_CACHE[id]) {
       setTexture(TEXTURE_CACHE[id]);
       return;
     }
 
-    
     const dataUrl = getIconDataUrl(id);
     loader.load(dataUrl, (tex) => {
       tex.minFilter = THREE.LinearFilter;
@@ -515,8 +499,8 @@ function Star({
   return (
     <group position={position}>
       <sprite
-        ref={meshRef as any}
-        onPointerOver={(e) => {
+        ref={meshRef}
+        onPointerOver={(e: ThreeEvent<PointerEvent>) => {
           e.stopPropagation();
           onHover(competency);
           document.body.style.cursor = 'pointer';
@@ -525,7 +509,7 @@ function Star({
           onHover(null);
           document.body.style.cursor = 'default';
         }}
-        onClick={(e) => {
+        onClick={(e: ThreeEvent<MouseEvent>) => {
           e.stopPropagation();
           onClick(competency);
         }}

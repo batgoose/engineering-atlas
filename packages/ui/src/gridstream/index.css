@@ -1,0 +1,22 @@
+/**
+ * Gridstream HUD stylesheet — single import for any host app.
+ *
+ * Import order matters: tokens must precede animations (keyframes reference
+ * no tokens, but keeps load order predictable) and base classes depend on
+ * both token variables and keyframe names.
+ *
+ * Usage in Next.js (app/layout.tsx):
+ *   import '@atlas/ui/gridstream';
+ *
+ * Usage in plain HTML:
+ *   <link rel="stylesheet" href="node_modules/@atlas/ui/src/gridstream/index.css">
+ *
+ * @see tokens.css      — CSS custom properties (--gs-*)
+ * @see animations.css  — @keyframes definitions
+ * @see base.css        — shared HUD component classes
+ */
+
+@import './tokens.css';
+@import './animations.css';
+@import './base.css';
+@import './players.css';

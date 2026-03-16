@@ -2,8 +2,12 @@ node_modules/
 .turbo/
 dist/
 .next/
+*.tsbuildinfo
+**/*.tsbuildinfo
 
 __pycache__/
+.pytest_cache/
+**/.pytest_cache/
 *.py[cod]
 *$py.class
 .venv/
@@ -21,7 +25,22 @@ target/
 
 .vscode/
 .idea/
+.idea/
 
 .terraform/
 *.tfstate
 *.tfstate.backup
+
+bin/
+main
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+.claude/
+docs/*
+localtmp/
+tmp/
+apps/api-django/localtmp/
+apps/api-django/tmp/

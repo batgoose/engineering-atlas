@@ -32,8 +32,8 @@ describe('BRAND_COLORS', () => {
 
   it('all colors are valid hex codes', () => {
     const hexColorRegex = /^#[0-9a-f]{6}$/i;
-    
-    Object.entries(BRAND_COLORS).forEach(([name, color]) => {
+
+    Object.entries(BRAND_COLORS).forEach(([_name, color]) => {
       expect(color).toMatch(hexColorRegex);
     });
   });
@@ -44,7 +44,7 @@ describe('BRAND_COLORS', () => {
   });
 
   it('all color names are strings', () => {
-    Object.keys(BRAND_COLORS).forEach(name => {
+    Object.keys(BRAND_COLORS).forEach((name) => {
       expect(typeof name).toBe('string');
       expect(name.length).toBeGreaterThan(0);
     });

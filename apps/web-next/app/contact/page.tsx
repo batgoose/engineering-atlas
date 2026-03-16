@@ -1,4 +1,4 @@
-import { buildContactPageProps } from '@atlas/ui/contracts';
+import { buildContactPageProps } from '@atlas/sdk/contracts';
 import {
   layout,
   typography,
