@@ -400,6 +400,76 @@
   animation-play-state: paused !important;
 }
 
+/* ── Hub module navigation tabs ──────────────────────────────────
+ *
+ * .hub-nav-strip — wrapper div: amber top accent, bottom rule.
+ * .hub-nav-tab   — individual link item, equal-width flex children.
+ */
+
+.hub-nav-strip {
+  display: flex;
+  border-top: 2px solid var(--gs-amber);
+  border-bottom: 1px solid rgba(0, 229, 255, 0.14);
+  background: rgba(4, 10, 20, 0.92);
+}
+
+.hub-nav-tab {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 18px 10px;
+  border-right: 1px solid rgba(0, 229, 255, 0.09);
+  color: rgba(230, 242, 255, 0.92);
+  font-family: var(--gs-font-display);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  text-align: center;
+  text-decoration: none;
+  position: relative;
+  text-shadow: 0 0 20px rgba(0, 229, 255, 0.12);
+  transition:
+    color 0.15s,
+    background 0.15s;
+}
+
+.hub-nav-tab:last-child {
+  border-right: none;
+}
+
+/* Cyan bottom underline — scales in on hover */
+.hub-nav-tab::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 15%;
+  right: 15%;
+  height: 2px;
+  background: var(--gs-cyan);
+  transform: scaleX(0);
+  transition: transform 0.15s ease;
+}
+
+.hub-nav-tab:hover {
+  color: var(--gs-cyan);
+  background: rgba(0, 229, 255, 0.04);
+}
+
+.hub-nav-tab:hover::after {
+  transform: scaleX(1);
+}
+
+.hub-nav-tab-badge {
+  font-family: var(--gs-font-mono);
+  font-size: 9px;
+  font-weight: 400;
+  letter-spacing: 0.04em;
+  color: rgba(90, 122, 144, 0.9);
+  text-transform: none;
+}
+
 /* ── Mobile responsive overrides (≤ 639px) ──────────────────────── */
 
 @media (max-width: 639px) {
