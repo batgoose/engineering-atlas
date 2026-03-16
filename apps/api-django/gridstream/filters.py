@@ -520,7 +520,7 @@ class PlayerTransactionFilter(django_filters.FilterSet):
             "DL": ["DL", "DE", "DT", "NT"],
             "DB": ["DB", "CB", "S", "SS", "FS"],
             "LB": ["LB", "ILB", "OLB", "MLB"],
-            "K":  ["K", "P"],
+            "K": ["K", "P"],
         }
         positions = _groups.get(pos, [pos])
         return queryset.filter(player__position__in=positions)

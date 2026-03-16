@@ -79,17 +79,15 @@ function TeamDropdown({
   }, []);
 
   function toggle(abbr: string) {
-    onChange(
-      selected.includes(abbr) ? selected.filter((a) => a !== abbr) : [...selected, abbr]
-    );
+    onChange(selected.includes(abbr) ? selected.filter((a) => a !== abbr) : [...selected, abbr]);
   }
 
   const label =
     selected.length === 0
       ? 'All Teams'
       : selected.length === 1
-      ? selected[0]
-      : `${selected.length} teams`;
+        ? selected[0]
+        : `${selected.length} teams`;
 
   return (
     <div ref={ref} style={{ position: 'relative' }}>
@@ -183,7 +181,9 @@ function TeamDropdown({
                   height={18}
                   style={{ objectFit: 'contain', flexShrink: 0 }}
                 />
-                <span style={{ fontWeight: 700, flexShrink: 0, width: '30px' }}>{t.abbreviation}</span>
+                <span style={{ fontWeight: 700, flexShrink: 0, width: '30px' }}>
+                  {t.abbreviation}
+                </span>
                 <span
                   style={{
                     color: 'var(--gs-text-dim)',
@@ -195,7 +195,9 @@ function TeamDropdown({
                 >
                   {t.display_name}
                 </span>
-                {checked && <span style={{ marginLeft: 'auto', fontSize: '10px', flexShrink: 0 }}>✓</span>}
+                {checked && (
+                  <span style={{ marginLeft: 'auto', fontSize: '10px', flexShrink: 0 }}>✓</span>
+                )}
               </button>
             );
           })}
@@ -229,10 +231,20 @@ function NewsCard({ article, onOpen }: { article: NewsArticle; onOpen: (a: NewsA
           <img
             src={article.image_url}
             alt={article.headline}
-            style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'center 20%', display: 'block' }}
+            style={{
+              width: '100%',
+              height: '100%',
+              objectFit: 'cover',
+              objectPosition: 'center 20%',
+              display: 'block',
+            }}
           />
           <div
-            style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to top, rgba(10,16,32,0.65) 0%, transparent 60%)' }}
+            style={{
+              position: 'absolute',
+              inset: 0,
+              background: 'linear-gradient(to top, rgba(10,16,32,0.65) 0%, transparent 60%)',
+            }}
           />
           <div style={{ position: 'absolute', top: '10px', left: '10px' }}>
             <SourceBadge source={article.source} />
@@ -240,17 +252,37 @@ function NewsCard({ article, onOpen }: { article: NewsArticle; onOpen: (a: NewsA
         </div>
       )}
 
-      <div style={{ padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: '7px', flex: 1 }}>
+      <div
+        style={{
+          padding: '12px 14px',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '7px',
+          flex: 1,
+        }}
+      >
         {!article.image_url && (
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
             <SourceBadge source={article.source} />
-            <span style={{ fontFamily: 'var(--gs-font-mono)', fontSize: '9px', color: 'var(--gs-text-muted)' }}>
+            <span
+              style={{
+                fontFamily: 'var(--gs-font-mono)',
+                fontSize: '9px',
+                color: 'var(--gs-text-muted)',
+              }}
+            >
               {timeAgo(article.published_at)}
             </span>
           </div>
         )}
         {article.image_url && (
-          <span style={{ fontFamily: 'var(--gs-font-mono)', fontSize: '9px', color: 'var(--gs-text-muted)' }}>
+          <span
+            style={{
+              fontFamily: 'var(--gs-font-mono)',
+              fontSize: '9px',
+              color: 'var(--gs-text-muted)',
+            }}
+          >
             {timeAgo(article.published_at)}
           </span>
         )}
@@ -290,11 +322,26 @@ function NewsCard({ article, onOpen }: { article: NewsArticle; onOpen: (a: NewsA
         )}
 
         {(article.team_abbrs.length > 0 || article.player_names.length > 0) && (
-          <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap', marginTop: 'auto', paddingTop: '4px' }}>
+          <div
+            style={{
+              display: 'flex',
+              gap: '4px',
+              flexWrap: 'wrap',
+              marginTop: 'auto',
+              paddingTop: '4px',
+            }}
+          >
             {article.team_abbrs.map((a) => (
               <span
                 key={a}
-                style={{ fontFamily: 'var(--gs-font-mono)', fontSize: '9px', color: 'var(--gs-cyan-dim)', border: '1px solid var(--gs-cyan-border)', padding: '1px 5px', borderRadius: '2px' }}
+                style={{
+                  fontFamily: 'var(--gs-font-mono)',
+                  fontSize: '9px',
+                  color: 'var(--gs-cyan-dim)',
+                  border: '1px solid var(--gs-cyan-border)',
+                  padding: '1px 5px',
+                  borderRadius: '2px',
+                }}
               >
                 {a}
               </span>
@@ -302,7 +349,14 @@ function NewsCard({ article, onOpen }: { article: NewsArticle; onOpen: (a: NewsA
             {article.player_names.slice(0, 3).map((n) => (
               <span
                 key={n}
-                style={{ fontFamily: 'var(--gs-font-mono)', fontSize: '9px', color: 'var(--gs-amber)', border: '1px solid rgba(255,182,18,0.3)', padding: '1px 5px', borderRadius: '2px' }}
+                style={{
+                  fontFamily: 'var(--gs-font-mono)',
+                  fontSize: '9px',
+                  color: 'var(--gs-amber)',
+                  border: '1px solid rgba(255,182,18,0.3)',
+                  padding: '1px 5px',
+                  borderRadius: '2px',
+                }}
               >
                 {n}
               </span>
@@ -364,7 +418,7 @@ export default function NewsPage() {
         const res = await fetch(`${API_BASE}/news/articles/?${buildParams(offset)}`);
         if (!res.ok) throw new Error(res.statusText);
         const data = await res.json();
-        const items: NewsArticle[] = Array.isArray(data) ? data : data.results ?? [];
+        const items: NewsArticle[] = Array.isArray(data) ? data : (data.results ?? []);
         setArticles((prev) => (append ? [...prev, ...items] : items));
         setHasMore(items.length === PAGE_SIZE);
       } catch {
@@ -386,13 +440,22 @@ export default function NewsPage() {
   const handleTeamsChange = (abbrs: string[]) => setSelectedTeams(abbrs);
 
   return (
-    <div style={{ minHeight: '100vh', background: 'var(--gs-bg)', color: 'var(--gs-text)', paddingBottom: '48px' }}>
+    <div
+      style={{
+        minHeight: '100vh',
+        background: 'var(--gs-bg)',
+        color: 'var(--gs-text)',
+        paddingBottom: '48px',
+      }}
+    >
       {selected && <ArticleModal article={selected} onClose={() => setSelected(null)} />}
 
       {/* Page header */}
       <div style={{ borderBottom: '1px solid var(--gs-cyan-border)', padding: '20px 32px 0' }}>
         <div style={{ display: 'flex', alignItems: 'flex-end', gap: '24px', flexWrap: 'wrap' }}>
-          <div style={{ display: 'flex', alignItems: 'baseline', gap: '12px', paddingBottom: '16px' }}>
+          <div
+            style={{ display: 'flex', alignItems: 'baseline', gap: '12px', paddingBottom: '16px' }}
+          >
             <Link
               href="/gridstream"
               style={{
@@ -437,7 +500,8 @@ export default function NewsPage() {
                   height: '36px',
                   background: 'none',
                   border: 'none',
-                  borderBottom: source === key ? '2px solid var(--gs-cyan)' : '2px solid transparent',
+                  borderBottom:
+                    source === key ? '2px solid var(--gs-cyan)' : '2px solid transparent',
                   color: source === key ? 'var(--gs-cyan)' : 'rgba(180,220,235,0.65)',
                   cursor: 'pointer',
                   whiteSpace: 'nowrap',
@@ -525,7 +589,10 @@ export default function NewsPage() {
         {/* Active filter summary */}
         {(selectedTeams.length > 0 || debouncedSearch) && (
           <button
-            onClick={() => { setSelectedTeams([]); setSearch(''); }}
+            onClick={() => {
+              setSelectedTeams([]);
+              setSearch('');
+            }}
             style={{
               fontFamily: 'var(--gs-font-mono)',
               fontSize: '10px',

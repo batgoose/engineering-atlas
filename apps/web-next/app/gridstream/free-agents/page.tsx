@@ -7,7 +7,9 @@ import type { TransactionItem } from '@/components/gridstream/TransactionTicker'
 
 const API_BASE =
   typeof window !== 'undefined'
-    ? (process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000/api').replace(/\/$/, '').replace(/\/api(\/gridstream)?$/, '') + '/api/gridstream'
+    ? (process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000/api')
+        .replace(/\/$/, '')
+        .replace(/\/api(\/gridstream)?$/, '') + '/api/gridstream'
     : 'http://localhost:8000/api/gridstream';
 
 const TX_TYPES = [
@@ -47,16 +49,27 @@ const TYPE_COLORS: Record<string, string> = {
 };
 
 const POS_COLORS: Record<string, string> = {
-  QB: '#60a5fa', RB: '#34d399', WR: '#a78bfa', TE: '#fbbf24',
-  OL: '#94a3b8', DL: '#f87171', LB: '#fb923c', DB: '#38bdf8',
-  K: '#e879f9', P: '#e879f9',
+  QB: '#60a5fa',
+  RB: '#34d399',
+  WR: '#a78bfa',
+  TE: '#fbbf24',
+  OL: '#94a3b8',
+  DL: '#f87171',
+  LB: '#fb923c',
+  DB: '#38bdf8',
+  K: '#e879f9',
+  P: '#e879f9',
 };
 
 const PAGE_SIZE = 50;
 
 function posGroup(pos: string | null): string {
   if (!pos) return '';
-  if ((pos.startsWith('O') || pos === 'T' || pos === 'G' || pos === 'C' || pos === 'LS') && pos !== 'OLB') return 'OL';
+  if (
+    (pos.startsWith('O') || pos === 'T' || pos === 'G' || pos === 'C' || pos === 'LS') &&
+    pos !== 'OLB'
+  )
+    return 'OL';
   if (pos.startsWith('D') && pos.length > 1 && pos !== 'DB') return 'DL';
   if (pos === 'CB' || pos === 'SS' || pos === 'FS' || pos === 'S') return 'DB';
   if (pos === 'ILB' || pos === 'OLB' || pos === 'MLB') return 'LB';
@@ -118,13 +131,26 @@ export default function FreeAgentsPage() {
     fetchTransactions(txType, position, page);
   }, [txType, position, page, fetchTransactions]);
 
-  const handleTypeChange = (t: string) => { setTxType(t); setPage(1); };
-  const handlePosChange = (p: string) => { setPosition(p); setPage(1); };
+  const handleTypeChange = (t: string) => {
+    setTxType(t);
+    setPage(1);
+  };
+  const handlePosChange = (p: string) => {
+    setPosition(p);
+    setPage(1);
+  };
 
   const totalPages = Math.ceil(total / PAGE_SIZE);
 
   return (
-    <div style={{ minHeight: '100vh', background: 'var(--gs-bg)', color: 'var(--gs-text)', paddingBottom: '48px' }}>
+    <div
+      style={{
+        minHeight: '100vh',
+        background: 'var(--gs-bg)',
+        color: 'var(--gs-text)',
+        paddingBottom: '48px',
+      }}
+    >
       {/* Player drawer */}
       <PlayerQuickViewDrawer
         apiBase={API_BASE}
@@ -163,7 +189,13 @@ export default function FreeAgentsPage() {
             Free Agent Tracker
           </span>
           {!loading && (
-            <span style={{ fontFamily: 'var(--gs-font-mono)', fontSize: '11px', color: 'var(--gs-text-muted)' }}>
+            <span
+              style={{
+                fontFamily: 'var(--gs-font-mono)',
+                fontSize: '11px',
+                color: 'var(--gs-text-muted)',
+              }}
+            >
               {total.toLocaleString()} transactions
             </span>
           )}
@@ -211,7 +243,16 @@ export default function FreeAgentsPage() {
           flexWrap: 'wrap',
         }}
       >
-        <span style={{ fontFamily: 'var(--gs-font-mono)', fontSize: '9px', color: 'var(--gs-text-muted)', textTransform: 'uppercase', letterSpacing: '0.1em', marginRight: '4px' }}>
+        <span
+          style={{
+            fontFamily: 'var(--gs-font-mono)',
+            fontSize: '9px',
+            color: 'var(--gs-text-muted)',
+            textTransform: 'uppercase',
+            letterSpacing: '0.1em',
+            marginRight: '4px',
+          }}
+        >
           Position:
         </span>
         {POSITIONS.map(({ key, label }) => (
@@ -239,11 +280,27 @@ export default function FreeAgentsPage() {
       {/* Transaction list */}
       <div style={{ padding: '0 32px' }}>
         {loading ? (
-          <div style={{ padding: '48px 0', textAlign: 'center', fontFamily: 'var(--gs-font-mono)', fontSize: '12px', color: 'var(--gs-text-muted)' }}>
+          <div
+            style={{
+              padding: '48px 0',
+              textAlign: 'center',
+              fontFamily: 'var(--gs-font-mono)',
+              fontSize: '12px',
+              color: 'var(--gs-text-muted)',
+            }}
+          >
             Loading...
           </div>
         ) : transactions.length === 0 ? (
-          <div style={{ padding: '64px 0', textAlign: 'center', fontFamily: 'var(--gs-font-mono)', fontSize: '13px', color: 'var(--gs-text-dim)' }}>
+          <div
+            style={{
+              padding: '64px 0',
+              textAlign: 'center',
+              fontFamily: 'var(--gs-font-mono)',
+              fontSize: '13px',
+              color: 'var(--gs-text-dim)',
+            }}
+          >
             No transactions found
           </div>
         ) : (
@@ -290,7 +347,9 @@ export default function FreeAgentsPage() {
                   role="button"
                   tabIndex={0}
                   onClick={() => tx.player_id && setOpenPlayerId(String(tx.player_id))}
-                  onKeyDown={(e) => e.key === 'Enter' && tx.player_id && setOpenPlayerId(String(tx.player_id))}
+                  onKeyDown={(e) =>
+                    e.key === 'Enter' && tx.player_id && setOpenPlayerId(String(tx.player_id))
+                  }
                   style={{
                     display: 'grid',
                     gridTemplateColumns: '36px 1fr 110px 130px 110px 70px',
@@ -373,7 +432,7 @@ export default function FreeAgentsPage() {
                       letterSpacing: '0.03em',
                     }}
                   >
-                    {prev && dest ? `${prev} → ${dest}` : dest ? `→ ${dest}` : prev ?? '—'}
+                    {prev && dest ? `${prev} → ${dest}` : dest ? `→ ${dest}` : (prev ?? '—')}
                   </span>
 
                   {/* Contract */}
@@ -408,7 +467,15 @@ export default function FreeAgentsPage() {
 
         {/* Pagination */}
         {totalPages > 1 && !loading && (
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', paddingTop: '32px' }}>
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '8px',
+              paddingTop: '32px',
+            }}
+          >
             <button
               disabled={page <= 1}
               onClick={() => setPage((p) => p - 1)}
@@ -427,7 +494,13 @@ export default function FreeAgentsPage() {
             >
               ← Prev
             </button>
-            <span style={{ fontFamily: 'var(--gs-font-mono)', fontSize: '11px', color: 'var(--gs-text-dim)' }}>
+            <span
+              style={{
+                fontFamily: 'var(--gs-font-mono)',
+                fontSize: '11px',
+                color: 'var(--gs-text-dim)',
+              }}
+            >
               {page} / {totalPages}
             </span>
             <button

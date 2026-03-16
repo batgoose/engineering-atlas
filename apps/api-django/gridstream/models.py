@@ -2649,7 +2649,9 @@ class NewsArticle(models.Model):
     headline = models.CharField(max_length=600)
     summary = models.TextField(blank=True)
     author = models.CharField(max_length=200, blank=True)
-    body = models.TextField(blank=True)  # full article text, paragraphs separated by \n\n
+    body = models.TextField(
+        blank=True
+    )  # full article text, paragraphs separated by \n\n
     url = models.URLField(max_length=1000)
     image_url = models.URLField(max_length=1000, blank=True)
 
@@ -2668,4 +2670,6 @@ class NewsArticle(models.Model):
         ]
 
     def __str__(self):
-        return f"[{self.source.upper()}] {self.headline[:60]} ({self.published_at.date()})"
+        return (
+            f"[{self.source.upper()}] {self.headline[:60]} ({self.published_at.date()})"
+        )

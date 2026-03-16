@@ -16,14 +16,14 @@ export type TransactionItem = {
 };
 
 const TYPE_COLORS: Record<string, { color: string; bg: string }> = {
-  signed:    { color: 'var(--gs-green)',    bg: 'rgba(0, 230, 118, 0.12)' },
-  released:  { color: 'var(--gs-red)',      bg: 'rgba(255, 59, 79, 0.12)' },
-  waived:    { color: 'var(--gs-red)',      bg: 'rgba(255, 59, 79, 0.08)' },
-  traded:    { color: 'var(--gs-amber)',    bg: 'rgba(255, 182, 18, 0.12)' },
-  claimed:   { color: 'var(--gs-cyan)',     bg: 'rgba(0, 229, 255, 0.12)' },
-  ir:        { color: 'var(--gs-text-dim)', bg: 'rgba(90, 122, 144, 0.1)' },
-  signed_ps: { color: 'var(--gs-green)',    bg: 'rgba(0, 230, 118, 0.07)' },
-  promoted:  { color: 'var(--gs-cyan)',     bg: 'rgba(0, 229, 255, 0.07)' },
+  signed: { color: 'var(--gs-green)', bg: 'rgba(0, 230, 118, 0.12)' },
+  released: { color: 'var(--gs-red)', bg: 'rgba(255, 59, 79, 0.12)' },
+  waived: { color: 'var(--gs-red)', bg: 'rgba(255, 59, 79, 0.08)' },
+  traded: { color: 'var(--gs-amber)', bg: 'rgba(255, 182, 18, 0.12)' },
+  claimed: { color: 'var(--gs-cyan)', bg: 'rgba(0, 229, 255, 0.12)' },
+  ir: { color: 'var(--gs-text-dim)', bg: 'rgba(90, 122, 144, 0.1)' },
+  signed_ps: { color: 'var(--gs-green)', bg: 'rgba(0, 230, 118, 0.07)' },
+  promoted: { color: 'var(--gs-cyan)', bg: 'rgba(0, 229, 255, 0.07)' },
 };
 
 function getTypeStyle(type: string) {
@@ -40,7 +40,7 @@ function TickerItem({ tx }: { tx: TransactionItem }) {
   const teams =
     tx.from_team_abbr && tx.to_team_abbr
       ? `${tx.from_team_abbr} → ${tx.to_team_abbr}`
-      : tx.to_team_abbr ?? tx.from_team_abbr ?? '';
+      : (tx.to_team_abbr ?? tx.from_team_abbr ?? '');
 
   return (
     <span
@@ -113,11 +113,7 @@ function TickerItem({ tx }: { tx: TransactionItem }) {
   );
 }
 
-export default function TransactionTicker({
-  transactions,
-}: {
-  transactions: TransactionItem[];
-}) {
+export default function TransactionTicker({ transactions }: { transactions: TransactionItem[] }) {
   if (!transactions.length) return null;
 
   // Duplicate for seamless loop

@@ -45,14 +45,10 @@ export default async function GridstreamHubPage() {
       `${API_BASE}/seasons/current/`,
       { next: { revalidate: 3600 } }
     ),
-    safeFetch<{ count: number }>(
-      `${API_BASE}/players/?is_active=true&limit=1`,
-      { next: { revalidate: 3600 } }
-    ),
-    safeFetch<NewsArticle[]>(
-      `${API_BASE}/news/articles/?limit=20`,
-      { next: { revalidate: 300 } }
-    ),
+    safeFetch<{ count: number }>(`${API_BASE}/players/?is_active=true&limit=1`, {
+      next: { revalidate: 3600 },
+    }),
+    safeFetch<NewsArticle[]>(`${API_BASE}/news/articles/?limit=20`, { next: { revalidate: 300 } }),
   ]);
 
   const transactions: TransactionItem[] = txData?.results ?? [];
@@ -61,7 +57,7 @@ export default async function GridstreamHubPage() {
   const newsArticles: NewsArticle[] = Array.isArray(newsData) ? newsData : [];
 
   const currentSeason = seasonData?.year ?? 2025;
-  const currentWeek   = seasonData?.current_week ?? 1;
+  const currentWeek = seasonData?.current_week ?? 1;
 
   // Fetch games for current season/week, plus total game count (separate — weekly fetch is filtered)
   const [gamesData, totalGamesData] = await Promise.all([
@@ -69,17 +65,14 @@ export default async function GridstreamHubPage() {
       `${API_BASE}/games/?season=${currentSeason}&week=${currentWeek}&limit=16`,
       { next: { revalidate: 300 } }
     ),
-    safeFetch<{ count: number }>(
-      `${API_BASE}/games/?limit=1`,
-      { next: { revalidate: 86400 } }
-    ),
+    safeFetch<{ count: number }>(`${API_BASE}/games/?limit=1`, { next: { revalidate: 86400 } }),
   ]);
   const games: GameApiItem[] = gamesData?.results ?? [];
 
   // Platform stats from pagination counts
-  const txCount       = txData?.count ?? 0;
-  const playerCount   = playersCountData?.count ?? 0;
-  const gameCount     = totalGamesData?.count ?? 0;
+  const txCount = txData?.count ?? 0;
+  const playerCount = playersCountData?.count ?? 0;
+  const gameCount = totalGamesData?.count ?? 0;
   const prospectCount = draftData?.entries?.length ?? 0;
 
   const navCards = [
@@ -128,9 +121,9 @@ export default async function GridstreamHubPage() {
   ];
 
   const statsItems = [
-    { value: gameCount.toLocaleString(),    label: 'games' },
-    { value: playerCount.toLocaleString(),  label: 'active players' },
-    { value: txCount.toLocaleString(),      label: 'transactions' },
+    { value: gameCount.toLocaleString(), label: 'games' },
+    { value: playerCount.toLocaleString(), label: 'active players' },
+    { value: txCount.toLocaleString(), label: 'transactions' },
     { value: prospectCount.toLocaleString(), label: 'prospects ranked' },
   ].filter((s) => parseInt(s.value.replace(/,/g, '')) > 0);
 
@@ -142,7 +135,8 @@ export default async function GridstreamHubPage() {
         style={{
           width: 700,
           height: 500,
-          background: 'radial-gradient(ellipse at center, rgba(0,229,255,0.06) 0%, transparent 70%)',
+          background:
+            'radial-gradient(ellipse at center, rgba(0,229,255,0.06) 0%, transparent 70%)',
           filter: 'blur(40px)',
         }}
       />
@@ -151,7 +145,8 @@ export default async function GridstreamHubPage() {
         style={{
           width: 500,
           height: 400,
-          background: 'radial-gradient(ellipse at center, rgba(255,182,18,0.04) 0%, transparent 70%)',
+          background:
+            'radial-gradient(ellipse at center, rgba(255,182,18,0.04) 0%, transparent 70%)',
           filter: 'blur(40px)',
         }}
       />
@@ -198,7 +193,10 @@ export default async function GridstreamHubPage() {
         <HubNewsHero articles={newsArticles} />
 
         {/* Data widgets — 3-column strip, stretch so all panels match height */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6" style={{ alignItems: 'stretch' }}>
+        <div
+          className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6"
+          style={{ alignItems: 'stretch' }}
+        >
           <HubRecentMoves transactions={transactions.slice(0, 6)} />
           <HubDraftOrder season={draftSeason} />
           <HubDraftPreview entries={draftEntries} season={draftSeason} />

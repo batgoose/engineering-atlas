@@ -742,7 +742,9 @@ class PlayerTransactionSerializer(serializers.ModelSerializer):
     player_position = serializers.CharField(
         source="player.position", read_only=True, default=None
     )
-    player_id = serializers.IntegerField(source="player.id", read_only=True, default=None)
+    player_id = serializers.IntegerField(
+        source="player.id", read_only=True, default=None
+    )
     # Authoritative current team — more reliable than to_team for recent signings
     current_team_abbr = serializers.CharField(
         source="player.current_team.abbreviation", read_only=True, default=None

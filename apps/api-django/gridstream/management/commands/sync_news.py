@@ -104,9 +104,13 @@ def _scrape_espn_body(url: str) -> tuple[str, str]:
         if body_m:
             section = text[body_m.start() : body_m.start() + 25000]
             paras = re.findall(r"<p[^>]*>(.*?)</p>", section, re.IGNORECASE | re.DOTALL)
-            para_texts = [html.unescape(re.sub(r"<[^>]+>", "", p)).strip() for p in paras]
+            para_texts = [
+                html.unescape(re.sub(r"<[^>]+>", "", p)).strip() for p in paras
+            ]
             # Drop navigation/jump-link paragraphs (ESPN in-page nav, not content)
-            body = "\n\n".join(t for t in para_texts if t and not t.startswith("Jump to:"))
+            body = "\n\n".join(
+                t for t in para_texts if t and not t.startswith("Jump to:")
+            )
 
         return author, body
     except Exception as exc:
@@ -162,6 +166,7 @@ def _feedparser_dt(entry) -> datetime | None:
     """Extract published datetime from a feedparser entry."""
     if hasattr(entry, "published_parsed") and entry.published_parsed:
         import calendar
+
         ts = calendar.timegm(entry.published_parsed)
         return datetime.fromtimestamp(ts, tz=timezone.utc)
     # fallback to string
@@ -202,8 +207,10 @@ class EntityIndex:
                 self.team_by_nickname[team.nickname.lower()] = team
             self.team_by_nickname[team.display_name.lower()] = team
 
-        for player in Player.objects.using("nfl").filter(is_active=True).select_related(
-            "current_team"
+        for player in (
+            Player.objects.using("nfl")
+            .filter(is_active=True)
+            .select_related("current_team")
         ):
             if player.espn_id:
                 self.player_by_espn_id[str(player.espn_id)] = player
@@ -259,7 +266,9 @@ class EntityIndex:
         # Nickname / full name match (Giants, Browns, New York Giants …)
         text_lower = text.lower()
         for name, team in self.team_by_nickname.items():
-            if len(name) >= 5 and re.search(r"\b" + re.escape(name) + r"\b", text_lower):
+            if len(name) >= 5 and re.search(
+                r"\b" + re.escape(name) + r"\b", text_lower
+            ):
                 _add(team)
 
         return found
@@ -301,7 +310,9 @@ def fetch_espn_league(since: datetime, idx: EntityIndex) -> list[dict]:
 def fetch_espn_teams(since: datetime, idx: EntityIndex, stdout=None) -> list[dict]:
     """Fetch per-team ESPN news for all 32 teams."""
     articles = []
-    teams = list(Team.objects.using("nfl").exclude(espn_id="").values_list("espn_id", flat=True))
+    teams = list(
+        Team.objects.using("nfl").exclude(espn_id="").values_list("espn_id", flat=True)
+    )
 
     for i, espn_id in enumerate(teams):
         url = f"{ESPN_BASE}/teams/{espn_id}/news?limit=50"
@@ -381,7 +392,9 @@ def fetch_rotowire(since: datetime, idx: EntityIndex) -> list[dict]:
                 break
         if not image_url:
             for mc in getattr(entry, "media_content", []):
-                if mc.get("medium") == "image" or mc.get("type", "").startswith("image"):
+                if mc.get("medium") == "image" or mc.get("type", "").startswith(
+                    "image"
+                ):
                     image_url = mc.get("url", "")
                     break
 
@@ -439,7 +452,11 @@ def fetch_pfr(since: datetime, idx: EntityIndex) -> list[dict]:
         headline = html.unescape(getattr(entry, "title", "")).strip()
         # Prefer Atom full-content field (full HTML); fall back to RSS summary
         content_list = getattr(entry, "content", None)
-        if content_list and isinstance(content_list, list) and content_list[0].get("value"):
+        if (
+            content_list
+            and isinstance(content_list, list)
+            and content_list[0].get("value")
+        ):
             raw_body_html = content_list[0]["value"]
         else:
             raw_body_html = getattr(entry, "summary", "")
@@ -460,7 +477,9 @@ def fetch_pfr(since: datetime, idx: EntityIndex) -> list[dict]:
                 image_url = thumb[0].get("url", "") if isinstance(thumb, list) else ""
 
         # PFR RSS includes explicit team/player tags — use them as primary source
-        rss_tags = [html.unescape(t.get("term", "")) for t in getattr(entry, "tags", [])]
+        rss_tags = [
+            html.unescape(t.get("term", "")) for t in getattr(entry, "tags", [])
+        ]
         teams: list = []
         players: list = []
         seen_team_ids: set = set()
@@ -623,9 +642,7 @@ class Command(BaseCommand):
         source = options["source"]
         dry_run = options["dry_run"]
 
-        since = datetime(
-            *[int(x) for x in since_str.split("-")], tzinfo=timezone.utc
-        )
+        since = datetime(*[int(x) for x in since_str.split("-")], tzinfo=timezone.utc)
 
         if dry_run:
             self.stdout.write(self.style.WARNING("DRY RUN — nothing will be written"))

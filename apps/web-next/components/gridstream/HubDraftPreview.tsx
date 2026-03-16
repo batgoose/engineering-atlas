@@ -15,23 +15,23 @@ export type DraftEntryItem = {
 };
 
 const POS_COLORS: Record<string, string> = {
-  QB:  '#60a5fa',
-  RB:  '#34d399',
-  WR:  '#a78bfa',
-  TE:  '#fbbf24',
-  OT:  '#94a3b8',
-  OG:  '#94a3b8',
-  OC:  '#94a3b8',
-  DE:  '#f87171',
-  DT:  '#f87171',
-  LB:  '#fb923c',
-  CB:  '#38bdf8',
-  S:   '#38bdf8',
-  FS:  '#38bdf8',
-  SS:  '#38bdf8',
-  EDGE:'#f87171',
-  K:   '#e879f9',
-  P:   '#e879f9',
+  QB: '#60a5fa',
+  RB: '#34d399',
+  WR: '#a78bfa',
+  TE: '#fbbf24',
+  OT: '#94a3b8',
+  OG: '#94a3b8',
+  OC: '#94a3b8',
+  DE: '#f87171',
+  DT: '#f87171',
+  LB: '#fb923c',
+  CB: '#38bdf8',
+  S: '#38bdf8',
+  FS: '#38bdf8',
+  SS: '#38bdf8',
+  EDGE: '#f87171',
+  K: '#e879f9',
+  P: '#e879f9',
 };
 
 function posColor(pos: string | null) {
@@ -88,7 +88,14 @@ export default function HubDraftPreview({
       </div>
 
       {entries.length === 0 ? (
-        <div style={{ padding: '24px 16px', color: 'var(--gs-text-dim)', fontSize: '13px', textAlign: 'center' }}>
+        <div
+          style={{
+            padding: '24px 16px',
+            color: 'var(--gs-text-dim)',
+            fontSize: '13px',
+            textAlign: 'center',
+          }}
+        >
           No draft data
         </div>
       ) : (
@@ -99,7 +106,13 @@ export default function HubDraftPreview({
               <Link
                 key={entry.nameSlug}
                 href="/gridstream/draft"
-                style={{ display: 'flex', flexDirection: 'column', flex: 1, textDecoration: 'none', color: 'inherit' }}
+                style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  flex: 1,
+                  textDecoration: 'none',
+                  color: 'inherit',
+                }}
               >
                 <div
                   style={{

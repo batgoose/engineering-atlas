@@ -2,27 +2,37 @@ import Link from 'next/link';
 import type { TransactionItem } from './TransactionTicker';
 
 const TYPE_COLORS: Record<string, string> = {
-  signed:    'var(--gs-green)',
-  released:  'var(--gs-red)',
-  waived:    'var(--gs-red)',
-  traded:    'var(--gs-amber)',
-  claimed:   'var(--gs-cyan)',
-  ir:        'var(--gs-text-dim)',
+  signed: 'var(--gs-green)',
+  released: 'var(--gs-red)',
+  waived: 'var(--gs-red)',
+  traded: 'var(--gs-amber)',
+  claimed: 'var(--gs-cyan)',
+  ir: 'var(--gs-text-dim)',
   signed_ps: 'var(--gs-green)',
-  promoted:  'var(--gs-cyan)',
+  promoted: 'var(--gs-cyan)',
 };
 
 const POS_COLORS: Record<string, string> = {
-  QB: '#60a5fa', RB: '#34d399', WR: '#a78bfa', TE: '#fbbf24',
-  OL: '#94a3b8', DL: '#f87171', LB: '#fb923c', DB: '#38bdf8',
-  K:  '#e879f9', P:  '#e879f9',
+  QB: '#60a5fa',
+  RB: '#34d399',
+  WR: '#a78bfa',
+  TE: '#fbbf24',
+  OL: '#94a3b8',
+  DL: '#f87171',
+  LB: '#fb923c',
+  DB: '#38bdf8',
+  K: '#e879f9',
+  P: '#e879f9',
 };
 
 function posColor(pos: string | null) {
   if (!pos) return 'var(--gs-text-dim)';
   const group =
-    pos.startsWith('O') && pos.length > 1 ? 'OL' :
-    pos.startsWith('D') && pos.length > 1 ? 'DL' : pos;
+    pos.startsWith('O') && pos.length > 1
+      ? 'OL'
+      : pos.startsWith('D') && pos.length > 1
+        ? 'DL'
+        : pos;
   return POS_COLORS[group] ?? 'var(--gs-text-dim)';
 }
 
@@ -30,7 +40,7 @@ function formatContract(apy: number | null, years: number | null): string | null
   if (!apy && !years) return null;
   const parts: string[] = [];
   if (years) parts.push(`${years}yr`);
-  if (apy)   parts.push(`$${(apy / 1_000_000).toFixed(1)}m`);
+  if (apy) parts.push(`$${(apy / 1_000_000).toFixed(1)}m`);
   return parts.join(' · ');
 }
 
@@ -64,10 +74,17 @@ export default function HubRecentMoves({ transactions }: { transactions: Transac
           flexShrink: 0,
         }}
       >
-        <span className="hud-label" style={{ fontSize: '11px' }}>Recent Roster Moves</span>
+        <span className="hud-label" style={{ fontSize: '11px' }}>
+          Recent Roster Moves
+        </span>
         <Link
           href="/gridstream/free-agents"
-          style={{ color: 'var(--gs-cyan-dim)', fontFamily: 'var(--gs-font-mono)', fontSize: '10px', textDecoration: 'none' }}
+          style={{
+            color: 'var(--gs-cyan-dim)',
+            fontFamily: 'var(--gs-font-mono)',
+            fontSize: '10px',
+            textDecoration: 'none',
+          }}
         >
           View all →
         </Link>
@@ -75,7 +92,15 @@ export default function HubRecentMoves({ transactions }: { transactions: Transac
 
       {/* Rows */}
       {rows.length === 0 ? (
-        <div style={{ padding: '24px 16px', color: 'var(--gs-text-dim)', fontSize: '13px', textAlign: 'center', flex: 1 }}>
+        <div
+          style={{
+            padding: '24px 16px',
+            color: 'var(--gs-text-dim)',
+            fontSize: '13px',
+            textAlign: 'center',
+            flex: 1,
+          }}
+        >
           No recent moves
         </div>
       ) : (
@@ -153,7 +178,9 @@ export default function HubRecentMoves({ transactions }: { transactions: Transac
                   </div>
 
                   {/* Transaction type + team movement */}
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '5px', marginTop: '2px' }}>
+                  <div
+                    style={{ display: 'flex', alignItems: 'center', gap: '5px', marginTop: '2px' }}
+                  >
                     <span
                       style={{
                         color: typeColor,
@@ -215,7 +242,13 @@ export default function HubRecentMoves({ transactions }: { transactions: Transac
               <Link
                 key={tx.id}
                 href={`/gridstream/players/${tx.player_id}`}
-                style={{ display: 'flex', flexDirection: 'column', textDecoration: 'none', color: 'inherit', flex: 1 }}
+                style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  textDecoration: 'none',
+                  color: 'inherit',
+                  flex: 1,
+                }}
               >
                 {row}
               </Link>

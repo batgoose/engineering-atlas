@@ -427,7 +427,13 @@ class SyncJobRunAdmin(admin.ModelAdmin):
 
 @admin.register(NewsArticle)
 class NewsArticleAdmin(NflDbAdmin):
-    list_display = ("headline_truncated", "source", "published_at", "team_list", "player_count")
+    list_display = (
+        "headline_truncated",
+        "source",
+        "published_at",
+        "team_list",
+        "player_count",
+    )
     list_filter = ("source", "published_at")
     search_fields = ("headline", "summary")
     readonly_fields = ("external_id", "fetched_at", "published_at", "source")
@@ -436,12 +442,15 @@ class NewsArticleAdmin(NflDbAdmin):
 
     def headline_truncated(self, obj):
         return obj.headline[:80]
+
     headline_truncated.short_description = "Headline"
 
     def team_list(self, obj):
         return ", ".join(obj.teams.values_list("abbreviation", flat=True)[:4])
+
     team_list.short_description = "Teams"
 
     def player_count(self, obj):
         return obj.players.count()
+
     player_count.short_description = "Players"

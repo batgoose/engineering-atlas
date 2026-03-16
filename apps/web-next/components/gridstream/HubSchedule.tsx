@@ -3,7 +3,7 @@ import Link from 'next/link';
 // API shape: games have nested team_detail objects, not flat abbr fields
 export type GameApiItem = {
   id: number;
-  status: string;   // 'scheduled' | 'in_progress' | 'final' | 'final_ot'
+  status: string; // 'scheduled' | 'in_progress' | 'final' | 'final_ot'
   week: number;
   game_date: string;
   home_team_detail: { id: number; abbreviation: string };
@@ -21,7 +21,7 @@ function formatDate(iso: string) {
 function StatusBadge({ status }: { status: string }) {
   const s = status.toLowerCase();
   const isFinal = s === 'final' || s === 'final_ot';
-  const isLive  = s === 'in_progress';
+  const isLive = s === 'in_progress';
 
   if (isLive) {
     return (
@@ -71,7 +71,7 @@ function StatusBadge({ status }: { status: string }) {
 
 function GameRow({ game }: { game: GameApiItem }) {
   const isFinal = game.status === 'final' || game.status === 'final_ot';
-  const isLive  = game.status === 'in_progress';
+  const isLive = game.status === 'in_progress';
   const hasScore = game.home_score !== null && game.away_score !== null;
 
   const inner = (
@@ -100,11 +100,23 @@ function GameRow({ game }: { game: GameApiItem }) {
         </span>
         {hasScore ? (
           <>
-            <span style={{ color: 'var(--gs-text)', fontFamily: 'var(--gs-font-mono)', fontSize: '12px' }}>
+            <span
+              style={{
+                color: 'var(--gs-text)',
+                fontFamily: 'var(--gs-font-mono)',
+                fontSize: '12px',
+              }}
+            >
               {game.away_score}
             </span>
             <span style={{ color: 'var(--gs-text-muted)', fontSize: '10px' }}>·</span>
-            <span style={{ color: 'var(--gs-text)', fontFamily: 'var(--gs-font-mono)', fontSize: '12px' }}>
+            <span
+              style={{
+                color: 'var(--gs-text)',
+                fontFamily: 'var(--gs-font-mono)',
+                fontSize: '12px',
+              }}
+            >
               {game.home_score}
             </span>
           </>

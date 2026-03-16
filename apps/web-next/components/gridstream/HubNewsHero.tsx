@@ -143,8 +143,12 @@ export function ArticleModal({ article, onClose }: { article: NewsArticle; onClo
             zIndex: 1,
             transition: 'color 0.15s',
           }}
-          onMouseEnter={(e) => ((e.currentTarget as HTMLButtonElement).style.color = 'var(--gs-text-bright)')}
-          onMouseLeave={(e) => ((e.currentTarget as HTMLButtonElement).style.color = 'var(--gs-text-muted)')}
+          onMouseEnter={(e) =>
+            ((e.currentTarget as HTMLButtonElement).style.color = 'var(--gs-text-bright)')
+          }
+          onMouseLeave={(e) =>
+            ((e.currentTarget as HTMLButtonElement).style.color = 'var(--gs-text-muted)')
+          }
         >
           ×
         </button>
@@ -167,21 +171,41 @@ export function ArticleModal({ article, onClose }: { article: NewsArticle; onClo
         )}
 
         {/* Content */}
-        <div style={{ padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+        <div
+          style={{ padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: '10px' }}
+        >
           {/* Source + time + date */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
             <SourceBadge source={article.source} />
-            <span style={{ fontFamily: 'var(--gs-font-mono)', fontSize: '10px', color: 'var(--gs-text-muted)' }}>
+            <span
+              style={{
+                fontFamily: 'var(--gs-font-mono)',
+                fontSize: '10px',
+                color: 'var(--gs-text-muted)',
+              }}
+            >
               {timeAgo(article.published_at)}
             </span>
-            <span style={{ fontFamily: 'var(--gs-font-mono)', fontSize: '10px', color: 'var(--gs-text-muted)' }}>
+            <span
+              style={{
+                fontFamily: 'var(--gs-font-mono)',
+                fontSize: '10px',
+                color: 'var(--gs-text-muted)',
+              }}
+            >
               {formatDate(article.published_at)}
             </span>
           </div>
 
           {/* Author */}
           {article.author && (
-            <div style={{ fontFamily: 'var(--gs-font-body)', fontSize: '12px', color: 'var(--gs-text-muted)' }}>
+            <div
+              style={{
+                fontFamily: 'var(--gs-font-body)',
+                fontSize: '12px',
+                color: 'var(--gs-text-muted)',
+              }}
+            >
               By {article.author}
             </div>
           )}
@@ -225,20 +249,23 @@ export function ArticleModal({ article, onClose }: { article: NewsArticle; onClo
           {/* Body — paragraphs; fall back to summary */}
           {(article.body || article.summary) && (
             <div>
-              {(article.body || article.summary).split('\n\n').filter(Boolean).map((p, i) => (
-                <p
-                  key={i}
-                  style={{
-                    fontFamily: 'var(--gs-font-body)',
-                    fontSize: '14px',
-                    lineHeight: 1.6,
-                    color: 'var(--gs-text-dim)',
-                    margin: '0 0 12px',
-                  }}
-                >
-                  {p}
-                </p>
-              ))}
+              {(article.body || article.summary)
+                .split('\n\n')
+                .filter(Boolean)
+                .map((p, i) => (
+                  <p
+                    key={i}
+                    style={{
+                      fontFamily: 'var(--gs-font-body)',
+                      fontSize: '14px',
+                      lineHeight: 1.6,
+                      color: 'var(--gs-text-dim)',
+                      margin: '0 0 12px',
+                    }}
+                  >
+                    {p}
+                  </p>
+                ))}
             </div>
           )}
 
@@ -272,7 +299,13 @@ export function ArticleModal({ article, onClose }: { article: NewsArticle; onClo
 
 // ── Featured text article (left column) ─────────────────────────
 
-function FeaturedArticle({ article, onOpen }: { article: NewsArticle; onOpen: (a: NewsArticle) => void }) {
+function FeaturedArticle({
+  article,
+  onOpen,
+}: {
+  article: NewsArticle;
+  onOpen: (a: NewsArticle) => void;
+}) {
   return (
     <div
       role="button"
@@ -374,7 +407,13 @@ function FeaturedArticle({ article, onOpen }: { article: NewsArticle; onOpen: (a
 
 // ── Hero image article (center) ──────────────────────────────────
 
-function HeroImageArticle({ article, onOpen }: { article: NewsArticle; onOpen: (a: NewsArticle) => void }) {
+function HeroImageArticle({
+  article,
+  onOpen,
+}: {
+  article: NewsArticle;
+  onOpen: (a: NewsArticle) => void;
+}) {
   return (
     <div
       role="button"
@@ -416,7 +455,14 @@ function HeroImageArticle({ article, onOpen }: { article: NewsArticle; onOpen: (
             justifyContent: 'center',
           }}
         >
-          <span style={{ fontFamily: 'var(--gs-font-display)', fontSize: '11px', color: 'var(--gs-text-muted)', letterSpacing: '0.15em' }}>
+          <span
+            style={{
+              fontFamily: 'var(--gs-font-display)',
+              fontSize: '11px',
+              color: 'var(--gs-text-muted)',
+              letterSpacing: '0.15em',
+            }}
+          >
             NFL
           </span>
         </div>
@@ -427,7 +473,8 @@ function HeroImageArticle({ article, onOpen }: { article: NewsArticle; onOpen: (
         style={{
           position: 'absolute',
           inset: 0,
-          background: 'linear-gradient(to top, rgba(7,11,20,0.92) 0%, rgba(7,11,20,0.4) 50%, transparent 100%)',
+          background:
+            'linear-gradient(to top, rgba(7,11,20,0.92) 0%, rgba(7,11,20,0.4) 50%, transparent 100%)',
         }}
       />
 
@@ -455,7 +502,13 @@ function HeroImageArticle({ article, onOpen }: { article: NewsArticle; onOpen: (
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
             <SourceBadge source={article.source} />
-            <span style={{ fontFamily: 'var(--gs-font-mono)', fontSize: '10px', color: 'rgba(255,255,255,0.55)' }}>
+            <span
+              style={{
+                fontFamily: 'var(--gs-font-mono)',
+                fontSize: '10px',
+                color: 'rgba(255,255,255,0.55)',
+              }}
+            >
               {timeAgo(article.published_at)}
             </span>
           </div>
@@ -495,7 +548,13 @@ function HeroImageArticle({ article, onOpen }: { article: NewsArticle; onOpen: (
 
 // ── Sidebar headline list (right column) ────────────────────────
 
-function SidebarHeadlines({ articles, onOpen }: { articles: NewsArticle[]; onOpen: (a: NewsArticle) => void }) {
+function SidebarHeadlines({
+  articles,
+  onOpen,
+}: {
+  articles: NewsArticle[];
+  onOpen: (a: NewsArticle) => void;
+}) {
   return (
     <div
       style={{
@@ -541,7 +600,13 @@ function SidebarHeadlines({ articles, onOpen }: { articles: NewsArticle[]; onOpe
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
             <SourceBadge source={article.source} />
-            <span style={{ fontFamily: 'var(--gs-font-mono)', fontSize: '9px', color: 'var(--gs-text-muted)' }}>
+            <span
+              style={{
+                fontFamily: 'var(--gs-font-mono)',
+                fontSize: '9px',
+                color: 'var(--gs-text-muted)',
+              }}
+            >
               {timeAgo(article.published_at)}
             </span>
           </div>
@@ -559,9 +624,7 @@ function SidebarHeadlines({ articles, onOpen }: { articles: NewsArticle[]; onOpe
           >
             {article.headline}
           </span>
-          {article.team_abbrs.length > 0 && (
-            <TeamBadges abbrs={article.team_abbrs} />
-          )}
+          {article.team_abbrs.length > 0 && <TeamBadges abbrs={article.team_abbrs} />}
         </div>
       ))}
     </div>
@@ -594,7 +657,13 @@ function NewsCard({ article, onOpen }: { article: NewsArticle; onOpen: (a: NewsA
           <img
             src={article.image_url}
             alt={article.headline}
-            style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'center 20%', display: 'block' }}
+            style={{
+              width: '100%',
+              height: '100%',
+              objectFit: 'cover',
+              objectPosition: 'center 20%',
+              display: 'block',
+            }}
           />
           <div
             style={{
@@ -605,10 +674,24 @@ function NewsCard({ article, onOpen }: { article: NewsArticle; onOpen: (a: NewsA
           />
         </div>
       )}
-      <div style={{ padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: '6px', flex: 1 }}>
+      <div
+        style={{
+          padding: '12px 14px',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '6px',
+          flex: 1,
+        }}
+      >
         <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
           <SourceBadge source={article.source} />
-          <span style={{ fontFamily: 'var(--gs-font-mono)', fontSize: '9px', color: 'var(--gs-text-muted)' }}>
+          <span
+            style={{
+              fontFamily: 'var(--gs-font-mono)',
+              fontSize: '9px',
+              color: 'var(--gs-text-muted)',
+            }}
+          >
             {timeAgo(article.published_at)}
           </span>
         </div>
@@ -707,7 +790,9 @@ export default function HubNewsHero({ articles }: { articles: NewsArticle[] }) {
       >
         {featuredArticle && <FeaturedArticle article={featuredArticle} onOpen={setSelected} />}
         {heroArticle && <HeroImageArticle article={heroArticle} onOpen={setSelected} />}
-        {sidebarArticles.length > 0 && <SidebarHeadlines articles={sidebarArticles} onOpen={setSelected} />}
+        {sidebarArticles.length > 0 && (
+          <SidebarHeadlines articles={sidebarArticles} onOpen={setSelected} />
+        )}
       </div>
 
       {/* Bottom row: 3 image cards */}

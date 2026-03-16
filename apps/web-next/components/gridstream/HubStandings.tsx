@@ -17,10 +17,10 @@ export type StandingApiItem = {
 
 function divLetter(division: string): string {
   const lower = division.toLowerCase();
-  if (lower.includes('east'))  return 'E';
+  if (lower.includes('east')) return 'E';
   if (lower.includes('north')) return 'N';
   if (lower.includes('south')) return 'S';
-  if (lower.includes('west'))  return 'W';
+  if (lower.includes('west')) return 'W';
   return '?';
 }
 
@@ -62,14 +62,26 @@ export default function HubStandings({ standings }: { standings: StandingApiItem
         </span>
         <Link
           href="/gridstream/teams"
-          style={{ color: 'var(--gs-cyan-dim)', fontFamily: 'var(--gs-font-mono)', fontSize: '10px', textDecoration: 'none' }}
+          style={{
+            color: 'var(--gs-cyan-dim)',
+            fontFamily: 'var(--gs-font-mono)',
+            fontSize: '10px',
+            textDecoration: 'none',
+          }}
         >
           Full standings →
         </Link>
       </div>
 
       {leaders.length === 0 ? (
-        <div style={{ padding: '24px 16px', color: 'var(--gs-text-dim)', fontSize: '13px', textAlign: 'center' }}>
+        <div
+          style={{
+            padding: '24px 16px',
+            color: 'var(--gs-text-dim)',
+            fontSize: '13px',
+            textAlign: 'center',
+          }}
+        >
           No standings data
         </div>
       ) : (
