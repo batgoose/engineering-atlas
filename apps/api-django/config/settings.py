@@ -23,6 +23,7 @@ ALLOWED_HOSTS = [
     "localhost",
     "127.0.0.1",
     "api.localhost",
+    "api-django",  # Docker internal service name for server-side RSC fetches
     "lxjshlcs-80.use2.devtunnels.ms",
     "lxjshlcs-8000.use2.devtunnels.ms",
 ]

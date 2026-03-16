@@ -277,6 +277,7 @@ services:
     restart: unless-stopped
     environment:
       - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-http://api.localhost/api}
+      - API_URL=http://api-django:8000/api
       - NODE_ENV=development
     volumes:
       - ./apps/web-next:/app/apps/web-next
