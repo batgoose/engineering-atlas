@@ -493,13 +493,14 @@ class TeamGameStatsFilter(django_filters.FilterSet):
 
 
 class PlayerTransactionFilter(django_filters.FilterSet):
-    """Filter transactions by type, team, date range."""
+    """Filter transactions by type, team, date range, or position group."""
 
     transaction_type = django_filters.CharFilter()
     team = django_filters.CharFilter(method="filter_team")
     season = django_filters.NumberFilter()
     date_from = django_filters.DateFilter(field_name="date", lookup_expr="gte")
     date_to = django_filters.DateFilter(field_name="date", lookup_expr="lte")
+    position = django_filters.CharFilter(method="filter_position")
 
     class Meta:
         model = PlayerTransaction
@@ -510,3 +511,16 @@ class PlayerTransactionFilter(django_filters.FilterSet):
         return queryset.filter(
             Q(from_team__abbreviation=abbr) | Q(to_team__abbreviation=abbr)
         )
+
+    def filter_position(self, queryset, name, value):
+        pos = value.upper()
+        # Expand grouped positions to all DB variants
+        _groups = {
+            "OL": ["OL", "T", "G", "C", "LS", "FB"],
+            "DL": ["DL", "DE", "DT", "NT"],
+            "DB": ["DB", "CB", "S", "SS", "FS"],
+            "LB": ["LB", "ILB", "OLB", "MLB"],
+            "K":  ["K", "P"],
+        }
+        positions = _groups.get(pos, [pos])
+        return queryset.filter(player__position__in=positions)

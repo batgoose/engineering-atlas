@@ -288,6 +288,7 @@ from .models import (
     TeamRbsdmMetric,
     PlayerRbsdmQbMetric,
     PlayerRAS,
+    NewsArticle,
 )
 
 # =============================================================================
@@ -735,17 +736,80 @@ class PlayerTransactionSerializer(serializers.ModelSerializer):
     to_team_abbr = serializers.CharField(
         source="to_team.abbreviation", read_only=True, default=None
     )
+    player_name = serializers.CharField(
+        source="player.display_name", read_only=True, default=None
+    )
+    player_position = serializers.CharField(
+        source="player.position", read_only=True, default=None
+    )
+    player_id = serializers.IntegerField(source="player.id", read_only=True, default=None)
+    # Authoritative current team — more reliable than to_team for recent signings
+    current_team_abbr = serializers.CharField(
+        source="player.current_team.abbreviation", read_only=True, default=None
+    )
+    contract_apy = serializers.SerializerMethodField()
+    contract_years = serializers.SerializerMethodField()
+
+    def get_contract_apy(self, obj):
+        if obj.contract_apy:
+            return obj.contract_apy
+        if obj.player_id:
+            # PlayerContract (OTC) — authoritative when available
+            c = (
+                obj.player.contracts.using("nfl")
+                .filter(is_active=True, apy__isnull=False)
+                .order_by("-year_signed")
+                .first()
+            )
+            if c:
+                return c.apy
+            # Fall back to the most recent PlayerTransaction that carried contract data
+            t = (
+                obj.player.transactions.using("nfl")
+                .filter(contract_apy__isnull=False)
+                .order_by("-date")
+                .first()
+            )
+            if t:
+                return t.contract_apy
+        return None
+
+    def get_contract_years(self, obj):
+        if obj.contract_years:
+            return obj.contract_years
+        if obj.player_id:
+            c = (
+                obj.player.contracts.using("nfl")
+                .filter(is_active=True, years__isnull=False)
+                .order_by("-year_signed")
+                .first()
+            )
+            if c:
+                return c.years
+            t = (
+                obj.player.transactions.using("nfl")
+                .filter(contract_years__isnull=False)
+                .order_by("-date")
+                .first()
+            )
+            if t:
+                return t.contract_years
+        return None
 
     class Meta:
         model = PlayerTransaction
         fields = [
             "id",
+            "player_id",
+            "player_name",
+            "player_position",
             "transaction_type",
             "date",
             "from_team",
             "from_team_abbr",
             "to_team",
             "to_team_abbr",
+            "current_team_abbr",
             "description",
             "contract_years",
             "contract_total_value",
@@ -2005,3 +2069,41 @@ class PlaybookEntrySerializer(serializers.ModelSerializer):
     class Meta:
         model = PlaybookEntry
         fields = ["id", "sequence", "delay_seconds", "play", "play_detail"]
+
+
+# =============================================================================
+# NEWS
+# =============================================================================
+
+
+class NewsArticleSerializer(serializers.ModelSerializer):
+    team_abbrs = serializers.SerializerMethodField()
+    player_ids = serializers.SerializerMethodField()
+    player_names = serializers.SerializerMethodField()
+
+    def get_team_abbrs(self, obj):
+        return list(obj.teams.values_list("abbreviation", flat=True))
+
+    def get_player_ids(self, obj):
+        return list(obj.players.values_list("id", flat=True))
+
+    def get_player_names(self, obj):
+        return list(obj.players.values_list("display_name", flat=True))
+
+    class Meta:
+        model = NewsArticle
+        fields = [
+            "id",
+            "source",
+            "headline",
+            "summary",
+            "author",
+            "body",
+            "url",
+            "image_url",
+            "published_at",
+            "fetched_at",
+            "team_abbrs",
+            "player_ids",
+            "player_names",
+        ]

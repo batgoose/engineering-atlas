@@ -2628,3 +2628,44 @@ class SyncJobRun(models.Model):
 
     def __str__(self):
         return f"{self.action_key} [{self.status}] @ {self.started_at:%Y-%m-%d %H:%M}"
+
+
+# =============================================================================
+# News
+# =============================================================================
+
+
+class NewsArticle(models.Model):
+    SOURCE_CHOICES = [
+        ("espn", "ESPN"),
+        ("rotowire", "RotoWire"),
+        ("pfr", "Pro Football Rumors"),
+    ]
+
+    source = models.CharField(max_length=20, choices=SOURCE_CHOICES, db_index=True)
+    # Stable dedup key — never changes for the same article
+    external_id = models.CharField(max_length=250, unique=True, db_index=True)
+
+    headline = models.CharField(max_length=600)
+    summary = models.TextField(blank=True)
+    author = models.CharField(max_length=200, blank=True)
+    body = models.TextField(blank=True)  # full article text, paragraphs separated by \n\n
+    url = models.URLField(max_length=1000)
+    image_url = models.URLField(max_length=1000, blank=True)
+
+    published_at = models.DateTimeField(db_index=True)
+    fetched_at = models.DateTimeField(auto_now_add=True)
+
+    # Entity tags populated at ingest time
+    teams = models.ManyToManyField("Team", blank=True, related_name="news_articles")
+    players = models.ManyToManyField("Player", blank=True, related_name="news_articles")
+
+    class Meta:
+        app_label = "gridstream"
+        ordering = ["-published_at"]
+        indexes = [
+            models.Index(fields=["source", "published_at"]),
+        ]
+
+    def __str__(self):
+        return f"[{self.source.upper()}] {self.headline[:60]} ({self.published_at.date()})"

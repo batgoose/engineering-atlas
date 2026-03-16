@@ -35,9 +35,10 @@ Endpoint map:
   GET  /transactions/                     — recent roster moves
   GET  /venues/                           — all venues
 
-  GET  /news/league/                      — league news feed
-  GET  /news/team/{abbr}/                 — team news feed
-  GET  /news/player/{espn_id}/            — player news feed
+  GET  /news/league/                      — league news feed (live proxy)
+  GET  /news/team/{abbr}/                 — team news feed (live proxy)
+  GET  /news/player/{espn_id}/            — player news feed (live proxy)
+  GET  /news/articles/                    — persisted articles (DB-backed, filterable)
 
   GET  /playbooks/                        — simulation playbooks
   GET  /playbooks/{id}/entries/           — playbook plays
@@ -63,6 +64,7 @@ router.register(r"transactions", views.TransactionViewSet, basename="transaction
 router.register(r"venues", views.VenueViewSet, basename="venue")
 router.register(r"playbooks", views.PlaybookViewSet, basename="playbook")
 router.register(r"draft", views.DraftViewSet, basename="draft")
+router.register(r"news/articles", views.NewsArticleViewSet, basename="news-article")
 
 urlpatterns = [
     # Router-registered viewsets

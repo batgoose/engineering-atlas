@@ -118,6 +118,7 @@ from .models import (
     TeamDvoaRating,
     TeamRbsdmMetric,
     PlayerRbsdmQbMetric,
+    NewsArticle,
 )
 from .serializers import (
     TeamListSerializer,
@@ -148,6 +149,7 @@ from .serializers import (
     PlaybookEntrySerializer,
     PlayerFFRankingSerializer,
     PlayerNextGenStatsSerializer,
+    NewsArticleSerializer,
 )
 from .filters import (
     GameFilter,
@@ -5283,3 +5285,53 @@ def _serialize_draft_prospect_quick(prospect: "DraftProspect") -> dict:
         "fitTeams": None,  # not relevant on the standalone big board
         "draftSeason": prospect.season,
     }
+
+
+# =============================================================================
+# NEWS
+# =============================================================================
+
+
+class NewsArticleViewSet(viewsets.ReadOnlyModelViewSet):
+    """
+    GET /api/gridstream/news/articles/
+    Filterable by: ?team=KC, ?player_id=123, ?source=espn|rotowire|pfr
+    Orderable: always -published_at
+    """
+
+    serializer_class = NewsArticleSerializer
+    pagination_class = None  # use limit/offset via query params instead
+
+    def get_queryset(self):
+        from django.db.models import Q as _Q
+
+        qs = (
+            NewsArticle.objects.using("nfl")
+            .prefetch_related("teams", "players")
+            .order_by("-published_at")
+        )
+
+        # ?team=KC  or  ?team=KC,NYG,LAR  (comma-separated multi-team)
+        team_param = self.request.query_params.get("team")
+        if team_param:
+            abbrs = [t.strip().upper() for t in team_param.split(",") if t.strip()]
+            qs = qs.filter(teams__abbreviation__in=abbrs).distinct()
+
+        player_id = self.request.query_params.get("player_id")
+        if player_id:
+            qs = qs.filter(players__id=player_id)
+
+        source = self.request.query_params.get("source")
+        if source:
+            qs = qs.filter(source=source)
+
+        # ?search=<text> — matches headline or summary
+        search = self.request.query_params.get("search", "").strip()
+        if search:
+            qs = qs.filter(
+                _Q(headline__icontains=search) | _Q(summary__icontains=search)
+            )
+
+        limit = int(self.request.query_params.get("limit", 50))
+        offset = int(self.request.query_params.get("offset", 0))
+        return qs[offset : offset + min(limit, 200)]

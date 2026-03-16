@@ -222,6 +222,11 @@ class Command(BaseCommand):
                 otc_kwargs["active_only"] = True
             run("sync_otc_contracts", "sync_otc_contracts", **otc_kwargs)
 
+        # ── Phase 5b: News ────────────────────────────────────────────────────
+        if "news" not in skip:
+            self.stdout.write(self.style.HTTP_INFO("\n[ Phase 5b: News ]"))
+            run("sync_news", "sync_news")
+
         # ── Phase 6: Health check ─────────────────────────────────────────────
         if "health" not in skip:
             self.stdout.write(self.style.HTTP_INFO("\n[ Phase 6: Health Check ]"))
